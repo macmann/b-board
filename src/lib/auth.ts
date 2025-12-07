@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { NextRequest } from "next/server";
-import { User } from "@prisma/client";
+import { NextRequest, NextResponse } from "next/server";
+import { ProjectMember, ProjectMemberRole, User, UserRole } from "@prisma/client";
 
 import prisma from "./db";
 
@@ -54,4 +54,45 @@ export const getUserFromRequest = async (
   });
 
   return user;
+};
+
+export const requireProjectRole = async (
+  request: NextRequest,
+  projectId: string,
+  allowedRoles: ProjectMemberRole[]
+): Promise<
+  | { user: User; projectId: string; membership: ProjectMember | null }
+  | { error: NextResponse }
+> => {
+  const user = await getUserFromRequest(request);
+
+  if (!user) {
+    return { error: NextResponse.json({ message: "Unauthorized" }, { status: 401 }) };
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+  });
+
+  if (!project) {
+    return { error: NextResponse.json({ message: "Project not found" }, { status: 404 }) };
+  }
+
+  if (user.role === UserRole.ADMIN) {
+    return { user, projectId, membership: null };
+  }
+
+  const membership = await prisma.projectMember.findUnique({
+    where: {
+      projectId_userId: { projectId, userId: user.id },
+    },
+  });
+
+  if (!membership || !allowedRoles.includes(membership.role)) {
+    return {
+      error: NextResponse.json({ message: "Forbidden" }, { status: 403 }),
+    };
+  }
+
+  return { user, projectId, membership };
 };
