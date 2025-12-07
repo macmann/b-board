@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import { UserRole } from "@prisma/client";
 
 import { getUserFromRequest } from "../../../lib/auth";
 import prisma from "../../../lib/db";
+import { requireRole } from "../../../lib/permissions";
 
 export async function GET(request: NextRequest) {
   const user = await getUserFromRequest(request);
 
   if (!user) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
+  const isAllowed = await requireRole(user, [UserRole.ADMIN]);
+
+  if (!isAllowed) {
+    return NextResponse.json({ message: "Forbidden" }, { status: 403 });
   }
 
   const projects = await prisma.project.findMany({

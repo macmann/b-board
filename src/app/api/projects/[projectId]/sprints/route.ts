@@ -3,6 +3,7 @@ import { SprintStatus } from "@prisma/client";
 
 import { getUserFromRequest } from "../../../../../lib/auth";
 import prisma from "../../../../../lib/db";
+import { canManageProject } from "../../../../../lib/permissions";
 
 export async function GET(
   request: NextRequest,
@@ -46,6 +47,12 @@ export async function POST(
 
   if (!project) {
     return NextResponse.json({ message: "Project not found" }, { status: 404 });
+  }
+
+  const canManage = await canManageProject(user, project.id);
+
+  if (!canManage) {
+    return NextResponse.json({ message: "Forbidden" }, { status: 403 });
   }
 
   const body = await request.json();
