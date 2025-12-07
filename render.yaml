@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: mini-jira
+    env: node
+    buildCommand: npm install && npx prisma migrate deploy && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase: mini-jira-db
+        property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+    # Prisma production notes:
+    # - Prisma uses the DATABASE_URL environment variable defined above.
+    # - Use `npx prisma migrate deploy` to apply migrations in production instead of `migrate dev`.
