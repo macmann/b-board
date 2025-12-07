@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SprintStatus } from "@prisma/client";
+import { Role, SprintStatus } from "@prisma/client";
 
 import { getUserFromRequest } from "../../../../../lib/auth";
-import { canManageProject } from "../../../../../lib/permissions";
+import {
+  AuthorizationError,
+  requireProjectRole,
+} from "../../../../../lib/permissions";
 import prisma from "../../../../../lib/db";
+import { jsonError } from "../../../../../lib/apiResponse";
 
 export async function POST(
   request: NextRequest,
@@ -12,7 +16,7 @@ export async function POST(
   const user = await getUserFromRequest(request);
 
   if (!user) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return jsonError("Unauthorized", 401);
   }
 
   const sprint = await prisma.sprint.findUnique({
@@ -20,20 +24,21 @@ export async function POST(
   });
 
   if (!sprint) {
-    return NextResponse.json({ message: "Sprint not found" }, { status: 404 });
+    return jsonError("Sprint not found", 404);
   }
 
-  const canManage = await canManageProject(user, sprint.projectId);
+  try {
+    await requireProjectRole(user.id, sprint.projectId, [Role.ADMIN, Role.PO]);
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return jsonError(error.message, error.status);
+    }
 
-  if (!canManage) {
-    return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    throw error;
   }
 
   if (sprint.status !== SprintStatus.PLANNED) {
-    return NextResponse.json(
-      { message: "Only planned sprints can be started" },
-      { status: 400 }
-    );
+    return jsonError("Only planned sprints can be started", 400);
   }
 
   const activeSprint = await prisma.sprint.findFirst({
@@ -45,10 +50,7 @@ export async function POST(
   });
 
   if (activeSprint) {
-    return NextResponse.json(
-      { message: "Another active sprint already exists for this project" },
-      { status: 400 }
-    );
+    return jsonError("Another active sprint already exists for this project", 400);
   }
 
   const updatedSprint = await prisma.sprint.update({

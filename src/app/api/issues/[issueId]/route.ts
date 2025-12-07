@@ -1,11 +1,16 @@
-import { IssueHistoryField, IssuePriority, IssueStatus } from "@prisma/client";
+import {
+  IssueHistoryField,
+  IssuePriority,
+  IssueStatus,
+  Role,
+  UserRole,
+} from "@prisma/client";
 import { NextRequest } from "next/server";
 
 import { getUserFromRequest } from "../../../../lib/auth";
 import { jsonError, jsonOk } from "../../../../lib/apiResponse";
 import prisma from "../../../../lib/db";
 import { logError } from "../../../../lib/logger";
-import { canModifyIssue } from "../../../../lib/permissions";
 
 export async function GET(
   request: NextRequest,
@@ -59,10 +64,28 @@ export async function PATCH(
       return jsonError("Issue not found", 404);
     }
 
-    const canModify = await canModifyIssue(user, params.issueId);
+    const membership = await prisma.projectMember.findUnique({
+      where: {
+        projectId_userId: { projectId: existingIssue.projectId, userId: user.id },
+      },
+      select: { role: true },
+    });
 
-    if (!canModify) {
-      return jsonError("Forbidden", 403);
+    const isAdminOrPo =
+      user.role === UserRole.ADMIN ||
+      membership?.role === Role.ADMIN ||
+      membership?.role === Role.PO;
+
+    const isDevOrQa = membership?.role === Role.DEV || membership?.role === Role.QA;
+
+    if (!isAdminOrPo) {
+      const isReporterOrAssignee =
+        isDevOrQa &&
+        (user.id === existingIssue.assigneeId || user.id === existingIssue.reporterId);
+
+      if (!isReporterOrAssignee) {
+        return jsonError("Forbidden", 403);
+      }
     }
 
     const body = await request.json();
@@ -186,6 +209,51 @@ export async function PATCH(
     return jsonOk(updatedIssue);
   } catch (error) {
     logError("Failed to update issue", error);
+    return jsonError("Something went wrong", 500);
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { issueId: string } }
+) {
+  try {
+    const user = await getUserFromRequest(request);
+
+    if (!user) {
+      return jsonError("Unauthorized", 401);
+    }
+
+    const existingIssue = await prisma.issue.findUnique({
+      where: { id: params.issueId },
+      select: { id: true, projectId: true },
+    });
+
+    if (!existingIssue) {
+      return jsonError("Issue not found", 404);
+    }
+
+    if (user.role !== UserRole.ADMIN) {
+      const membership = await prisma.projectMember.findUnique({
+        where: {
+          projectId_userId: {
+            projectId: existingIssue.projectId,
+            userId: user.id,
+          },
+        },
+        select: { role: true },
+      });
+
+      if (membership?.role !== Role.ADMIN) {
+        return jsonError("Forbidden", 403);
+      }
+    }
+
+    await prisma.issue.delete({ where: { id: params.issueId } });
+
+    return jsonOk({ message: "Issue deleted" });
+  } catch (error) {
+    logError("Failed to delete issue", error);
     return jsonError("Something went wrong", 500);
   }
 }

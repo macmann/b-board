@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SprintStatus } from "@prisma/client";
+import { Role, SprintStatus } from "@prisma/client";
 
 import { getUserFromRequest } from "../../../../../lib/auth";
 import prisma from "../../../../../lib/db";
-import { canManageProject } from "../../../../../lib/permissions";
+import {
+  AuthorizationError,
+  requireProjectRole,
+} from "../../../../../lib/permissions";
+import { jsonError } from "../../../../../lib/apiResponse";
 
 export async function GET(
   request: NextRequest,
@@ -38,7 +42,7 @@ export async function POST(
   const user = await getUserFromRequest(request);
 
   if (!user) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return jsonError("Unauthorized", 401);
   }
 
   const project = await prisma.project.findUnique({
@@ -46,13 +50,17 @@ export async function POST(
   });
 
   if (!project) {
-    return NextResponse.json({ message: "Project not found" }, { status: 404 });
+    return jsonError("Project not found", 404);
   }
 
-  const canManage = await canManageProject(user, project.id);
+  try {
+    await requireProjectRole(user.id, project.id, [Role.ADMIN, Role.PO]);
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return jsonError(error.message, error.status);
+    }
 
-  if (!canManage) {
-    return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    throw error;
   }
 
   const body = await request.json();
