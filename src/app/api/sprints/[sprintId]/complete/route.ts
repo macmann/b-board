@@ -1,9 +1,13 @@
-import { IssueHistoryField, IssueStatus, SprintStatus } from "@prisma/client";
+import { IssueHistoryField, IssueStatus, Role, SprintStatus } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getUserFromRequest } from "../../../../../lib/auth";
-import { canManageProject } from "../../../../../lib/permissions";
+import {
+  AuthorizationError,
+  requireProjectRole,
+} from "../../../../../lib/permissions";
 import prisma from "../../../../../lib/db";
+import { jsonError } from "../../../../../lib/apiResponse";
 
 export async function POST(
   request: NextRequest,
@@ -12,7 +16,7 @@ export async function POST(
   const user = await getUserFromRequest(request);
 
   if (!user) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return jsonError("Unauthorized", 401);
   }
 
   const sprint = await prisma.sprint.findUnique({
@@ -20,20 +24,21 @@ export async function POST(
   });
 
   if (!sprint) {
-    return NextResponse.json({ message: "Sprint not found" }, { status: 404 });
+    return jsonError("Sprint not found", 404);
   }
 
-  const canManage = await canManageProject(user, sprint.projectId);
+  try {
+    await requireProjectRole(user.id, sprint.projectId, [Role.ADMIN, Role.PO]);
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return jsonError(error.message, error.status);
+    }
 
-  if (!canManage) {
-    return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    throw error;
   }
 
   if (sprint.status !== SprintStatus.ACTIVE) {
-    return NextResponse.json(
-      { message: "Only active sprints can be completed" },
-      { status: 400 }
-    );
+    return jsonError("Only active sprints can be completed", 400);
   }
 
   const result = await prisma.$transaction(async (tx) => {

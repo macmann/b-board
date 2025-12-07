@@ -47,6 +47,10 @@ export async function POST(request: NextRequest) {
       return jsonError("Unauthorized", 401);
     }
 
+    if (user.role !== UserRole.ADMIN) {
+      return jsonError("Forbidden", 403);
+    }
+
     const { key, name, description } = await request.json();
 
     if (!key || !name) {
