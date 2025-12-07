@@ -20,6 +20,14 @@ enum WorkspaceMemberRole {
   MEMBER
 }
 
+enum ProjectMemberRole {
+  ADMIN
+  PO
+  DEV
+  QA
+  VIEWER
+}
+
 enum SprintStatus {
   PLANNED
   ACTIVE
@@ -70,6 +78,7 @@ model User {
   updatedAt    DateTime @updatedAt
 
   workspaces   WorkspaceMember[]
+  projectMemberships ProjectMember[]
   reportedIssues Issue[] @relation("ReportedIssues")
   assignedIssues Issue[] @relation("AssignedIssues")
   comments     Comment[]
@@ -112,11 +121,26 @@ model Project {
   updatedAt     DateTime  @updatedAt
 
   workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  members       ProjectMember[]
   sprints       Sprint[]
   epics         Epic[]
   issues        Issue[]
 
   @@unique([workspaceId, key])
+}
+
+model ProjectMember {
+  id         String            @id @default(cuid())
+  projectId  String
+  userId     String
+  role       ProjectMemberRole @default(VIEWER)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  project    Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
 }
 
 model Sprint {
