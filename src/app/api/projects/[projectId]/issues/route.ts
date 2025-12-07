@@ -8,6 +8,7 @@ import {
   requireProjectRole,
 } from "../../../../../lib/permissions";
 import { jsonError } from "../../../../../lib/apiResponse";
+import { getNextIssuePosition } from "../../../../../lib/issuePosition";
 
 export async function POST(
   request: NextRequest,
@@ -52,6 +53,8 @@ export async function POST(
     assigneeId,
     epicId,
     description,
+    sprintId,
+    position,
   } = body;
 
   if (!title) {
@@ -73,6 +76,22 @@ export async function POST(
       ? null
       : Number(storyPoints);
 
+  const issueStatus = IssueStatus.TODO;
+  const sprintIdValue = sprintId || null;
+  const parsedPosition =
+    position === undefined || position === null ? null : Number(position);
+  let issuePosition: number | null = null;
+
+  if (parsedPosition !== null && !Number.isNaN(parsedPosition)) {
+    issuePosition = parsedPosition;
+  } else if (sprintIdValue) {
+    issuePosition = await getNextIssuePosition(
+      params.projectId,
+      sprintIdValue,
+      issueStatus
+    );
+  }
+
   const issue = await prisma.issue.create({
     data: {
       projectId: params.projectId,
@@ -83,7 +102,9 @@ export async function POST(
       assigneeId: assigneeId ?? null,
       epicId: epicId ?? null,
       description: description ?? null,
-      status: IssueStatus.TODO,
+      status: issueStatus,
+      sprintId: sprintIdValue,
+      ...(issuePosition !== null ? { position: issuePosition } : {}),
       reporterId: user.id,
     },
     include: {

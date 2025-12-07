@@ -27,7 +27,10 @@ export async function GET(
       assignee: true,
       epic: true,
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: [
+      { status: "asc" },
+      { position: "asc" },
+    ],
   });
 
   return NextResponse.json(issues);
