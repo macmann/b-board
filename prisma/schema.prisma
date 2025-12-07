@@ -10,22 +10,17 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
-  ADMIN
-  MEMBER
-}
-
-enum WorkspaceMemberRole {
-  OWNER
-  MEMBER
-}
-
-enum ProjectMemberRole {
+enum Role {
   ADMIN
   PO
   DEV
   QA
   VIEWER
+}
+
+enum WorkspaceMemberRole {
+  OWNER
+  MEMBER
 }
 
 enum SprintStatus {
@@ -73,16 +68,17 @@ model User {
   email        String   @unique
   passwordHash String
   avatarUrl    String?
-  role         UserRole @default(MEMBER)
+  role         Role     @default(VIEWER)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  workspaces   WorkspaceMember[]
+  workspaces         WorkspaceMember[]
   projectMemberships ProjectMember[]
-  reportedIssues Issue[] @relation("ReportedIssues")
-  assignedIssues Issue[] @relation("AssignedIssues")
-  comments     Comment[]
-  historyEntries IssueHistory[]
+  sentInvitations    Invitation[] @relation("InvitationsSent")
+  reportedIssues     Issue[]      @relation("ReportedIssues")
+  assignedIssues     Issue[]      @relation("AssignedIssues")
+  comments           Comment[]
+  historyEntries     IssueHistory[]
 }
 
 model Workspace {
@@ -91,8 +87,9 @@ model Workspace {
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
 
-  members   WorkspaceMember[]
-  projects  Project[]
+  members      WorkspaceMember[]
+  projects     Project[]
+  invitations  Invitation[]
 }
 
 model WorkspaceMember {
@@ -122,6 +119,7 @@ model Project {
 
   workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   members       ProjectMember[]
+  invitations   Invitation[]
   sprints       Sprint[]
   epics         Epic[]
   issues        Issue[]
@@ -129,16 +127,36 @@ model Project {
   @@unique([workspaceId, key])
 }
 
+model Invitation {
+  id           String   @id @default(uuid())
+  email        String
+  token        String   @unique
+  workspaceId  String
+  projectId    String?
+  invitedById  String
+  role         Role
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project     Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  invitedBy   User      @relation("InvitationsSent", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([email])
+}
+
 model ProjectMember {
-  id         String            @id @default(cuid())
+  id         String   @id @default(cuid())
   projectId  String
   userId     String
-  role       ProjectMemberRole @default(VIEWER)
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
+  role       Role     @default(VIEWER)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  project    Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, userId])
 }
