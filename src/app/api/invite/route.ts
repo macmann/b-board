@@ -1,9 +1,11 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 
-import { canManageProject } from "../../../lib/permissions";
+import { Role } from "@prisma/client";
+
 import { getUserFromRequest } from "../../../lib/auth";
 import prisma from "../../../lib/db";
+import { canManageProject } from "../../../lib/permissions";
 
 export async function POST(request: NextRequest) {
   const user = await getUserFromRequest(request);
@@ -12,11 +14,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  const { projectId, email } = await request.json();
+  const { projectId, email, role } = await request.json();
 
-  if (!projectId) {
+  if (!projectId || !email) {
     return NextResponse.json(
-      { message: "Project ID is required." },
+      { message: "Project ID and email are required." },
       { status: 400 }
     );
   }
@@ -33,13 +35,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 });
   }
 
+  const normalizedEmail = String(email).trim().toLowerCase();
+  const parsedRole = Object.values(Role).includes(role as Role)
+    ? (role as Role)
+    : Role.VIEWER;
   const inviteToken = crypto.randomBytes(32).toString("hex");
 
-  const invite = await prisma.inviteToken.create({
+  const invite = await prisma.invitation.create({
     data: {
       token: inviteToken,
+      email: normalizedEmail,
+      workspaceId: project.workspaceId,
       projectId: project.id,
-      email: email ? String(email).trim().toLowerCase() : null,
+      invitedById: user.id,
+      role: parsedRole,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     },
   });
 
