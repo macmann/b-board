@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 
 import { IssuePriority, IssueStatus, IssueType } from "@prisma/client";
 
@@ -136,11 +137,19 @@ export default function BacklogPage() {
   return (
     <main className="min-h-screen bg-gray-50 p-6">
       <div className="mx-auto flex max-w-6xl flex-col gap-8">
-        <header className="flex flex-col gap-2">
-          <h1 className="text-3xl font-semibold text-gray-900">Backlog</h1>
-          <p className="text-gray-600">
-            View and create issues for this project that are not assigned to any sprint.
-          </p>
+        <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-semibold text-gray-900">Backlog</h1>
+            <p className="text-gray-600">
+              View and create issues for this project that are not assigned to any sprint.
+            </p>
+          </div>
+          <Link
+            href={`/projects/${projectId}/team`}
+            className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          >
+            Manage Team
+          </Link>
         </header>
 
         <section className="rounded-lg bg-white p-6 shadow">
