@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { NextRequest, NextResponse } from "next/server";
-import { ProjectMember, ProjectMemberRole, User, UserRole } from "@prisma/client";
+import { ProjectMember, Role, User, UserRole } from "@prisma/client";
 
 import prisma from "./db";
 
@@ -59,7 +59,7 @@ export const getUserFromRequest = async (
 export const requireProjectRole = async (
   request: NextRequest,
   projectId: string,
-  allowedRoles: ProjectMemberRole[]
+  allowedRoles: Role[]
 ): Promise<
   | { user: User; projectId: string; membership: ProjectMember | null }
   | { error: NextResponse }

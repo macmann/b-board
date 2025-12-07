@@ -1,4 +1,4 @@
-import { ProjectMemberRole, User, UserRole } from "@prisma/client";
+import { Role, User, UserRole } from "@prisma/client";
 
 import prisma from "./db";
 
@@ -27,9 +27,7 @@ export const canManageProject = async (
 
   if (!membership) return false;
 
-  return [ProjectMemberRole.ADMIN, ProjectMemberRole.PO].includes(
-    membership.role
-  );
+  return [Role.ADMIN, Role.PO].includes(membership.role);
 };
 
 export const canModifyIssue = async (
@@ -55,10 +53,5 @@ export const canModifyIssue = async (
 
   if (!membership) return false;
 
-  return [
-    ProjectMemberRole.ADMIN,
-    ProjectMemberRole.PO,
-    ProjectMemberRole.DEV,
-    ProjectMemberRole.QA,
-  ].includes(membership.role);
+  return [Role.ADMIN, Role.PO, Role.DEV, Role.QA].includes(membership.role);
 };

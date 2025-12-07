@@ -1,16 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ProjectMemberRole } from "@prisma/client";
+import { Role } from "@prisma/client";
 
 import { requireProjectRole } from "../../../../../lib/auth";
 import prisma from "../../../../../lib/db";
 
-const ALL_PROJECT_ROLES = [
-  ProjectMemberRole.ADMIN,
-  ProjectMemberRole.PO,
-  ProjectMemberRole.DEV,
-  ProjectMemberRole.QA,
-  ProjectMemberRole.VIEWER,
-];
+const ALL_PROJECT_ROLES = [Role.ADMIN, Role.PO, Role.DEV, Role.QA, Role.VIEWER];
 
 export async function GET(
   request: NextRequest,
@@ -48,9 +42,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { projectId: string } }
 ) {
-  const authResult = await requireProjectRole(request, params.projectId, [
-    ProjectMemberRole.ADMIN,
-  ]);
+  const authResult = await requireProjectRole(request, params.projectId, [Role.ADMIN]);
 
   if ("error" in authResult) {
     return authResult.error;
@@ -65,11 +57,9 @@ export async function POST(
     );
   }
 
-  const parsedRole = Object.values(ProjectMemberRole).includes(
-    role as ProjectMemberRole
-  )
-    ? (role as ProjectMemberRole)
-    : ProjectMemberRole.VIEWER;
+  const parsedRole = Object.values(Role).includes(role as Role)
+    ? (role as Role)
+    : Role.VIEWER;
 
   const targetUser = await prisma.user.findUnique({ where: { id: userId } });
 

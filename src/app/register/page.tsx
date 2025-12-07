@@ -10,13 +10,13 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [token, setToken] = useState("");
+  const [inviteToken, setInviteToken] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    const inviteToken = searchParams.get("token") ?? "";
-    setToken(inviteToken);
+    const tokenFromUrl = searchParams.get("token") ?? "";
+    setInviteToken(tokenFromUrl);
   }, [searchParams]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -25,7 +25,7 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      if (!token) {
+      if (!inviteToken) {
         setError("An invitation link is required to create an account.");
         setIsLoading(false);
         return;
@@ -36,7 +36,7 @@ export default function RegisterPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ name, email, password, token }),
+        body: JSON.stringify({ name, email, password, inviteToken }),
       });
 
       if (response.ok) {
