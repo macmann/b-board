@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { SprintStatus } from "@prisma/client";
 
 import { getUserFromRequest } from "../../../../../lib/auth";
+import { canManageProject } from "../../../../../lib/permissions";
 import prisma from "../../../../../lib/db";
 
 export async function POST(
@@ -20,6 +21,12 @@ export async function POST(
 
   if (!sprint) {
     return NextResponse.json({ message: "Sprint not found" }, { status: 404 });
+  }
+
+  const canManage = await canManageProject(user, sprint.projectId);
+
+  if (!canManage) {
+    return NextResponse.json({ message: "Forbidden" }, { status: 403 });
   }
 
   if (sprint.status !== SprintStatus.PLANNED) {

@@ -2,6 +2,7 @@ import { IssueHistoryField, IssuePriority, IssueStatus } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getUserFromRequest } from "../../../../lib/auth";
+import { canModifyIssue } from "../../../../lib/permissions";
 import prisma from "../../../../lib/db";
 
 export async function GET(
@@ -48,6 +49,12 @@ export async function PATCH(
 
   if (!existingIssue) {
     return NextResponse.json({ message: "Issue not found" }, { status: 404 });
+  }
+
+  const canModify = await canModifyIssue(user, params.issueId);
+
+  if (!canModify) {
+    return NextResponse.json({ message: "Forbidden" }, { status: 403 });
   }
 
   const body = await request.json();
