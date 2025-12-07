@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node src/index.js"
   },
-  "dependencies": {},
-  "devDependencies": {}
+  "dependencies": {
+    "@prisma/client": "^7.1.0",
+    "prisma": "^7.1.0"
+  }
 }
