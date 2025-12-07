@@ -228,3 +228,14 @@ model IssueHistory {
   issue      Issue              @relation(fields: [issueId], references: [id], onDelete: Cascade)
   changedBy  User?              @relation(fields: [changedById], references: [id], onDelete: SetNull)
 }
+
+model InviteToken {
+  id         String   @id @default(cuid())
+  token      String   @unique
+  email      String?
+  projectId  String
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}

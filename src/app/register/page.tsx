@@ -1,16 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
+import { FormEvent, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [token, setToken] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const inviteToken = searchParams.get("token") ?? "";
+    setToken(inviteToken);
+  }, [searchParams]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -18,12 +25,18 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
+      if (!token) {
+        setError("An invitation link is required to create an account.");
+        setIsLoading(false);
+        return;
+      }
+
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name, email, password, token }),
       });
 
       if (response.ok) {
@@ -45,6 +58,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-md rounded-lg bg-white p-8 shadow">
         <h1 className="text-2xl font-semibold text-gray-900">Create an account</h1>
         <p className="mt-2 text-sm text-gray-600">Start tracking your projects with B-Board.</p>
+        <p className="mt-1 text-sm text-gray-500">Use your invitation link to join your team&apos;s project.</p>
 
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-2">
