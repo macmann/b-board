@@ -2,6 +2,15 @@ import { Role, User, UserRole } from "@prisma/client";
 
 import prisma from "./db";
 
+export class AuthorizationError extends Error {
+  status: number;
+
+  constructor(message = "Forbidden", status = 403) {
+    super(message);
+    this.status = status;
+  }
+}
+
 export const requireRole = async (
   user: User | null,
   allowedRoles: UserRole[]
@@ -54,4 +63,31 @@ export const canModifyIssue = async (
   if (!membership) return false;
 
   return [Role.ADMIN, Role.PO, Role.DEV, Role.QA].includes(membership.role);
+};
+
+export const requireProjectRole = async (
+  userId: string,
+  projectId: string,
+  roles: Role[]
+): Promise<void> => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+
+  if (!user) {
+    throw new AuthorizationError("Unauthorized", 401);
+  }
+
+  if (user.role === Role.ADMIN) return;
+
+  const membership = await prisma.projectMember.findUnique({
+    where: {
+      projectId_userId: { projectId, userId },
+    },
+  });
+
+  if (!membership || !roles.includes(membership.role)) {
+    throw new AuthorizationError();
+  }
 };
