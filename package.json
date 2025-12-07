@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "next build",
-    "start": "next start -p ${PORT:-3000}"
+    "start": "node server.js",
+    "seed": "ts-node prisma/seed.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -19,6 +20,7 @@
     "recharts": "^3.5.1"
   },
   "devDependencies": {
+    "ts-node": "^10.9.2",
     "tsx": "^4.19.1"
   }
 }
