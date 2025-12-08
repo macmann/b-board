@@ -19,7 +19,7 @@ type Props = {
   params: { projectId: string };
 };
 
-export default async function BacklogPage({ params }: Props) {
+export default async function ProjectBacklogPage({ params }: Props) {
   const { projectId } = params;
 
   if (!projectId) {
@@ -28,6 +28,10 @@ export default async function BacklogPage({ params }: Props) {
 
   const project = await prisma.project.findUnique({
     where: { id: projectId },
+    include: {
+      sprints: true,
+      issues: true,
+    },
   });
 
   if (!project) {
