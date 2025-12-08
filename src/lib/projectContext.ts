@@ -36,15 +36,17 @@ export const getCurrentProjectContext = async (
 
   const user = await getUserFromRequest(request);
 
-  const project = projectId
-    ? await prisma.project.findUnique({
-        where: { id: projectId },
-      })
-    : null;
+  if (!projectId) {
+    return { project: null, membership: null, user };
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+  });
 
   let membership: ProjectMember | null = null;
 
-  if (user && projectId) {
+  if (user) {
     membership = await prisma.projectMember.findUnique({
       where: {
         projectId_userId: { projectId, userId: user.id },
