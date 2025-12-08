@@ -16,3 +16,14 @@ export async function getNextIssuePosition(
 
   return currentMax + 1;
 }
+
+export function recalculatePositions(
+  issues: Array<{ id: string }>,
+  step: number = 1,
+  start: number = 1
+) {
+  return issues.map((issue, index) => ({
+    id: issue.id,
+    position: start + index * step,
+  }));
+}
