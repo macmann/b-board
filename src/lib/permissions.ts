@@ -2,6 +2,13 @@ import { Role, User, UserRole } from "@prisma/client";
 
 import prisma from "./db";
 
+export const PROJECT_CONTRIBUTOR_ROLES = [
+  Role.ADMIN,
+  Role.PO,
+  Role.DEV,
+  Role.QA,
+];
+
 export class AuthorizationError extends Error {
   status: number;
 
