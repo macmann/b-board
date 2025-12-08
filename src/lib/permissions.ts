@@ -1,13 +1,77 @@
-import { Role, User, UserRole } from "@prisma/client";
+import {
+  PrismaClient,
+  ProjectMember,
+  Role,
+  User,
+  UserRole,
+} from "@prisma/client";
 
 import prisma from "./db";
+import {
+  GlobalRole,
+  ProjectRole,
+  PROJECT_ADMIN_ROLES,
+  PROJECT_CONTRIBUTOR_ROLES,
+  PROJECT_VIEWER_ROLES,
+} from "./roles";
 
-export const PROJECT_CONTRIBUTOR_ROLES = [
-  Role.ADMIN,
-  Role.PO,
-  Role.DEV,
-  Role.QA,
-];
+export { PROJECT_ADMIN_ROLES, PROJECT_CONTRIBUTOR_ROLES, PROJECT_VIEWER_ROLES };
+
+export class ForbiddenError extends Error {
+  statusCode = 403;
+
+  constructor(message = "Forbidden") {
+    super(message);
+    this.name = "ForbiddenError";
+  }
+}
+
+export const getProjectMembership = async (
+  prismaClient: PrismaClient,
+  userId: string,
+  projectId: string
+): Promise<ProjectMember | null> => {
+  return prismaClient.projectMember.findUnique({
+    where: {
+      projectId_userId: { projectId, userId },
+    },
+  });
+};
+
+export const ensureGlobalRole = (
+  user: User | null,
+  allowedRoles: GlobalRole[]
+) => {
+  if (!user || !allowedRoles.includes(user.role as GlobalRole)) {
+    throw new ForbiddenError();
+  }
+};
+
+export const ensureProjectRole = async (
+  prismaClient: PrismaClient,
+  userId: string,
+  projectId: string,
+  allowedRoles: ProjectRole[]
+) => {
+  const user = await prismaClient.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+
+  if (!user) {
+    throw new ForbiddenError();
+  }
+
+  if (user.role === "ADMIN") {
+    return;
+  }
+
+  const membership = await getProjectMembership(prismaClient, userId, projectId);
+
+  if (!membership || !allowedRoles.includes(membership.role as ProjectRole)) {
+    throw new ForbiddenError();
+  }
+};
 
 export class AuthorizationError extends Error {
   status: number;
