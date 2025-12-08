@@ -17,12 +17,8 @@ type ProjectMember = { projectId: string; userId: string; role: Role };
 type User = { id: string; role: Role; name?: string | null; email?: string };
 
 export const getCurrentProjectContext = async (
-  projectId: string | undefined
+  projectId?: string
 ): Promise<ProjectContext> => {
-  if (!projectId) {
-    throw new Error("getCurrentProjectContext called without projectId");
-  }
-
   const headerList = await headers();
   const cookieStore = await cookies();
 
@@ -40,13 +36,15 @@ export const getCurrentProjectContext = async (
 
   const user = await getUserFromRequest(request);
 
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-  });
+  const project = projectId
+    ? await prisma.project.findUnique({
+        where: { id: projectId },
+      })
+    : null;
 
   let membership: ProjectMember | null = null;
 
-  if (user) {
+  if (user && projectId) {
     membership = await prisma.projectMember.findUnique({
       where: {
         projectId_userId: { projectId, userId: user.id },

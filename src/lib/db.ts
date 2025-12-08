@@ -35,4 +35,5 @@ try {
   prisma = createMockPrismaClient();
 }
 
+export { prisma };
 export default prisma;

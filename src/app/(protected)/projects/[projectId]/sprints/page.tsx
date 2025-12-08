@@ -1,7 +1,7 @@
-import { UserRole } from "../../../../../lib/prismaEnums";
-
-import { getCurrentProjectContext } from "../../../../../lib/projectContext";
-import { ProjectRole } from "../../../../../lib/roles";
+import { getCurrentProjectContext } from "@/lib/projectContext";
+import { UserRole } from "@/lib/prismaEnums";
+import { ProjectRole } from "@/lib/roles";
+import { notFound } from "next/navigation";
 import ProjectSprintsPageClient from "./pageClient";
 
 const mapRole = (
@@ -12,13 +12,25 @@ const mapRole = (
   return membershipRole;
 };
 
-export default async function ProjectSprintsPage({
-  params,
-}: {
+type Props = {
   params: { projectId: string };
-}) {
-  const { membership, user } = await getCurrentProjectContext(params.projectId);
+  searchParams?: Record<string, string | string[] | undefined>;
+};
+
+export default async function ProjectSprintsPage({ params }: Props) {
+  const { projectId } = params;
+
+  if (!projectId) {
+    notFound();
+  }
+
+  const { membership, user, project } = await getCurrentProjectContext(projectId);
+
+  if (!project) {
+    notFound();
+  }
+
   const projectRole = mapRole(membership?.role as ProjectRole | null, user?.role ?? null);
 
-  return <ProjectSprintsPageClient projectId={params.projectId} projectRole={projectRole} />;
+  return <ProjectSprintsPageClient projectId={projectId} projectRole={projectRole} />;
 }
