@@ -5,7 +5,7 @@ import {
   ProjectMemberRole,
   UserRole,
   WorkspaceMemberRole,
-} from "@prisma/client";
+} from "../src/lib/prismaEnums";
 
 import prisma from "../src/lib/db";
 

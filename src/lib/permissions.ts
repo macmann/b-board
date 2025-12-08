@@ -1,10 +1,14 @@
-import {
-  PrismaClient,
-  ProjectMember,
-  Role,
-  User,
-  UserRole,
-} from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
+import { Role, UserRole } from "./prismaEnums";
+
+type User = {
+  id: string;
+  role: Role;
+};
+
+type ProjectMember = {
+  role: Role;
+};
 
 import prisma from "./db";
 import {

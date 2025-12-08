@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { Role, WorkspaceMemberRole } from "@prisma/client";
+import { Role, WorkspaceMemberRole } from "../../../../lib/prismaEnums";
 
 import { hashPassword, signAuthToken } from "../../../../lib/auth";
 import prisma from "../../../../lib/db";

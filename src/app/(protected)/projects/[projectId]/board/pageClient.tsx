@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
 
-import { IssueStatus, SprintStatus } from "@prisma/client";
+import { IssueStatus, SprintStatus } from "../../../../../lib/prismaEnums";
 
 import { ProjectRole } from "../../../../../lib/roles";
 

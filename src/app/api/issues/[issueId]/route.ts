@@ -4,7 +4,7 @@ import {
   IssueStatus,
   Role,
   UserRole,
-} from "@prisma/client";
+} from "../../../../lib/prismaEnums";
 import { NextRequest } from "next/server";
 
 import { getUserFromRequest } from "../../../../lib/auth";
@@ -14,8 +14,10 @@ import { logError } from "../../../../lib/logger";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { issueId: string } }
+  { params }: { params: Promise<{ issueId: string }> }
 ) {
+  const { issueId } = await params;
+
   try {
     const user = await getUserFromRequest(request);
 
@@ -24,7 +26,7 @@ export async function GET(
     }
 
     const issue = await prisma.issue.findUnique({
-      where: { id: params.issueId },
+      where: { id: issueId },
       include: {
         project: true,
         sprint: true,
@@ -47,8 +49,10 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { issueId: string } }
+  { params }: { params: Promise<{ issueId: string }> }
 ) {
+  const { issueId } = await params;
+
   try {
     const user = await getUserFromRequest(request);
 
@@ -57,7 +61,7 @@ export async function PATCH(
     }
 
     const existingIssue = await prisma.issue.findUnique({
-      where: { id: params.issueId },
+      where: { id: issueId },
     });
 
     if (!existingIssue) {
@@ -180,7 +184,7 @@ export async function PATCH(
 
     const updatedIssue = await prisma.$transaction(async (tx) => {
       const issue = await tx.issue.update({
-        where: { id: params.issueId },
+        where: { id: issueId },
         data,
         include: {
           project: true,
@@ -215,8 +219,10 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { issueId: string } }
+  { params }: { params: Promise<{ issueId: string }> }
 ) {
+  const { issueId } = await params;
+
   try {
     const user = await getUserFromRequest(request);
 
@@ -225,7 +231,7 @@ export async function DELETE(
     }
 
     const existingIssue = await prisma.issue.findUnique({
-      where: { id: params.issueId },
+      where: { id: issueId },
       select: { id: true, projectId: true },
     });
 
@@ -249,7 +255,7 @@ export async function DELETE(
       }
     }
 
-    await prisma.issue.delete({ where: { id: params.issueId } });
+    await prisma.issue.delete({ where: { id: issueId } });
 
     return jsonOk({ message: "Issue deleted" });
   } catch (error) {

@@ -11,8 +11,8 @@ export default async function ProtectedLayout({
 }: {
   children: ReactNode;
 }) {
-  const headerList = headers();
-  const cookieStore = cookies();
+  const headerList = await headers();
+  const cookieStore = await cookies();
 
   const protocol = headerList.get("x-forwarded-proto") ?? "http";
   const host = headerList.get("host") ?? "localhost:3000";
@@ -38,10 +38,10 @@ export default async function ProtectedLayout({
   const logout = async () => {
     "use server";
 
-    const currentHeaders = headers();
+    const currentHeaders = await headers();
     const currentProtocol = currentHeaders.get("x-forwarded-proto") ?? "http";
     const currentHost = currentHeaders.get("host") ?? "localhost:3000";
-    const cookieHeader = cookies()
+    const cookieHeader = (await cookies())
       .getAll()
       .map(({ name, value }) => `${name}=${value}`)
       .join("; ");

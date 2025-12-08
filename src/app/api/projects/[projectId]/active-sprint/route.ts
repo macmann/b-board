@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SprintStatus } from "@prisma/client";
+import { SprintStatus } from "../../../../../lib/prismaEnums";
 
 import { getUserFromRequest } from "../../../../../lib/auth";
 import prisma from "../../../../../lib/db";
@@ -11,8 +11,10 @@ import {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+
   try {
     const user = await getUserFromRequest(request);
 
@@ -21,7 +23,7 @@ export async function GET(
     }
 
     const project = await prisma.project.findUnique({
-      where: { id: params.projectId },
+      where: { id: projectId },
     });
 
     if (!project) {
@@ -31,7 +33,7 @@ export async function GET(
     await ensureProjectRole(prisma, user.id, project.id, PROJECT_VIEWER_ROLES);
 
     const activeSprint = await prisma.sprint.findFirst({
-      where: { projectId: params.projectId, status: SprintStatus.ACTIVE },
+      where: { projectId, status: SprintStatus.ACTIVE },
       orderBy: { startDate: "desc" },
     });
 

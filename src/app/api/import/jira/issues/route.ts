@@ -1,9 +1,9 @@
-import { EpicStatus, IssueStatus, IssueType } from "@prisma/client";
+import { EpicStatus, IssueStatus, IssueType } from "../../../../../lib/prismaEnums";
 import { parse } from "csv-parse/sync";
 import { NextRequest, NextResponse } from "next/server";
 
-import { getUserFromRequest } from "../../../../lib/auth";
-import prisma from "../../../../lib/db";
+import { getUserFromRequest } from "../../../../../lib/auth";
+import prisma from "../../../../../lib/db";
 
 function mapIssueType(value?: string | null): IssueType {
   const normalized = value?.trim().toLowerCase();

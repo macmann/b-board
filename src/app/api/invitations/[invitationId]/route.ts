@@ -6,12 +6,14 @@ import {
   requireProjectRole,
 } from "../../../../lib/permissions";
 import prisma from "../../../../lib/db";
-import { Role } from "@prisma/client";
+import { Role } from "../../../../lib/prismaEnums";
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { invitationId: string } }
+  { params }: { params: Promise<{ invitationId: string }> }
 ) {
+  const { invitationId } = await params;
+
   const user = await getUserFromRequest(request);
 
   if (!user) {
@@ -19,7 +21,7 @@ export async function DELETE(
   }
 
   const invitation = await prisma.invitation.findUnique({
-    where: { id: params.invitationId },
+    where: { id: invitationId },
     select: { id: true, projectId: true, acceptedAt: true },
   });
 

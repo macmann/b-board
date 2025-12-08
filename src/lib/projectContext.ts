@@ -1,6 +1,7 @@
 import { cookies, headers } from "next/headers";
 import { NextRequest } from "next/server";
-import { Project, ProjectMember, User } from "@prisma/client";
+
+import { Role } from "./prismaEnums";
 
 import { getUserFromRequest } from "./auth";
 import prisma from "./db";
@@ -11,11 +12,15 @@ export type ProjectContext = {
   user: User | null;
 };
 
+type Project = { id: string; name: string };
+type ProjectMember = { projectId: string; userId: string; role: Role };
+type User = { id: string; role: Role; name?: string | null; email?: string };
+
 export const getCurrentProjectContext = async (
   projectId: string
 ): Promise<ProjectContext> => {
-  const headerList = headers();
-  const cookieStore = cookies();
+  const headerList = await headers();
+  const cookieStore = await cookies();
 
   const protocol = headerList.get("x-forwarded-proto") ?? "http";
   const host = headerList.get("host") ?? "localhost:3000";

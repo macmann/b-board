@@ -10,8 +10,10 @@ import {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { sprintId: string } }
+  { params }: { params: Promise<{ sprintId: string }> }
 ) {
+  const { sprintId } = await params;
+
   try {
     const user = await getUserFromRequest(request);
 
@@ -20,7 +22,7 @@ export async function GET(
     }
 
     const sprint = await prisma.sprint.findUnique({
-      where: { id: params.sprintId },
+      where: { id: sprintId },
     });
 
     if (!sprint) {
@@ -35,7 +37,7 @@ export async function GET(
     );
 
     const issues = await prisma.issue.findMany({
-      where: { sprintId: params.sprintId },
+      where: { sprintId },
       include: {
         assignee: true,
         epic: true,

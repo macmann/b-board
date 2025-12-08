@@ -1,4 +1,4 @@
-import { IssueHistoryField, IssueStatus } from "@prisma/client";
+import { IssueHistoryField, IssueStatus } from "../../../../../lib/prismaEnums";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getUserFromRequest } from "../../../../../lib/auth";
@@ -8,8 +8,10 @@ const formatDate = (date: Date) => date.toISOString().split("T")[0];
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { sprintId: string } }
+  { params }: { params: Promise<{ sprintId: string }> }
 ) {
+  const { sprintId } = await params;
+
   const user = await getUserFromRequest(request);
 
   if (!user) {
@@ -17,7 +19,7 @@ export async function GET(
   }
 
   const sprint = await prisma.sprint.findUnique({
-    where: { id: params.sprintId },
+    where: { id: sprintId },
     include: { project: true },
   });
 
@@ -34,7 +36,7 @@ export async function GET(
 
   const issues = await prisma.issue.findMany({
     where: {
-      sprintId: params.sprintId,
+      sprintId,
       projectId: sprint.projectId,
     },
     select: {

@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Role } from "@prisma/client";
+import { Role } from "../../../../../lib/prismaEnums";
 
 import { ProjectRole } from "../../../../../lib/roles";
 import { canInviteMembers } from "../../../../../lib/uiPermissions";

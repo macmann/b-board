@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Role } from "@prisma/client";
+import { Role } from "../../../../../lib/prismaEnums";
 
 import { getUserFromRequest } from "../../../../../lib/auth";
 import {
@@ -10,8 +10,10 @@ import prisma from "../../../../../lib/db";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+
   const user = await getUserFromRequest(request);
 
   if (!user) {
@@ -19,7 +21,7 @@ export async function GET(
   }
 
   const project = await prisma.project.findUnique({
-    where: { id: params.projectId },
+    where: { id: projectId },
   });
 
   if (!project) {
@@ -27,7 +29,7 @@ export async function GET(
   }
 
   try {
-    await requireProjectRole(user.id, params.projectId, [Role.ADMIN, Role.PO]);
+    await requireProjectRole(user.id, projectId, [Role.ADMIN, Role.PO]);
   } catch (error) {
     if (error instanceof AuthorizationError) {
       return NextResponse.json(
@@ -40,7 +42,7 @@ export async function GET(
   }
 
   const members = await prisma.projectMember.findMany({
-    where: { projectId: params.projectId },
+    where: { projectId },
     select: {
       id: true,
       role: true,
@@ -60,8 +62,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+
   const user = await getUserFromRequest(request);
 
   if (!user) {
@@ -69,7 +73,7 @@ export async function POST(
   }
 
   try {
-    await requireProjectRole(user.id, params.projectId, [Role.ADMIN]);
+    await requireProjectRole(user.id, projectId, [Role.ADMIN]);
   } catch (error) {
     if (error instanceof AuthorizationError) {
       return NextResponse.json(
@@ -102,7 +106,7 @@ export async function POST(
 
   const existingMembership = await prisma.projectMember.findUnique({
     where: {
-      projectId_userId: { projectId: params.projectId, userId },
+      projectId_userId: { projectId, userId },
     },
   });
 
@@ -115,7 +119,7 @@ export async function POST(
 
   const membership = await prisma.projectMember.create({
     data: {
-      projectId: params.projectId,
+      projectId,
       userId,
       role: parsedRole,
     },

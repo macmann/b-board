@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SprintStatus } from "@prisma/client";
+import { SprintStatus } from "../../../../../lib/prismaEnums";
 
 import { getUserFromRequest } from "../../../../../lib/auth";
 import prisma from "../../../../../lib/db";
@@ -13,8 +13,10 @@ import {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+
   try {
     const user = await getUserFromRequest(request);
 
@@ -23,7 +25,7 @@ export async function GET(
     }
 
     const project = await prisma.project.findUnique({
-      where: { id: params.projectId },
+      where: { id: projectId },
     });
 
     if (!project) {
@@ -33,7 +35,7 @@ export async function GET(
     await ensureProjectRole(prisma, user.id, project.id, PROJECT_VIEWER_ROLES);
 
     const sprints = await prisma.sprint.findMany({
-      where: { projectId: params.projectId },
+      where: { projectId },
       orderBy: { createdAt: "desc" },
     });
 
@@ -49,8 +51,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+
   try {
     const user = await getUserFromRequest(request);
 
@@ -59,7 +63,7 @@ export async function POST(
     }
 
     const project = await prisma.project.findUnique({
-      where: { id: params.projectId },
+      where: { id: projectId },
     });
 
     if (!project) {
@@ -95,7 +99,7 @@ export async function POST(
 
     const sprint = await prisma.sprint.create({
       data: {
-        projectId: params.projectId,
+        projectId,
         name,
         goal: goal ?? null,
         startDate: parsedStartDate,

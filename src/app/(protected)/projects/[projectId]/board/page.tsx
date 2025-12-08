@@ -1,4 +1,4 @@
-import { UserRole } from "@prisma/client";
+import { UserRole } from "../../../../../lib/prismaEnums";
 
 import { getCurrentProjectContext } from "../../../../../lib/projectContext";
 import { ProjectRole } from "../../../../../lib/roles";

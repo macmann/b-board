@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cookies, headers } from "next/headers";
 
-import { ProjectRole } from "../../lib/roles";
+import { ProjectRole } from "../../../lib/roles";
 import { MyProjectsTable } from "./MyProjectsTable";
 
 type MyProject = {
@@ -13,8 +13,8 @@ type MyProject = {
 };
 
 async function fetchMyProjects(): Promise<MyProject[]> {
-  const headerList = headers();
-  const cookieStore = cookies();
+  const headerList = await headers();
+  const cookieStore = await cookies();
 
   const protocol = headerList.get("x-forwarded-proto") ?? "http";
   const host = headerList.get("host") ?? "localhost:3000";

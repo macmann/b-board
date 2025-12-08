@@ -1,4 +1,4 @@
-import { IssueStatus } from "@prisma/client";
+import { IssueStatus } from "./prismaEnums";
 
 import prisma from "./db";
 
