@@ -9,12 +9,17 @@ import {
 } from "../../../../../lib/permissions";
 import { jsonError } from "../../../../../lib/apiResponse";
 import { getNextIssuePosition } from "../../../../../lib/issuePosition";
+import { resolveProjectId, type ProjectParams } from "../../../../../lib/params";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ projectId: string }> }
+  { params }: { params: ProjectParams }
 ) {
-  const { projectId } = await params;
+  const projectId = await resolveProjectId(params);
+
+  if (!projectId) {
+    return jsonError("projectId is required", 400);
+  }
 
   const user = await getUserFromRequest(request);
 

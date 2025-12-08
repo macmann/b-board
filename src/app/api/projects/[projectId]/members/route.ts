@@ -7,12 +7,17 @@ import {
   requireProjectRole,
 } from "../../../../../lib/permissions";
 import prisma from "../../../../../lib/db";
+import { resolveProjectId, type ProjectParams } from "../../../../../lib/params";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ projectId: string }> }
+  { params }: { params: ProjectParams }
 ) {
-  const { projectId } = await params;
+  const projectId = await resolveProjectId(params);
+
+  if (!projectId) {
+    return NextResponse.json({ message: "projectId is required" }, { status: 400 });
+  }
 
   const user = await getUserFromRequest(request);
 
@@ -62,9 +67,13 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ projectId: string }> }
+  { params }: { params: ProjectParams }
 ) {
-  const { projectId } = await params;
+  const projectId = await resolveProjectId(params);
+
+  if (!projectId) {
+    return NextResponse.json({ message: "projectId is required" }, { status: 400 });
+  }
 
   const user = await getUserFromRequest(request);
 
