@@ -120,6 +120,7 @@ model Project {
   workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   members       ProjectMember[]
   invitations   Invitation[]
+  inviteTokens  InviteToken[]
   sprints       Sprint[]
   epics         Epic[]
   issues        Issue[]
