@@ -1,7 +1,9 @@
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { prisma } from "@/lib/db";
 import { getCurrentProjectContext } from "@/lib/projectContext";
+import { logInfo } from "@/lib/logger";
 import { UserRole } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
 import Link from "next/link";
@@ -23,6 +25,9 @@ export default async function BacklogPage({ params }: PageProps) {
   const { projectId } = params;
   if (!projectId) return notFound();
 
+  const headerList = await headers();
+  const referer = headerList.get("referer") ?? undefined;
+
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     include: {
@@ -32,11 +37,24 @@ export default async function BacklogPage({ params }: PageProps) {
   });
 
   if (!project) {
+    logInfo("Backlog request for missing project", {
+      projectId,
+      referer,
+    });
     notFound();
   }
 
   const { membership, user } = await getCurrentProjectContext(projectId);
   const projectRole = mapRole(membership?.role as ProjectRole | null, user?.role ?? null);
+
+  logInfo("Backlog page requested", {
+    projectId,
+    referer,
+    userId: user?.id,
+    userEmail: user?.email,
+    membershipRole: membership?.role,
+    projectFound: Boolean(project),
+  });
 
   return (
     <BacklogPageClient
