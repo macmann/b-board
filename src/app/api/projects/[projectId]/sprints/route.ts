@@ -8,32 +8,43 @@ import {
   ensureProjectRole,
   ForbiddenError,
   PROJECT_ADMIN_ROLES,
+  PROJECT_VIEWER_ROLES,
 } from "../../../../../lib/permissions";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { projectId: string } }
 ) {
-  const user = await getUserFromRequest(request);
+  try {
+    const user = await getUserFromRequest(request);
 
-  if (!user) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    if (!user) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
+
+    const project = await prisma.project.findUnique({
+      where: { id: params.projectId },
+    });
+
+    if (!project) {
+      return NextResponse.json({ message: "Project not found" }, { status: 404 });
+    }
+
+    await ensureProjectRole(prisma, user.id, project.id, PROJECT_VIEWER_ROLES);
+
+    const sprints = await prisma.sprint.findMany({
+      where: { projectId: params.projectId },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return NextResponse.json(sprints);
+  } catch (error) {
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    }
+
+    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
-
-  const project = await prisma.project.findUnique({
-    where: { id: params.projectId },
-  });
-
-  if (!project) {
-    return NextResponse.json({ message: "Project not found" }, { status: 404 });
-  }
-
-  const sprints = await prisma.sprint.findMany({
-    where: { projectId: params.projectId },
-    orderBy: { createdAt: "desc" },
-  });
-
-  return NextResponse.json(sprints);
 }
 
 export async function POST(

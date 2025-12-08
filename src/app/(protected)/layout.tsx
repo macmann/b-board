@@ -67,10 +67,10 @@ export default async function ProtectedLayout({
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-3 py-4 text-sm font-medium">
           <Link
-            href="/projects"
+            href="/my-projects"
             className="rounded-md px-3 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-700"
           >
-            Projects
+            My Projects
           </Link>
           <Link
             href="/import"
@@ -114,10 +114,10 @@ export default async function ProtectedLayout({
 
           <div className="flex gap-2 md:hidden">
             <Link
-              href="/projects"
+              href="/my-projects"
               className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-700"
             >
-              Projects
+              My Projects
             </Link>
             <Link
               href="/import"

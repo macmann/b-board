@@ -27,6 +27,7 @@ export default function BacklogPage() {
   const [issues, setIssues] = useState<BacklogIssue[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [hasAccess, setHasAccess] = useState(true);
 
   const [title, setTitle] = useState("");
   const [type, setType] = useState<IssueType>(IssueType.STORY);
@@ -63,11 +64,17 @@ export default function BacklogPage() {
   const fetchIssues = async () => {
     setIsLoading(true);
     setError("");
+    setHasAccess(true);
 
     try {
       const response = await fetch(`/api/projects/${projectId}/backlog`);
 
       if (!response.ok) {
+        if (response.status === 403) {
+          setHasAccess(false);
+          return;
+        }
+
         const data = await response.json().catch(() => null);
         setError(data?.message ?? "Failed to load backlog issues.");
         return;
@@ -110,6 +117,11 @@ export default function BacklogPage() {
       });
 
       if (!response.ok) {
+        if (response.status === 403) {
+          setHasAccess(false);
+          return;
+        }
+
         const data = await response.json().catch(() => null);
         setError(data?.message ?? "Unable to create issue.");
         return;
@@ -133,6 +145,27 @@ export default function BacklogPage() {
   const handleRowClick = (issueId: string) => {
     router.push(`/issues/${issueId}`);
   };
+
+  if (!hasAccess) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
+        <div className="w-full max-w-lg rounded-lg bg-white p-6 text-center shadow">
+          <h1 className="text-2xl font-semibold text-gray-900">
+            You don’t have access to this project.
+          </h1>
+          <p className="mt-2 text-gray-600">
+            Ask a project admin to invite you to this project.
+          </p>
+          <Link
+            href="/my-projects"
+            className="mt-4 inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          >
+            Back to My Projects
+          </Link>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-gray-50 p-6">
