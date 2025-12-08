@@ -1,10 +1,15 @@
+import { notFound } from "next/navigation";
+
 import { prisma } from "@/lib/db";
 import { getCurrentProjectContext } from "@/lib/projectContext";
 import { UserRole } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import BacklogPageClient from "./pageClient";
+
+interface PageProps {
+  params: { projectId: string };
+}
 
 const mapRole = (
   membershipRole: ProjectRole | null,
@@ -14,30 +19,9 @@ const mapRole = (
   return membershipRole;
 };
 
-type Props = {
-  params: any;
-  searchParams?: Record<string, string | string[] | undefined>;
-};
-
-export default async function ProjectBacklogPage({ params }: Props) {
-  console.log("DEBUG_BACKLOG_PARAMS", params, Object.keys(params ?? {}));
-
-  // if (!params.projectId) {
-  //   throw new Error("Missing projectId in route params");
-  // }
-
-  const projectId =
-    (params && (params as any).projectId) ??
-    (params && (params as any).id) ??
-    (params && (params as any).projectID) ??
-    (params && Object.values(params)[0]);
-
-  console.log("DEBUG_BACKLOG_PROJECT_ID", projectId);
-
-  if (!projectId) {
-    console.error("BACKLOG: Could not resolve projectId from params:", params);
-    return <div>Could not resolve project ID.</div>;
-  }
+export default async function BacklogPage({ params }: PageProps) {
+  const { projectId } = params;
+  if (!projectId) return notFound();
 
   const project = await prisma.project.findUnique({
     where: { id: projectId },
