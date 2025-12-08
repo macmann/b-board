@@ -1,18 +1,11 @@
-import { ReactNode, use } from "react";
-import { notFound } from "next/navigation";
+import { ReactNode } from "react";
 
-interface LayoutProps {
+type Props = {
   children: ReactNode;
-  params: Promise<{ projectId: string }> | { projectId: string };
-}
+  params: { projectId: string } | Promise<{ projectId: string }>;
+};
 
-export default function ProjectLayout({ children, params }: LayoutProps) {
-  const { projectId } =
-    typeof (params as Promise<{ projectId: string }>).then === "function"
-      ? use(params as Promise<{ projectId: string }>)
-      : (params as { projectId: string });
-
-  if (!projectId) notFound(); // do not allow missing id
-
+// Simple pass-through layout – let the pages handle validation and 404s.
+export default function ProjectLayout({ children }: Props) {
   return <>{children}</>;
 }

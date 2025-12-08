@@ -1,17 +1,15 @@
-import { headers } from "next/headers";
-import { notFound } from "next/navigation";
-
-import { prisma } from "@/lib/db";
+import prisma from "@/lib/db";
 import { getCurrentProjectContext } from "@/lib/projectContext";
-import { logInfo } from "@/lib/logger";
 import { UserRole } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import BacklogPageClient from "./pageClient";
 
-interface PageProps {
+type Props = {
   params: { projectId: string };
-}
+  searchParams?: Record<string, string | string[] | undefined>;
+};
 
 const mapRole = (
   membershipRole: ProjectRole | null,
@@ -21,40 +19,37 @@ const mapRole = (
   return membershipRole;
 };
 
-export default async function BacklogPage({ params }: PageProps) {
+export default async function BacklogPage({ params }: Props) {
   const { projectId } = params;
-  if (!projectId) return notFound();
 
-  const headerList = await headers();
-  const referer = headerList.get("referer") ?? undefined;
+  // Extra logging to debug issues in production logs
+  console.log("[ProjectBacklogPage] params:", params);
+  console.log("[ProjectBacklogPage] resolved projectId:", projectId);
+
+  if (!projectId) {
+    console.warn("[ProjectBacklogPage] Missing projectId, returning 404");
+    notFound();
+  }
 
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     include: {
-      sprints: true,
-      issues: true,
+      sprints: {
+        orderBy: { createdAt: "asc" },
+      },
+      issues: {
+        orderBy: { createdAt: "asc" },
+      },
     },
   });
 
   if (!project) {
-    logInfo("Backlog request for missing project", {
-      projectId,
-      referer,
-    });
+    console.warn("[ProjectBacklogPage] No project found for id", projectId);
     notFound();
   }
 
   const { membership, user } = await getCurrentProjectContext(projectId);
   const projectRole = mapRole(membership?.role as ProjectRole | null, user?.role ?? null);
-
-  logInfo("Backlog page requested", {
-    projectId,
-    referer,
-    userId: user?.id,
-    userEmail: user?.email,
-    membershipRole: membership?.role,
-    projectFound: Boolean(project),
-  });
 
   return (
     <BacklogPageClient

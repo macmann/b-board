@@ -7,7 +7,7 @@ declare const globalThis: {
 } & typeof global;
 
 function createMockPrismaClient() {
-  const handler: ProxyHandler<Record<string, unknown>> = {
+  const handler: ProxyHandler<any> = {
     get() {
       return new Proxy(() => {}, {
         apply() {
@@ -19,21 +19,25 @@ function createMockPrismaClient() {
       });
     },
   };
-
   return new Proxy({}, handler) as unknown as PrismaClient;
 }
 
-let prisma: PrismaClient;
+let prismaInternal: PrismaClient;
 
 try {
-  prisma = globalThis.prisma || new PrismaClient();
+  prismaInternal = globalThis.prisma || new PrismaClient();
   if (process.env.NODE_ENV !== "production") {
-    globalThis.prisma = prisma as PrismaClientSingleton;
+    globalThis.prisma = prismaInternal as PrismaClientSingleton;
   }
 } catch (error) {
-  console.warn("Prisma client failed to initialize, using a mock client for build time:", error);
-  prisma = createMockPrismaClient();
+  console.warn(
+    "Prisma client failed to initialize, using a mock client for build time:",
+    error
+  );
+  prismaInternal = createMockPrismaClient();
 }
 
-export { prisma };
+const prisma = prismaInternal;
+
 export default prisma;
+export { prisma };
