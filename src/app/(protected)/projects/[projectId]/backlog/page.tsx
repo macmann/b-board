@@ -1,6 +1,8 @@
-import { UserRole } from "../../../../../lib/prismaEnums";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 
+import { UserRole } from "../../../../../lib/prismaEnums";
+import prisma from "../../../../../lib/db";
 import { getCurrentProjectContext } from "../../../../../lib/projectContext";
 import { ProjectRole } from "../../../../../lib/roles";
 import BacklogPageClient from "./pageClient";
@@ -13,12 +15,26 @@ const mapRole = (
   return membershipRole;
 };
 
-export default async function BacklogPage({
-  params,
-}: {
+type Props = {
   params: { projectId: string };
-}) {
-  const { membership, user } = await getCurrentProjectContext(params.projectId);
+};
+
+export default async function BacklogPage({ params }: Props) {
+  const { projectId } = params;
+
+  if (!projectId) {
+    throw new Error("Missing projectId in route params");
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+  });
+
+  if (!project) {
+    notFound();
+  }
+
+  const { membership, user } = await getCurrentProjectContext(projectId);
   const projectRole = mapRole(membership?.role as ProjectRole | null, user?.role ?? null);
 
   return (
