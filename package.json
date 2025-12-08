@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "next build",
-    "start": "node server.js",
-    "seed": "ts-node prisma/seed.ts"
+    "start": "next start",
+    "seed": "node prisma/seed.js",
+    "postinstall": "prisma generate"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
