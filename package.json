@@ -25,11 +25,14 @@
     "recharts": "^3.5.1"
   },
   "devDependencies": {
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "ts-node": "^10.9.2",
     "tsx": "^4.19.1",
+    "tailwindcss": "^3.4.14",
     "typescript": "^5.9.3"
   }
 }
