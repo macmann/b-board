@@ -15,15 +15,28 @@ const mapRole = (
 };
 
 type Props = {
-  params: { projectId: string };
+  params: any;
   searchParams?: Record<string, string | string[] | undefined>;
 };
 
 export default async function ProjectBacklogPage({ params }: Props) {
-  const { projectId } = params;
+  console.log("DEBUG_BACKLOG_PARAMS", params, Object.keys(params ?? {}));
+
+  // if (!params.projectId) {
+  //   throw new Error("Missing projectId in route params");
+  // }
+
+  const projectId =
+    (params && (params as any).projectId) ??
+    (params && (params as any).id) ??
+    (params && (params as any).projectID) ??
+    (params && Object.values(params)[0]);
+
+  console.log("DEBUG_BACKLOG_PROJECT_ID", projectId);
 
   if (!projectId) {
-    notFound();
+    console.error("BACKLOG: Could not resolve projectId from params:", params);
+    return <div>Could not resolve project ID.</div>;
   }
 
   const project = await prisma.project.findUnique({

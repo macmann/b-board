@@ -3,11 +3,11 @@ import { notFound } from "next/navigation";
 
 type Props = {
   children: ReactNode;
-  params: { projectId: string } | Promise<{ projectId: string }>;
+  params: { projectId?: string };
 };
 
 export default async function ProjectLayout({ children, params }: Props) {
-  const { projectId } = await params;
+  const { projectId } = params ?? {};
 
   if (!projectId) {
     notFound();
