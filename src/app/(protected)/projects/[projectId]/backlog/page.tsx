@@ -1,10 +1,9 @@
-import { notFound } from "next/navigation";
+import { prisma } from "@/lib/db";
+import { getCurrentProjectContext } from "@/lib/projectContext";
+import { UserRole } from "@/lib/prismaEnums";
+import { ProjectRole } from "@/lib/roles";
 import Link from "next/link";
-
-import { UserRole } from "../../../../../lib/prismaEnums";
-import prisma from "../../../../../lib/db";
-import { getCurrentProjectContext } from "../../../../../lib/projectContext";
-import { ProjectRole } from "../../../../../lib/roles";
+import { notFound } from "next/navigation";
 import BacklogPageClient from "./pageClient";
 
 const mapRole = (
@@ -17,13 +16,14 @@ const mapRole = (
 
 type Props = {
   params: { projectId: string };
+  searchParams?: Record<string, string | string[] | undefined>;
 };
 
 export default async function ProjectBacklogPage({ params }: Props) {
   const { projectId } = params;
 
   if (!projectId) {
-    throw new Error("Missing projectId in route params");
+    notFound();
   }
 
   const project = await prisma.project.findUnique({
@@ -43,11 +43,11 @@ export default async function ProjectBacklogPage({ params }: Props) {
 
   return (
     <BacklogPageClient
-      projectId={params.projectId}
+      projectId={projectId}
       projectRole={projectRole}
       manageTeamLink={
         <Link
-          href={`/projects/${params.projectId}/team`}
+          href={`/projects/${projectId}/team`}
           className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
         >
           Manage Team
