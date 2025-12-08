@@ -1,25 +1,16 @@
-import { UserRole } from "@prisma/client";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import { getUserFromRequest } from "../../../lib/auth";
-import { jsonError, jsonOk } from "../../../lib/apiResponse";
+import { jsonOk } from "../../../lib/apiResponse";
 import prisma from "../../../lib/db";
 import { logError } from "../../../lib/logger";
-import { requireRole } from "../../../lib/permissions";
+import { ensureGlobalRole, ForbiddenError } from "../../../lib/permissions";
 
 export async function GET(request: NextRequest) {
   try {
     const user = await getUserFromRequest(request);
 
-    if (!user) {
-      return jsonError("Unauthorized", 401);
-    }
-
-    const isAllowed = await requireRole(user, [UserRole.ADMIN]);
-
-    if (!isAllowed) {
-      return jsonError("Forbidden", 403);
-    }
+    ensureGlobalRole(user, ["ADMIN"]);
 
     const projects = await prisma.project.findMany({
       select: {
@@ -35,7 +26,15 @@ export async function GET(request: NextRequest) {
     return jsonOk(projects);
   } catch (error) {
     logError("Failed to fetch projects", error);
-    return jsonError("Something went wrong", 500);
+
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }
 
@@ -43,18 +42,15 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getUserFromRequest(request);
 
-    if (!user) {
-      return jsonError("Unauthorized", 401);
-    }
-
-    if (user.role !== UserRole.ADMIN) {
-      return jsonError("Forbidden", 403);
-    }
+    ensureGlobalRole(user, ["ADMIN"]);
 
     const { key, name, description } = await request.json();
 
     if (!key || !name) {
-      return jsonError("Project key and name are required.", 400);
+      return NextResponse.json(
+        { error: "Project key and name are required." },
+        { status: 400 }
+      );
     }
 
     let workspace = await prisma.workspace.findFirst();
@@ -80,6 +76,14 @@ export async function POST(request: NextRequest) {
     return jsonOk(project, { status: 201 });
   } catch (error) {
     logError("Failed to create project", error);
-    return jsonError("Something went wrong", 500);
+
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }
