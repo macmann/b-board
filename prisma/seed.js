@@ -1,19 +1,43 @@
-// NOTE: Production seeding on Render uses prisma/seed.js (Node 22 without ts-node).
-import {
-  IssuePriority,
-  IssueStatus,
-  IssueType,
-  ProjectMemberRole,
-  UserRole,
-  WorkspaceMemberRole,
-} from "../src/lib/prismaEnums";
+import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
-import prisma from "../src/lib/db";
+const IssuePriority = {
+  LOW: "LOW",
+  MEDIUM: "MEDIUM",
+  HIGH: "HIGH",
+  CRITICAL: "CRITICAL",
+};
 
-// Ensure JWT_SECRET is available for the hashPassword helper.
-if (!process.env.JWT_SECRET) {
-  process.env.JWT_SECRET = "seed-secret";
-}
+const IssueStatus = {
+  TODO: "TODO",
+  IN_PROGRESS: "IN_PROGRESS",
+  IN_REVIEW: "IN_REVIEW",
+  DONE: "DONE",
+};
+
+const IssueType = {
+  STORY: "STORY",
+  BUG: "BUG",
+  TASK: "TASK",
+};
+
+const Role = {
+  ADMIN: "ADMIN",
+  PO: "PO",
+  DEV: "DEV",
+  QA: "QA",
+  VIEWER: "VIEWER",
+};
+
+const UserRole = Role;
+const ProjectMemberRole = Role;
+
+const WorkspaceMemberRole = {
+  OWNER: "OWNER",
+  MEMBER: "MEMBER",
+};
+
+const prisma = new PrismaClient();
 
 const ADMIN_EMAIL = "admin@bboard.com";
 const ADMIN_PASSWORD = "AdminPass123!";
@@ -23,6 +47,10 @@ const DEMO_PROJECT_KEY = "DEMO";
 const DEMO_PROJECT_NAME = "DEMO";
 
 async function main() {
+  if (!process.env.JWT_SECRET) {
+    process.env.JWT_SECRET = "seed-secret";
+  }
+
   const existingAdmin = await prisma.user.findUnique({
     where: { email: ADMIN_EMAIL },
   });
@@ -32,9 +60,7 @@ async function main() {
     return;
   }
 
-  const { hashPassword } = await import("../src/lib/auth");
-
-  const passwordHash = await hashPassword(ADMIN_PASSWORD);
+  const passwordHash = await bcrypt.hash(ADMIN_PASSWORD, 10);
 
   const workspace = await prisma.workspace.create({
     data: { name: DEFAULT_WORKSPACE_NAME },
