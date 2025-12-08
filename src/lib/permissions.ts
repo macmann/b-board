@@ -137,7 +137,12 @@ export const canModifyIssue = async (
 
   if (!membership) return false;
 
-  return [Role.ADMIN, Role.PO, Role.DEV, Role.QA].includes(membership.role);
+  return (
+    membership.role === Role.ADMIN ||
+    membership.role === Role.PO ||
+    membership.role === Role.DEV ||
+    membership.role === Role.QA
+  );
 };
 
 export const requireProjectRole = async (
