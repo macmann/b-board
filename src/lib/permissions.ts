@@ -111,7 +111,7 @@ export const canManageProject = async (
 
   if (!membership) return false;
 
-  return [Role.ADMIN, Role.PO].includes(membership.role);
+  return membership.role === Role.ADMIN || membership.role === Role.PO;
 };
 
 export const canModifyIssue = async (
