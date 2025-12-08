@@ -1,6 +1,8 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
+// Run manually when needed with `npm run seed` (not executed automatically on start).
+
 const IssuePriority = {
   LOW: "LOW",
   MEDIUM: "MEDIUM",
