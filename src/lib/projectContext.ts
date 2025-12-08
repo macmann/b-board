@@ -17,8 +17,12 @@ type ProjectMember = { projectId: string; userId: string; role: Role };
 type User = { id: string; role: Role; name?: string | null; email?: string };
 
 export const getCurrentProjectContext = async (
-  projectId: string
+  projectId: string | undefined
 ): Promise<ProjectContext> => {
+  if (!projectId) {
+    throw new Error("getCurrentProjectContext called without projectId");
+  }
+
   const headerList = await headers();
   const cookieStore = await cookies();
 

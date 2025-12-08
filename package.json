@@ -4,13 +4,14 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
+    "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "seed": "node prisma/seed.js",
-    "postinstall": "prisma generate"
+    "start": "next start -p ${PORT:-3000}",
+    "postinstall": "prisma generate",
+    "seed": "ts-node prisma/seed.ts"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
