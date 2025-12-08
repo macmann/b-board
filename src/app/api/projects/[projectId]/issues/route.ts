@@ -1,4 +1,4 @@
-import { IssuePriority, IssueStatus, IssueType, Role } from "@prisma/client";
+import { IssuePriority, IssueStatus, IssueType, Role } from "../../../../../lib/prismaEnums";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getUserFromRequest } from "../../../../../lib/auth";
@@ -12,8 +12,10 @@ import { getNextIssuePosition } from "../../../../../lib/issuePosition";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+
   const user = await getUserFromRequest(request);
 
   if (!user) {
@@ -21,7 +23,7 @@ export async function POST(
   }
 
   const project = await prisma.project.findUnique({
-    where: { id: params.projectId },
+    where: { id: projectId },
   });
 
   if (!project) {
@@ -86,7 +88,7 @@ export async function POST(
     issuePosition = parsedPosition;
   } else if (sprintIdValue) {
     issuePosition = await getNextIssuePosition(
-      params.projectId,
+      projectId,
       sprintIdValue,
       issueStatus
     );
@@ -94,7 +96,7 @@ export async function POST(
 
   const issue = await prisma.issue.create({
     data: {
-      projectId: params.projectId,
+      projectId,
       title,
       type: validatedType,
       priority: validatedPriority,

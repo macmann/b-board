@@ -1,11 +1,24 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { NextRequest, NextResponse } from "next/server";
-import { ProjectMember, Role, User, UserRole } from "@prisma/client";
+import { Role, UserRole } from "./prismaEnums";
 
 import prisma from "./db";
 
-const JWT_SECRET = process.env.JWT_SECRET;
+type User = {
+  id: string;
+  role: Role;
+  name?: string | null;
+  email: string;
+};
+
+type ProjectMember = {
+  role: Role;
+  userId: string;
+  projectId: string;
+};
+
+const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
 
 if (!JWT_SECRET) {
   throw new Error("JWT_SECRET is not set. Please define it in your environment.");

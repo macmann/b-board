@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { Role } from "@prisma/client";
+import { Role } from "../../../../../lib/prismaEnums";
 
 import { getUserFromRequest } from "../../../../../lib/auth";
 import {
@@ -13,8 +13,10 @@ const PROJECT_ADMIN_ROLES = [Role.ADMIN, Role.PO];
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+
   const user = await getUserFromRequest(request);
 
   if (!user) {
@@ -22,7 +24,7 @@ export async function GET(
   }
 
   const project = await prisma.project.findUnique({
-    where: { id: params.projectId },
+    where: { id: projectId },
   });
 
   if (!project) {
@@ -30,7 +32,7 @@ export async function GET(
   }
 
   try {
-    await requireProjectRole(user.id, params.projectId, PROJECT_ADMIN_ROLES);
+    await requireProjectRole(user.id, projectId, PROJECT_ADMIN_ROLES);
   } catch (error) {
     if (error instanceof AuthorizationError) {
       return NextResponse.json(
@@ -44,7 +46,7 @@ export async function GET(
 
   const invitations = await prisma.invitation.findMany({
     where: {
-      projectId: params.projectId,
+      projectId,
       acceptedAt: null,
     },
     select: {
@@ -62,8 +64,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+
   const user = await getUserFromRequest(request);
 
   if (!user) {
@@ -71,7 +75,7 @@ export async function POST(
   }
 
   const project = await prisma.project.findUnique({
-    where: { id: params.projectId },
+    where: { id: projectId },
     select: { id: true, workspaceId: true },
   });
 
@@ -80,7 +84,7 @@ export async function POST(
   }
 
   try {
-    await requireProjectRole(user.id, params.projectId, PROJECT_ADMIN_ROLES);
+    await requireProjectRole(user.id, projectId, PROJECT_ADMIN_ROLES);
   } catch (error) {
     if (error instanceof AuthorizationError) {
       return NextResponse.json(

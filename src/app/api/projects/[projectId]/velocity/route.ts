@@ -1,4 +1,4 @@
-import { IssueStatus, SprintStatus } from "@prisma/client";
+import { IssueStatus, SprintStatus } from "../../../../../lib/prismaEnums";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getUserFromRequest } from "../../../../../lib/auth";
@@ -6,8 +6,10 @@ import prisma from "../../../../../lib/db";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+
   const user = await getUserFromRequest(request);
 
   if (!user) {
@@ -15,7 +17,7 @@ export async function GET(
   }
 
   const project = await prisma.project.findUnique({
-    where: { id: params.projectId },
+    where: { id: projectId },
   });
 
   if (!project) {
@@ -24,7 +26,7 @@ export async function GET(
 
   const completedSprints = await prisma.sprint.findMany({
     where: {
-      projectId: params.projectId,
+      projectId,
       status: SprintStatus.COMPLETED,
     },
     orderBy: { endDate: "desc" },
@@ -36,7 +38,7 @@ export async function GET(
   const issuesBySprint = await prisma.issue.findMany({
     where: {
       sprintId: { in: sprintIds },
-      projectId: params.projectId,
+      projectId,
     },
     select: {
       sprintId: true,

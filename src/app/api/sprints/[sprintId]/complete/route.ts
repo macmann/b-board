@@ -1,4 +1,9 @@
-import { IssueHistoryField, IssueStatus, Role, SprintStatus } from "@prisma/client";
+import {
+  IssueHistoryField,
+  IssueStatus,
+  Role,
+  SprintStatus,
+} from "../../../../../lib/prismaEnums";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getUserFromRequest } from "../../../../../lib/auth";
@@ -11,8 +16,10 @@ import { jsonError } from "../../../../../lib/apiResponse";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { sprintId: string } }
+  { params }: { params: Promise<{ sprintId: string }> }
 ) {
+  const { sprintId } = await params;
+
   const user = await getUserFromRequest(request);
 
   if (!user) {
@@ -20,7 +27,7 @@ export async function POST(
   }
 
   const sprint = await prisma.sprint.findUnique({
-    where: { id: params.sprintId },
+    where: { id: sprintId },
   });
 
   if (!sprint) {

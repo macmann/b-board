@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 
-import { Role } from "@prisma/client";
+import { Role } from "../../../lib/prismaEnums";
 
 import { getUserFromRequest } from "../../../lib/auth";
 import prisma from "../../../lib/db";

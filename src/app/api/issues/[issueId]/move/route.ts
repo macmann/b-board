@@ -1,4 +1,4 @@
-import { IssueHistoryField, IssueStatus } from "@prisma/client";
+import { IssueHistoryField, IssueStatus } from "../../../../../lib/prismaEnums";
 import { NextRequest } from "next/server";
 
 import { jsonError, jsonOk } from "../../../../../lib/apiResponse";
@@ -14,8 +14,10 @@ import {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { issueId: string } }
+  { params }: { params: Promise<{ issueId: string }> }
 ) {
+  const { issueId } = await params;
+
   try {
     const user = await getUserFromRequest(request);
 
@@ -24,7 +26,7 @@ export async function PATCH(
     }
 
     const issue = await prisma.issue.findUnique({
-      where: { id: params.issueId },
+      where: { id: issueId },
     });
 
     if (!issue) {

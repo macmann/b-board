@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { SprintStatus } from "@prisma/client";
+import { SprintStatus } from "../../../../../lib/prismaEnums";
 
 import { ProjectRole } from "../../../../../lib/roles";
 import { canManageSprints } from "../../../../../lib/uiPermissions";

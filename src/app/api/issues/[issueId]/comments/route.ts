@@ -5,8 +5,10 @@ import prisma from "../../../../../lib/db";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { issueId: string } }
+  { params }: { params: Promise<{ issueId: string }> }
 ) {
+  const { issueId } = await params;
+
   const user = await getUserFromRequest(request);
 
   if (!user) {
@@ -14,7 +16,7 @@ export async function GET(
   }
 
   const issue = await prisma.issue.findUnique({
-    where: { id: params.issueId },
+    where: { id: issueId },
   });
 
   if (!issue) {
@@ -22,7 +24,7 @@ export async function GET(
   }
 
   const comments = await prisma.comment.findMany({
-    where: { issueId: params.issueId },
+    where: { issueId },
     include: { author: true },
     orderBy: { createdAt: "asc" },
   });
@@ -32,8 +34,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { issueId: string } }
+  { params }: { params: Promise<{ issueId: string }> }
 ) {
+  const { issueId } = await params;
+
   const user = await getUserFromRequest(request);
 
   if (!user) {
@@ -41,7 +45,7 @@ export async function POST(
   }
 
   const issue = await prisma.issue.findUnique({
-    where: { id: params.issueId },
+    where: { id: issueId },
   });
 
   if (!issue) {
@@ -57,7 +61,7 @@ export async function POST(
 
   const comment = await prisma.comment.create({
     data: {
-      issueId: params.issueId,
+      issueId,
       authorId: user.id,
       body: commentBody,
     },

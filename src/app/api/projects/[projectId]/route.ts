@@ -5,8 +5,10 @@ import prisma from "../../../../lib/db";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+
   const user = await getUserFromRequest(request);
 
   if (!user) {
@@ -14,7 +16,7 @@ export async function GET(
   }
 
   const project = await prisma.project.findUnique({
-    where: { id: params.projectId },
+    where: { id: projectId },
   });
 
   if (!project) {

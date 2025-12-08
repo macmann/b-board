@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { IssuePriority, IssueStatus, IssueType } from "@prisma/client";
+import { IssuePriority, IssueStatus, IssueType } from "../../../../lib/prismaEnums";
 
 import { ProjectRole } from "../../../../lib/roles";
 import { canDeleteIssue, canEditIssue } from "../../../../lib/uiPermissions";

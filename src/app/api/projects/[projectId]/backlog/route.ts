@@ -1,4 +1,4 @@
-import { IssueType } from "@prisma/client";
+import { IssueType } from "../../../../../lib/prismaEnums";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getUserFromRequest } from "../../../../../lib/auth";
@@ -11,8 +11,10 @@ import {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+
   try {
     const user = await getUserFromRequest(request);
 
@@ -21,7 +23,7 @@ export async function GET(
     }
 
     const project = await prisma.project.findUnique({
-      where: { id: params.projectId },
+      where: { id: projectId },
     });
 
     if (!project) {
@@ -37,7 +39,7 @@ export async function GET(
 
     const issues = await prisma.issue.findMany({
       where: {
-        projectId: params.projectId,
+        projectId,
         sprintId: null,
         ...(type && Object.values(IssueType).includes(type as IssueType)
           ? { type: type as IssueType }
