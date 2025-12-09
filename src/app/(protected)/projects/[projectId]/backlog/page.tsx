@@ -3,13 +3,7 @@ import { getCurrentProjectContext } from "@/lib/projectContext";
 import { UserRole } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import BacklogPageClient from "./pageClient";
-
-type Props = {
-  params: { projectId: string };
-  searchParams?: Record<string, string | string[] | undefined>;
-};
 
 const mapRole = (
   membershipRole: ProjectRole | null,
@@ -19,15 +13,39 @@ const mapRole = (
   return membershipRole;
 };
 
-export default async function BacklogPage({ params }: Props) {
-  const { projectId } = params;
+// This page is currently being called with a weird "params" shape from Next/Codex:
+// - Sometimes as { params: { projectId: string } }
+// - Sometimes as Promise<{ projectId: string }>
+// To make it bulletproof, we normalize whatever we receive into a plain { projectId } object.
+async function normalizeProjectParams(raw: any): Promise<{ projectId: string | null }> {
+  let candidate: any = raw;
 
-  // Extra logging to debug issues in production logs
-  console.log("[ProjectBacklogPage] params:", params);
-  console.log("[ProjectBacklogPage] resolved projectId:", projectId);
+  // If Next passes { params, searchParams }, unwrap params first
+  if (candidate && typeof candidate === "object" && "params" in candidate) {
+    candidate = candidate.params;
+  }
+
+  // If we somehow got a Promise, await it
+  if (candidate && typeof candidate === "object" && "then" in candidate) {
+    candidate = await candidate;
+  }
+
+  const projectId =
+    candidate && typeof candidate === "object"
+      ? (candidate.projectId as string | undefined)
+      : undefined;
+
+  return { projectId: projectId ?? null };
+}
+
+export default async function ProjectBacklogPage(raw: any) {
+  const { projectId } = await normalizeProjectParams(raw);
+
+  console.log("[ProjectBacklogPage] raw props:", raw);
+  console.log("[ProjectBacklogPage] normalized projectId:", projectId);
 
   if (!projectId) {
-    console.warn("[ProjectBacklogPage] Missing projectId, returning 404");
+    console.warn("[ProjectBacklogPage] Missing projectId after normalization, returning 404");
     notFound();
   }
 
@@ -49,20 +67,16 @@ export default async function BacklogPage({ params }: Props) {
   }
 
   const { membership, user } = await getCurrentProjectContext(projectId);
-  const projectRole = mapRole(membership?.role as ProjectRole | null, user?.role ?? null);
+  const projectRole = mapRole(
+    (membership?.role as ProjectRole | null) ?? null,
+    user?.role ?? null
+  );
 
   return (
     <BacklogPageClient
-      projectId={projectId}
+      project={project}
       projectRole={projectRole}
-      manageTeamLink={
-        <Link
-          href={`/projects/${projectId}/team`}
-          className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-        >
-          Manage Team
-        </Link>
-      }
+      currentUser={user}
     />
   );
 }
