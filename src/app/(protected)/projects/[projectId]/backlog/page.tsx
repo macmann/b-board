@@ -1,8 +1,11 @@
-import prisma from "@/lib/db";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+
 import { getCurrentProjectContext } from "@/lib/projectContext";
 import { UserRole } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
-import { notFound } from "next/navigation";
+import { resolveProjectId, type ProjectParams } from "@/lib/params";
+
 import BacklogPageClient from "./pageClient";
 
 const mapRole = (
@@ -13,70 +16,55 @@ const mapRole = (
   return membershipRole;
 };
 
-// This page is currently being called with a weird "params" shape from Next/Codex:
-// - Sometimes as { params: { projectId: string } }
-// - Sometimes as Promise<{ projectId: string }>
-// To make it bulletproof, we normalize whatever we receive into a plain { projectId } object.
-async function normalizeProjectParams(raw: any): Promise<{ projectId: string | null }> {
-  let candidate: any = raw;
+type Props = {
+  params: ProjectParams;
+  searchParams?: Record<string, string | string[] | undefined>;
+};
 
-  // If Next passes { params, searchParams }, unwrap params first
-  if (candidate && typeof candidate === "object" && "params" in candidate) {
-    candidate = candidate.params;
-  }
+export default async function ProjectBacklogPage({ params }: Props) {
+  // Use the shared helper so we work with both plain objects and Promises
+  const projectId = await resolveProjectId(params);
 
-  // If we somehow got a Promise, await it
-  if (candidate && typeof candidate === "object" && "then" in candidate) {
-    candidate = await candidate;
-  }
-
-  const projectId =
-    candidate && typeof candidate === "object"
-      ? (candidate.projectId as string | undefined)
-      : undefined;
-
-  return { projectId: projectId ?? null };
-}
-
-export default async function ProjectBacklogPage(raw: any) {
-  const { projectId } = await normalizeProjectParams(raw);
-
-  console.log("[ProjectBacklogPage] raw props:", raw);
-  console.log("[ProjectBacklogPage] normalized projectId:", projectId);
+  console.log("[ProjectBacklogPage] resolved projectId:", projectId);
 
   if (!projectId) {
-    console.warn("[ProjectBacklogPage] Missing projectId after normalization, returning 404");
+    console.warn("[ProjectBacklogPage] Missing projectId, returning 404");
     notFound();
   }
 
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    include: {
-      sprints: {
-        orderBy: { createdAt: "asc" },
-      },
-      issues: {
-        orderBy: { createdAt: "asc" },
-      },
-    },
-  });
+  const { project, membership, user } = await getCurrentProjectContext(projectId);
 
   if (!project) {
-    console.warn("[ProjectBacklogPage] No project found for id", projectId);
+    console.warn("[ProjectBacklogPage] Project not found for id", projectId);
     notFound();
   }
 
-  const { membership, user } = await getCurrentProjectContext(projectId);
   const projectRole = mapRole(
     (membership?.role as ProjectRole | null) ?? null,
     user?.role ?? null
   );
 
+  const manageTeamLink = (
+    <div className="mt-4 flex items-center justify-between">
+      <p className="text-sm text-gray-600">
+        Project: <span className="font-medium">{project.name}</span>
+      </p>
+      {projectRole && (projectRole === "ADMIN" || projectRole === "PO") && (
+        <Link
+          href={`/projects/${projectId}/team`}
+          className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+        >
+          Manage Team
+        </Link>
+      )}
+    </div>
+  );
+
   return (
     <BacklogPageClient
-      project={project}
+      projectId={projectId}
       projectRole={projectRole}
-      currentUser={user}
+      manageTeamLink={manageTeamLink}
     />
   );
 }
