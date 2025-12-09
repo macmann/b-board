@@ -34,7 +34,13 @@ export async function GET(
   }
 
   try {
-    await requireProjectRole(user.id, projectId, [Role.ADMIN, Role.PO]);
+    await requireProjectRole(user.id, projectId, [
+      Role.ADMIN,
+      Role.PO,
+      Role.DEV,
+      Role.QA,
+      Role.VIEWER,
+    ]);
   } catch (error) {
     if (error instanceof AuthorizationError) {
       return NextResponse.json(

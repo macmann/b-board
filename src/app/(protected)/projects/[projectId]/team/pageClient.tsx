@@ -53,28 +53,31 @@ export default function ProjectTeamPageClient({
     setError("");
 
     try {
-      const [membersResponse, invitationsResponse] = await Promise.all([
-        fetch(`/api/projects/${projectId}/members`),
-        fetch(`/api/projects/${projectId}/invitations`),
-      ]);
+      const membersResponse = await fetch(`/api/projects/${projectId}/members`);
 
       if (!membersResponse.ok) {
         const data = await membersResponse.json().catch(() => null);
         throw new Error(data?.message ?? "Failed to load members.");
       }
 
-      if (!invitationsResponse.ok) {
-        const data = await invitationsResponse.json().catch(() => null);
-        throw new Error(data?.message ?? "Failed to load invitations.");
-      }
-
-      const [membersData, invitationsData] = await Promise.all([
-        membersResponse.json(),
-        invitationsResponse.json(),
-      ]);
-
+      const membersData = await membersResponse.json();
       setMembers(membersData);
-      setInvitations(invitationsData);
+
+      if (allowInvites) {
+        const invitationsResponse = await fetch(
+          `/api/projects/${projectId}/invitations`
+        );
+
+        if (!invitationsResponse.ok) {
+          const data = await invitationsResponse.json().catch(() => null);
+          throw new Error(data?.message ?? "Failed to load invitations.");
+        }
+
+        const invitationsData = await invitationsResponse.json();
+        setInvitations(invitationsData);
+      } else {
+        setInvitations([]);
+      }
     } catch (err) {
       setError(
         err instanceof Error
