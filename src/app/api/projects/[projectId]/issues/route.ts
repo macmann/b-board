@@ -99,9 +99,20 @@ export async function POST(
     );
   }
 
+  // Generate Issue Key
+  const projectInitial = (() => {
+    const words = project.name.trim().split(" ");
+    if (words.length === 1) return words[0][0].toUpperCase();
+    return (words[0][0] + words[1][0]).toUpperCase();
+  })();
+
+  const count = await prisma.issue.count({ where: { projectId } });
+  const key = `${projectInitial}-${count + 1}`;
+
   const issue = await prisma.issue.create({
     data: {
       projectId,
+      key,
       title,
       type: validatedType,
       priority: validatedPriority,
