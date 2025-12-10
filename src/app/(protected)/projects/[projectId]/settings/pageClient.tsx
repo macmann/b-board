@@ -18,6 +18,7 @@ type ProjectSettingsPageClientProps = {
     key: string;
     name: string;
     description: string;
+    enableResearchBoard: boolean;
     createdAt: string;
     updatedAt: string;
   };
@@ -44,6 +45,9 @@ export default function ProjectSettingsPageClient({
   const [name, setName] = useState(project.name);
   const [key, setKey] = useState(project.key);
   const [description, setDescription] = useState(project.description);
+  const [enableResearchBoard, setEnableResearchBoard] = useState(
+    project.enableResearchBoard
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -72,7 +76,7 @@ export default function ProjectSettingsPageClient({
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ name, key, description }),
+      body: JSON.stringify({ name, key, description, enableResearchBoard }),
     });
 
     setIsSaving(false);
@@ -206,6 +210,48 @@ export default function ProjectSettingsPageClient({
             </div>
           )}
         </form>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+              Research Board
+            </h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Allow research items to be created and managed for this project.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-600 dark:text-slate-300">
+              {enableResearchBoard ? "Enabled" : "Disabled"}
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={enableResearchBoard}
+              aria-label="Toggle research board"
+              disabled={!isAdmin}
+              onClick={() => isAdmin && setEnableResearchBoard((prev) => !prev)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${
+                enableResearchBoard
+                  ? "bg-primary"
+                  : "bg-slate-200 dark:bg-slate-700"
+              } ${!isAdmin ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ${
+                  enableResearchBoard ? "translate-x-5" : "translate-x-1"
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+        {!isAdmin && (
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Only admins and product owners can change this setting.
+          </p>
+        )}
       </section>
 
       <section

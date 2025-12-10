@@ -82,6 +82,7 @@ export default async function ProjectSettingsPage(props: Props) {
           key: projectWithMeta.key ?? "",
           name: projectWithMeta.name,
           description: projectWithMeta.description ?? "",
+          enableResearchBoard: projectWithMeta.enableResearchBoard,
           createdAt: projectWithMeta.createdAt.toISOString(),
           updatedAt: projectWithMeta.updatedAt.toISOString(),
         }}
