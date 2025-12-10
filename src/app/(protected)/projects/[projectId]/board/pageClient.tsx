@@ -5,7 +5,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
 
-import { IssueStatus, SprintStatus } from "../../../../../lib/prismaEnums";
+import Button from "@/components/ui/Button";
+import {
+  IssuePriority,
+  IssueStatus,
+  IssueType,
+  SprintStatus,
+} from "../../../../../lib/prismaEnums";
 
 import { ProjectRole } from "../../../../../lib/roles";
 
@@ -30,7 +36,10 @@ type Sprint = {
 
 type Issue = {
   id: string;
+  key?: string | null;
   title: string;
+  type: IssueType;
+  priority: IssuePriority;
   status: IssueStatus;
   storyPoints: number | null;
   assignee: { id: string; name: string; avatarUrl: string | null } | null;
@@ -167,6 +176,8 @@ export default function BoardPageClient({ projectId, projectRole }: BoardPageCli
     [issuesByStatus]
   );
 
+  const formatLabel = (value: string) => value.replace(/_/g, " ");
+
   const handleIssueStatusChange = async (issueId: string, newStatus: IssueStatus) => {
     if (!sprint) return;
 
@@ -220,113 +231,155 @@ export default function BoardPageClient({ projectId, projectRole }: BoardPageCli
 
   if (!hasAccess) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
-        <div className="w-full max-w-lg rounded-lg bg-white p-6 text-center shadow">
-          <h1 className="text-2xl font-semibold text-gray-900">You don’t have access to this project.</h1>
-          <p className="mt-2 text-gray-600">Ask a project admin to invite you to this project.</p>
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+          <h1 className="text-xl font-semibold text-slate-900">You don’t have access to this project.</h1>
+          <p className="mt-2 text-sm text-slate-600">Ask a project admin to invite you to this project.</p>
           <Link
             href="/my-projects"
-            className="mt-4 inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="mt-4 inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
           >
             Back to My Projects
           </Link>
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-6">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6">
-        <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-3xl font-semibold text-gray-900">Sprint Board</h1>
-            <p className="text-gray-600">Visualize and manage issues by status for the current sprint.</p>
-          </div>
-          <div className="flex flex-col gap-2 text-sm text-gray-600 md:text-right">
-            <span>
-              Sprint: <strong>{sprint?.name ?? "No active sprint"}</strong>
+    <div className="space-y-4">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-xl font-semibold text-slate-900">Board</h1>
+          <p className="text-sm text-slate-500">
+            Drag cards between columns to keep work moving for the active sprint.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {isReadOnly && (
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+              View only
             </span>
-            <span>
-              Status: <strong>{sprint?.status ?? "-"}</strong>
-            </span>
-            <span>
-              Total Story Points: <strong>{issuesCount}</strong>
-            </span>
-            {isReadOnly && <span className="text-xs text-gray-500">Drag-and-drop disabled (view only)</span>}
-          </div>
-        </header>
+          )}
+          <Button asChild variant="primary">
+            <Link href={`/projects/${projectId}/backlog`}>Create Issue</Link>
+          </Button>
+        </div>
+      </header>
 
-        {error && (
-          <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>
-        )}
+      <div className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
+        <div className="flex items-center gap-2 text-slate-700">
+          <span className="font-semibold text-slate-900">Sprint:</span>
+          <span className="text-slate-600">{sprint?.name ?? "No active sprint"}</span>
+        </div>
+        <div className="flex items-center gap-2 text-slate-700">
+          <span className="font-semibold text-slate-900">Status:</span>
+          <span className="text-slate-600">{sprint?.status ?? "-"}</span>
+        </div>
+        <div className="flex items-center gap-2 text-slate-700">
+          <span className="font-semibold text-slate-900">Total Story Points:</span>
+          <span className="text-slate-600">{issuesCount}</span>
+        </div>
+      </div>
 
-        {isLoading ? (
-          <p className="text-gray-600">Loading sprint board...</p>
-        ) : !sprint ? (
-          <div className="rounded-lg border border-dashed border-gray-300 bg-white p-6 text-center text-gray-600">
-            No active sprint found. Please create or start a sprint to see issues here.
-          </div>
-        ) : (
-          <DragDropContext onDragEnd={onDragEnd}>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {STATUS_OPTIONS.map((status) => (
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm">
+          {error}
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="rounded-lg border border-slate-200 bg-white px-4 py-6 text-sm text-slate-600 shadow-sm">
+          Loading sprint board...
+        </div>
+      ) : !sprint ? (
+        <div className="rounded-xl border border-dashed border-slate-200 bg-white px-6 py-8 text-center shadow-sm">
+          <p className="text-base font-semibold text-slate-900">No active sprint found</p>
+          <p className="mt-2 text-sm text-slate-600">
+            Please create or start a sprint to see issues here.
+          </p>
+        </div>
+      ) : (
+        <DragDropContext onDragEnd={onDragEnd}>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {STATUS_OPTIONS.map((status) => {
+              const issues = issuesByStatus[status.value];
+
+              return (
                 <Droppable key={status.value} droppableId={status.value}>
                   {(provided) => (
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
-                      className="flex min-h-[300px] flex-col gap-3 rounded-lg bg-white p-4 shadow"
+                      className="flex min-h-[300px] flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm"
                     >
                       <div className="flex items-center justify-between">
-                        <h2 className="text-lg font-semibold text-gray-900">{status.label}</h2>
-                        <span className="text-sm text-gray-500">
-                          {issuesByStatus[status.value].length} issue(s)
+                        <div className="text-sm font-semibold uppercase tracking-wide text-slate-700">
+                          {status.label}
+                        </div>
+                        <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700">
+                          {issues.length}
                         </span>
                       </div>
 
                       <div className="flex flex-col gap-3">
-                        {issuesByStatus[status.value].map((issue, index) => (
+                        {issues.map((issue, index) => (
                           <Draggable key={issue.id} draggableId={issue.id} index={index} isDragDisabled={isReadOnly}>
                             {(dragProvided, snapshot) => (
                               <div
                                 ref={dragProvided.innerRef}
                                 {...dragProvided.draggableProps}
                                 {...dragProvided.dragHandleProps}
-                                className={`rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition hover:border-blue-300 hover:shadow ${snapshot.isDragging ? "border-blue-400 shadow-lg" : ""}`}
+                                className={`cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm transition hover:border-primary/70 hover:shadow-md ${
+                                  snapshot.isDragging ? "border-primary shadow-lg" : ""
+                                }`}
                               >
-                                <div className="flex items-start justify-between gap-3">
-                                  <div>
-                                    <p className="text-sm font-semibold text-gray-900">{issue.title}</p>
-                                    <p className="text-xs text-gray-500">Story points: {issue.storyPoints ?? "-"}</p>
-                                  </div>
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className="truncate font-medium text-slate-900">
+                                    {issue.key ? `${issue.key} · ` : ""}
+                                    {issue.title}
+                                  </p>
                                   {statusUpdating[issue.id] && (
-                                    <span className="text-xs text-gray-400">Updating...</span>
+                                    <span className="text-[11px] text-slate-400">Updating...</span>
                                   )}
                                 </div>
 
-                                {issue.assignee && (
-                                  <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-700">
-                                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-white">
-                                      {issue.assignee.name?.slice(0, 1) ?? "?"}
+                                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                                  <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-slate-700">
+                                    {formatLabel(issue.type)}
+                                  </span>
+                                  <span className="rounded-full bg-amber-100 px-2 py-1 font-medium text-amber-700">
+                                    {formatLabel(issue.priority)}
+                                  </span>
+                                  <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-slate-700">
+                                    {issue.storyPoints ?? "—"} pts
+                                  </span>
+                                  {issue.assignee && (
+                                    <span className="ml-auto inline-flex items-center gap-2">
+                                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                                        {issue.assignee.name?.[0] ?? "?"}
+                                      </span>
+                                      <span className="text-[12px] text-slate-700">{issue.assignee.name}</span>
                                     </span>
-                                    <span>{issue.assignee.name}</span>
-                                  </div>
-                                )}
+                                  )}
+                                </div>
                               </div>
                             )}
                           </Draggable>
                         ))}
+                        {!issues.length && (
+                          <p className="pt-1 text-center text-xs text-slate-400">No issues in this column.</p>
+                        )}
                         {provided.placeholder}
                       </div>
                     </div>
                   )}
                 </Droppable>
-              ))}
-            </div>
-          </DragDropContext>
-        )}
-      </div>
-    </main>
+              );
+            })}
+          </div>
+        </DragDropContext>
+      )}
+    </div>
   );
 }
