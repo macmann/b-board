@@ -8,10 +8,19 @@ import BacklogTable, {
   type BacklogTableIssue,
 } from "@/components/issues/BacklogTable";
 import CreateIssueDrawer from "@/components/issues/CreateIssueDrawer";
+import { SprintStatus } from "@/lib/prismaEnums";
 
 import { ProjectRole } from "../../../../../lib/roles";
 
-type BacklogIssue = BacklogTableIssue;
+export type BacklogIssue = BacklogTableIssue;
+
+export type BacklogGroup = {
+  id: string;
+  name: string;
+  type: "sprint" | "backlog";
+  status?: SprintStatus;
+  issues: BacklogIssue[];
+};
 
 type Option = { id: string; label: string };
 
@@ -19,47 +28,56 @@ type BacklogPageClientProps = {
   projectId: string;
   projectRole: ProjectRole | null;
   manageTeamLink: React.ReactNode;
+  backlogGroups: BacklogGroup[];
 };
 
 export default function BacklogPageClient({
   projectId,
   projectRole,
   manageTeamLink,
+  backlogGroups: initialBacklogGroups,
 }: BacklogPageClientProps) {
   const router = useRouter();
 
-  const [issues, setIssues] = useState<BacklogIssue[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [backlogGroups, setBacklogGroups] = useState<BacklogGroup[]>(
+    initialBacklogGroups
+  );
+  const [isLoading, setIsLoading] = useState(initialBacklogGroups.length === 0);
   const [error, setError] = useState("");
   const [hasAccess, setHasAccess] = useState(true);
 
   const isReadOnly = projectRole === "VIEWER";
 
+  const allIssues = useMemo(
+    () => backlogGroups.flatMap((group) => group.issues),
+    [backlogGroups]
+  );
+
   const assigneeOptions = useMemo<Option[]>(() => {
     const options: Option[] = [];
 
-    issues.forEach((issue) => {
+    allIssues.forEach((issue) => {
       if (issue.assignee && !options.find((option) => option.id === issue.assignee.id)) {
         options.push({ id: issue.assignee.id, label: issue.assignee.name });
       }
     });
 
     return options;
-  }, [issues]);
+  }, [allIssues]);
 
   const epicOptions = useMemo<Option[]>(() => {
     const options: Option[] = [];
 
-    issues.forEach((issue) => {
+    allIssues.forEach((issue) => {
       if (issue.epic && !options.find((option) => option.id === issue.epic.id)) {
         options.push({ id: issue.epic.id, label: issue.epic.title });
       }
     });
 
     return options;
-  }, [issues]);
+  }, [allIssues]);
 
-  const fetchIssues = useCallback(async () => {
+  const fetchBacklogGroups = useCallback(async () => {
     setIsLoading(true);
     setError("");
     setHasAccess(true);
@@ -78,8 +96,8 @@ export default function BacklogPageClient({
         return;
       }
 
-      const data = await response.json();
-      setIssues(data);
+      const data: BacklogGroup[] = await response.json();
+      setBacklogGroups(data);
     } catch (err) {
       setError("An unexpected error occurred while loading the backlog.");
     } finally {
@@ -89,8 +107,8 @@ export default function BacklogPageClient({
 
   useEffect(() => {
     if (!projectId) return;
-    fetchIssues();
-  }, [fetchIssues, projectId]);
+    fetchBacklogGroups();
+  }, [fetchBacklogGroups, projectId]);
 
   const handleRowClick = (issueId: string) => {
     router.push(`/issues/${issueId}`);
@@ -126,7 +144,7 @@ export default function BacklogPageClient({
           isReadOnly={isReadOnly}
           assigneeOptions={assigneeOptions}
           epicOptions={epicOptions}
-          onIssueCreated={fetchIssues}
+          onIssueCreated={fetchBacklogGroups}
           onForbidden={() => setHasAccess(false)}
         />
       </div>
@@ -142,7 +160,36 @@ export default function BacklogPageClient({
           Loading backlog...
         </div>
       ) : (
-        <BacklogTable issues={issues} onIssueClick={handleRowClick} />
+        <div className="space-y-6">
+          {backlogGroups.map((group) => {
+            const isSprint = group.type === "sprint";
+
+            return (
+              <section key={group.id} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+                    {isSprint ? `Sprint: ${group.name}` : "Product Backlog"}
+                  </h2>
+                  {isSprint && group.status && (
+                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                      {group.status}
+                    </span>
+                  )}
+                </div>
+
+                {group.issues.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+                    {isSprint
+                      ? "No issues assigned to this sprint yet."
+                      : "No issues in the product backlog yet."}
+                  </div>
+                ) : (
+                  <BacklogTable issues={group.issues} onIssueClick={handleRowClick} />
+                )}
+              </section>
+            );
+          })}
+        </div>
       )}
 
       {manageTeamLink}

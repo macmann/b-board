@@ -45,7 +45,6 @@ export async function GET(
     const issues = await prisma.issue.findMany({
       where: {
         projectId,
-        sprintId: null,
         ...(type && Object.values(IssueType).includes(type as IssueType)
           ? { type: type as IssueType }
           : {}),
@@ -53,13 +52,34 @@ export async function GET(
         ...(epicId ? { epicId } : {}),
       },
       include: {
+        sprint: true,
         epic: true,
         assignee: true,
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: "asc" },
     });
 
-    return NextResponse.json(issues);
+    const sprints = await prisma.sprint.findMany({
+      where: { projectId },
+      orderBy: { createdAt: "asc" },
+    });
+
+    const sprintGroups = sprints.map((sprint) => ({
+      id: sprint.id,
+      name: sprint.name,
+      type: "sprint" as const,
+      status: sprint.status,
+      issues: issues.filter((issue) => issue.sprintId === sprint.id),
+    }));
+
+    const backlogGroup = {
+      id: "backlog",
+      name: "Product Backlog",
+      type: "backlog" as const,
+      issues: issues.filter((issue) => issue.sprintId === null),
+    };
+
+    return NextResponse.json([...sprintGroups, backlogGroup]);
   } catch (error) {
     if (error instanceof ForbiddenError) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });

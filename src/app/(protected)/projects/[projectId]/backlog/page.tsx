@@ -8,8 +8,9 @@ import { getCurrentProjectContext } from "@/lib/projectContext";
 import { UserRole } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
 import { resolveProjectId, type ProjectParams } from "@/lib/params";
+import prisma from "@/lib/db";
 
-import BacklogPageClient from "./pageClient";
+import BacklogPageClient, { BacklogGroup } from "./pageClient";
 
 const mapRole = (
   membershipRole: ProjectRole | null,
@@ -48,6 +49,43 @@ export default async function ProjectBacklogPage(props: Props) {
 
   const roleLabel = projectRole ?? "Member";
 
+  const backlogProject = await prisma.project.findUnique({
+    where: { id: projectId },
+    include: {
+      sprints: {
+        orderBy: { createdAt: "asc" },
+      },
+      issues: {
+        orderBy: { createdAt: "asc" },
+        include: {
+          sprint: true,
+          assignee: true,
+          epic: true,
+        },
+      },
+    },
+  });
+
+  const backlogGroups: BacklogGroup[] = backlogProject
+    ? [
+        ...backlogProject.sprints.map((sprint) => ({
+          id: sprint.id,
+          name: sprint.name,
+          type: "sprint" as const,
+          status: sprint.status,
+          issues: backlogProject.issues.filter(
+            (issue) => issue.sprintId === sprint.id
+          ),
+        })),
+        {
+          id: "backlog",
+          name: "Product Backlog",
+          type: "backlog",
+          issues: backlogProject.issues.filter((issue) => issue.sprintId === null),
+        },
+      ]
+    : [];
+
   const manageTeamLink = (
     <div className="mt-4 flex items-center justify-between">
       <p className="text-sm text-gray-600">
@@ -78,6 +116,7 @@ export default async function ProjectBacklogPage(props: Props) {
         projectId={projectId}
         projectRole={projectRole}
         manageTeamLink={manageTeamLink}
+        backlogGroups={backlogGroups}
       />
     </div>
   );
