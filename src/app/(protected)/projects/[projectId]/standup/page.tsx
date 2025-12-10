@@ -7,6 +7,8 @@ import { getCurrentProjectContext } from "@/lib/projectContext";
 import { UserRole } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
 
+import StandupPageClient from "./pageClient";
+
 type Props = {
   params: ProjectParams;
   searchParams?: Record<string, string | string[] | undefined>;
@@ -58,12 +60,13 @@ export default async function ProjectStandupPage(props: Props) {
 
       <ProjectTabs projectId={projectId} active="standup" />
 
-      <div className="rounded-md border border-slate-200 bg-white p-6">
-        <h2 className="text-lg font-semibold text-slate-900">Daily standup</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          Standup view coming soon. Keep sharing your updates while we finish this space.
-        </p>
-      </div>
+      <StandupPageClient
+        projectId={projectId}
+        projectRole={projectRole}
+        currentUserName={user.name ?? ""}
+        currentUserEmail={user.email ?? ""}
+        projectName={project.name}
+      />
     </div>
   );
 }
