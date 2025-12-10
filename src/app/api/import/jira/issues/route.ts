@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+
 import { EpicStatus, IssueStatus, IssueType } from "../../../../../lib/prismaEnums";
 import { parse } from "csv-parse/sync";
 import { NextRequest, NextResponse } from "next/server";
@@ -170,19 +172,22 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      const issueData: Prisma.IssueUncheckedCreateInput = {
+        projectId: project.id,
+        key: jiraIssueKey || null,
+        type: mapIssueType(issueType),
+        title: summary,
+        description: description || null,
+        status: mapIssueStatus(status),
+        storyPoints: parseStoryPoints(storyPoints),
+        assigneeId,
+        epicId,
+        sprintId: null,
+        jiraIssueKey: jiraIssueKey || null,
+      };
+
       await prisma.issue.create({
-        data: {
-          projectId: project.id,
-          type: mapIssueType(issueType),
-          title: summary,
-          description: description || null,
-          status: mapIssueStatus(status),
-          storyPoints: parseStoryPoints(storyPoints),
-          assigneeId,
-          epicId,
-          sprintId: null,
-          jiraIssueKey: jiraIssueKey || null,
-        },
+        data: issueData,
       });
 
       importedCount += 1;

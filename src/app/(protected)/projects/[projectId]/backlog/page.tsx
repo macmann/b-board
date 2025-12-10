@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import ProjectHeader from "@/components/projects/ProjectHeader";
+import ProjectTabs from "@/components/projects/ProjectTabs";
+import Button from "@/components/ui/Button";
 import { getCurrentProjectContext } from "@/lib/projectContext";
 import { UserRole } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
@@ -43,27 +46,39 @@ export default async function ProjectBacklogPage(props: Props) {
     user?.role ?? null
   );
 
+  const roleLabel = projectRole ?? "Member";
+
   const manageTeamLink = (
     <div className="mt-4 flex items-center justify-between">
       <p className="text-sm text-gray-600">
         Project: <span className="font-medium">{project.name}</span>
       </p>
       {projectRole && (projectRole === "ADMIN" || projectRole === "PO") && (
-        <Link
-          href={`/projects/${projectId}/team`}
-          className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-        >
-          Manage Team
-        </Link>
+        <Button asChild>
+          <Link href={`/projects/${projectId}/team`}>Manage Team</Link>
+        </Button>
       )}
     </div>
   );
 
   return (
-    <BacklogPageClient
-      projectId={projectId}
-      projectRole={projectRole}
-      manageTeamLink={manageTeamLink}
-    />
+    <div className="space-y-2">
+      <ProjectHeader
+        projectName={project.name}
+        projectKey={project.key ?? project.name}
+        projectDescription={project.description}
+        currentUserName={user?.name}
+        currentUserEmail={user?.email}
+        roleLabel={roleLabel}
+      />
+
+      <ProjectTabs projectId={projectId} active="backlog" />
+
+      <BacklogPageClient
+        projectId={projectId}
+        projectRole={projectRole}
+        manageTeamLink={manageTeamLink}
+      />
+    </div>
   );
 }

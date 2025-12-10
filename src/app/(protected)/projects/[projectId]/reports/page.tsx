@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 
+import ProjectHeader from "@/components/projects/ProjectHeader";
+import ProjectTabs from "@/components/projects/ProjectTabs";
 import { getCurrentProjectContext } from "@/lib/projectContext";
 import { UserRole } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
@@ -31,7 +33,27 @@ export default async function Page(props: ServerProps) {
 
   if (!project) return notFound();
 
-  mapRole((membership?.role as ProjectRole | null) ?? null, user?.role ?? null);
+  const projectRole = mapRole(
+    (membership?.role as ProjectRole | null) ?? null,
+    user?.role ?? null
+  );
 
-  return <ProjectReportsPageClient projectId={projectId} />;
+  const roleLabel = projectRole ?? "Member";
+
+  return (
+    <div className="space-y-2">
+      <ProjectHeader
+        projectName={project.name}
+        projectKey={project.key ?? project.name}
+        projectDescription={project.description}
+        currentUserName={user?.name}
+        currentUserEmail={user?.email}
+        roleLabel={roleLabel}
+      />
+
+      <ProjectTabs projectId={projectId} active="reports" />
+
+      <ProjectReportsPageClient projectId={projectId} />
+    </div>
+  );
 }

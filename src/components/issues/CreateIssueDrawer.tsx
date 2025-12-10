@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 
 import { IssuePriority, IssueType } from "@/lib/prismaEnums";
+import Button from "../ui/Button";
 
 type Option = { id: string; label: string };
 
@@ -88,17 +89,12 @@ export default function CreateIssueDrawer({
   return (
     <Dialog.Root open={open} onOpenChange={(value) => setOpen(!isReadOnly && value)}>
       <Dialog.Trigger asChild>
-        <button
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={isReadOnly}
-        >
-          Create Issue
-        </button>
+        <Button disabled={isReadOnly}>Create Issue</Button>
       </Dialog.Trigger>
 
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/30 animate-fadeIn" />
-        <Dialog.Content className="fixed right-0 top-0 flex h-full w-[420px] flex-col gap-4 bg-white p-6 shadow-xl animate-slideIn">
+        <Dialog.Overlay className="fixed inset-0 bg-black/30 animate-fade-in" />
+        <Dialog.Content className="fixed right-0 top-0 flex h-full w-[420px] flex-col gap-4 bg-white p-6 shadow-xl animate-slide-in-right">
           <Dialog.Title className="mb-2 text-lg font-semibold">Create New Issue</Dialog.Title>
 
           <form className="grid gap-4" onSubmit={handleSubmit}>
@@ -219,20 +215,13 @@ export default function CreateIssueDrawer({
 
             <div className="flex justify-end gap-2">
               <Dialog.Close asChild>
-                <button
-                  type="button"
-                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
-                >
+                <Button type="button" variant="secondary">
                   Cancel
-                </button>
+                </Button>
               </Dialog.Close>
-              <button
-                type="submit"
-                disabled={isSubmitting || isReadOnly}
-                className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-              >
+              <Button type="submit" disabled={isSubmitting || isReadOnly}>
                 {isSubmitting ? "Creating..." : "Create issue"}
-              </button>
+              </Button>
             </div>
           </form>
 

@@ -9,10 +9,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>
-        <div className="min-h-screen bg-gray-50 text-gray-900">
-          {children}
-        </div>
+      <body className="min-h-screen bg-slate-50 text-slate-900">
+        {children}
       </body>
     </html>
   );
