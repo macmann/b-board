@@ -12,7 +12,7 @@ export type ProjectContext = {
   user: User | null;
 };
 
-type Project = { id: string; name: string };
+type Project = { id: string; name: string; key?: string | null; description?: string | null };
 type ProjectMember = { projectId: string; userId: string; role: Role };
 type User = { id: string; role: Role; name?: string | null; email?: string };
 
