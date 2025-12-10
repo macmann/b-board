@@ -56,11 +56,20 @@ export default async function IssueDetailsPage({ params }: Props) {
     context.user?.role ?? null
   );
 
+  const sprints = issue
+    ? await prisma.sprint.findMany({
+        where: { projectId: issue.projectId },
+        select: { id: true, name: true, status: true },
+        orderBy: { createdAt: "desc" },
+      })
+    : [];
+
   return (
     <IssueDetailsPageClient
       issueId={issueId}
       projectRole={projectRole}
       currentUserId={context.user?.id ?? null}
+      initialSprints={sprints}
     />
   );
 }
