@@ -3,7 +3,12 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { IssuePriority, IssueStatus, IssueType } from "../../../../lib/prismaEnums";
+import {
+  IssuePriority,
+  IssueStatus,
+  IssueType,
+  SprintStatus,
+} from "../../../../lib/prismaEnums";
 
 import { ProjectRole } from "../../../../lib/roles";
 import { canDeleteIssue, canEditIssue } from "../../../../lib/uiPermissions";
@@ -32,16 +37,24 @@ type Comment = {
   author: UserSummary;
 };
 
+type SprintSummary = {
+  id: string;
+  name: string;
+  status: SprintStatus;
+};
+
 type IssueDetailsPageClientProps = {
   issueId: string;
   projectRole: ProjectRole | null;
   currentUserId: string | null;
+  initialSprints: SprintSummary[];
 };
 
 export default function IssueDetailsPageClient({
   issueId,
   projectRole,
   currentUserId,
+  initialSprints,
 }: IssueDetailsPageClientProps) {
   const router = useRouter();
 
@@ -52,6 +65,7 @@ export default function IssueDetailsPageClient({
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [sprints, setSprints] = useState<SprintSummary[]>(initialSprints);
 
   const [title, setTitle] = useState("");
   const [status, setStatus] = useState<IssueStatus>(IssueStatus.TODO);
@@ -81,11 +95,25 @@ export default function IssueDetailsPageClient({
 
   const sprintOptions = useMemo(() => {
     const options = [] as Array<{ id: string; label: string }>;
+    const seen = new Set<string>();
+
     if (issue?.sprint) {
       options.push({ id: issue.sprint.id, label: issue.sprint.name });
+      seen.add(issue.sprint.id);
     }
+
+    sprints.forEach((sprint) => {
+      if (
+        !seen.has(sprint.id) &&
+        (sprint.status === SprintStatus.PLANNED || sprint.status === SprintStatus.ACTIVE)
+      ) {
+        options.push({ id: sprint.id, label: sprint.name });
+        seen.add(sprint.id);
+      }
+    });
+
     return options;
-  }, [issue]);
+  }, [issue, sprints]);
 
   const issueIdentifiers = issue
     ? {
@@ -122,6 +150,7 @@ export default function IssueDetailsPageClient({
       setEpicId(data.epic?.id ?? "");
       setSprintId(data.sprint?.id ?? "");
       setDescription(data.description ?? "");
+
     } catch (err) {
       setError("An unexpected error occurred while loading the issue.");
     } finally {
