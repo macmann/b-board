@@ -1,3 +1,6 @@
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+
 type ProjectHeaderProps = {
   projectName: string;
   projectKey: string;
@@ -32,7 +35,9 @@ export default function ProjectHeader({
           {projectKey} · {projectName}
         </div>
         {projectDescription && (
-          <p className="text-sm text-slate-500">{projectDescription}</p>
+          <div className="markdown-content text-sm text-slate-500">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{projectDescription}</ReactMarkdown>
+          </div>
         )}
       </div>
 

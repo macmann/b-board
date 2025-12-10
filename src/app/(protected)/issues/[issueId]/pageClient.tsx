@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useRouter } from "next/navigation";
 
 import {
@@ -351,10 +353,14 @@ export default function IssueDetailsPageClient({
                       >
                         Description
                       </label>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Supports Markdown for rich formatting. Try **bold**, _italic_, bullet lists, and links.
+                      </p>
                       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950/40">
                         <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900">
                           <span className="inline-flex h-2 w-2 rounded-full bg-slate-300" />
-                          <span>Rich text toolbar placeholder</span>
+                          <span>Markdown supported</span>
+                          <span className="hidden text-[11px] sm:inline">Use # headings, * lists, and `code`</span>
                         </div>
                         <textarea
                           id="description"
@@ -365,6 +371,20 @@ export default function IssueDetailsPageClient({
                           disabled={disableEditing}
                           className="w-full border-none bg-transparent px-3 pb-3 pt-3 text-sm text-slate-900 outline-none focus:ring-0 dark:text-slate-50"
                         />
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950/60">
+                        <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-800">
+                          <span className="font-semibold uppercase tracking-wide">Preview</span>
+                          <span className="text-[11px]">Rendered Markdown</span>
+                        </div>
+                        <div className="markdown-content px-3 pb-3 pt-2 text-sm text-slate-900 dark:text-slate-100">
+                          {description.trim() ? (
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{description}</ReactMarkdown>
+                          ) : (
+                            <p className="text-slate-500 dark:text-slate-400">Nothing to preview yet.</p>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -577,7 +597,9 @@ export default function IssueDetailsPageClient({
                                 <span>{comment.author?.name ?? "Unknown"}</span>
                                 <span>{new Date(comment.createdAt).toLocaleString()}</span>
                               </div>
-                              <p className="mt-2 whitespace-pre-line text-slate-900 dark:text-slate-100">{comment.body}</p>
+                              <div className="markdown-content mt-2 text-slate-900 dark:text-slate-100">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{comment.body}</ReactMarkdown>
+                              </div>
                             </li>
                           ))}
                         </ul>
@@ -589,6 +611,7 @@ export default function IssueDetailsPageClient({
                         <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="newComment">
                           Add a comment
                         </label>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Use Markdown to add emphasis, lists, and links.</p>
                         <textarea
                           id="newComment"
                           name="newComment"
