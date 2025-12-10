@@ -51,7 +51,7 @@ const provisionDefaultAdmin = async () => {
       workspaceId: workspace.id,
       key: DEFAULT_PROJECT_KEY,
       name: DEFAULT_PROJECT_NAME,
-      description: "Sample project for Mini Jira",
+      description: "Sample project for B Board",
     },
   });
 

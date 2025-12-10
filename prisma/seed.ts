@@ -62,7 +62,7 @@ async function main() {
       workspaceId: workspace.id,
       key: DEMO_PROJECT_KEY,
       name: DEMO_PROJECT_NAME,
-      description: "Sample project for Mini Jira",
+      description: "Sample project for B Board",
     },
   });
 
