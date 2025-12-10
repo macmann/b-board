@@ -5,12 +5,13 @@ import ProjectHeader from "@/components/projects/ProjectHeader";
 import ProjectTabs from "@/components/projects/ProjectTabs";
 import Button from "@/components/ui/Button";
 import { getCurrentProjectContext } from "@/lib/projectContext";
-import { UserRole } from "@/lib/prismaEnums";
+import { ResearchStatus, UserRole } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
 import { resolveProjectId, type ProjectParams } from "@/lib/params";
 import prisma from "@/lib/db";
 
 import BacklogPageClient, { BacklogGroup } from "./pageClient";
+import { type ResearchBacklogItem } from "@/components/research/types";
 
 const mapRole = (
   membershipRole: ProjectRole | null,
@@ -66,6 +67,43 @@ export default async function ProjectBacklogPage(props: Props) {
     },
   });
 
+  const researchItems: ResearchBacklogItem[] = project.enableResearchBoard
+    ? (
+        await prisma.researchItem.findMany({
+          where: { projectId, status: { not: ResearchStatus.ARCHIVED } },
+          orderBy: [
+            { status: "asc" },
+            { position: "asc" },
+            { createdAt: "asc" },
+          ],
+          include: {
+            assignee: { select: { id: true, name: true } },
+            issueLinks: {
+              include: {
+                issue: {
+                  select: { assignee: { select: { id: true, name: true } } },
+                },
+              },
+            },
+          },
+        })
+      ).map((item) => ({
+        id: item.id,
+        title: item.title,
+        status: item.status,
+        position: item.position,
+        researchType: item.tags[0] ?? null,
+        assignee:
+          item.assignee ??
+          (item.issueLinks
+            .map((link) => link.issue?.assignee)
+            .find(Boolean) ?? null),
+        dueDate: item.dueDate ? item.dueDate.toISOString() : null,
+        linkedIssuesCount: item.issueLinks.length,
+        updatedAt: item.updatedAt.toISOString(),
+      }))
+    : [];
+
   const backlogGroups: BacklogGroup[] = backlogProject
     ? [
         ...backlogProject.sprints.map((sprint) => ({
@@ -118,6 +156,7 @@ export default async function ProjectBacklogPage(props: Props) {
         manageTeamLink={manageTeamLink}
         backlogGroups={backlogGroups}
         enableResearchBoard={project.enableResearchBoard}
+        researchItems={researchItems}
       />
     </div>
   );

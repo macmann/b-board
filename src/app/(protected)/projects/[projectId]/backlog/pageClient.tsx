@@ -4,17 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-import BacklogTable, {
-  type BacklogTableIssue,
-} from "@/components/issues/BacklogTable";
+import BacklogTable, { type BacklogTableIssue } from "@/components/issues/BacklogTable";
 import CreateIssueDrawer from "@/components/issues/CreateIssueDrawer";
-import ResearchDetailsDrawer from "@/components/research/ResearchDetailsDrawer";
-import ResearchTable, {
-  type ResearchTableItem,
-} from "@/components/research/ResearchTable";
-import ResearchItemDrawer from "@/components/research/ResearchItemDrawer";
-import Button from "@/components/ui/Button";
+import ResearchBacklogContainer from "@/components/research/ResearchBacklogContainer";
 import { SprintStatus } from "@/lib/prismaEnums";
+
+import { type ResearchBacklogItem } from "@/components/research/types";
 
 import { ProjectRole } from "../../../../../lib/roles";
 
@@ -36,6 +31,7 @@ type BacklogPageClientProps = {
   manageTeamLink: React.ReactNode;
   backlogGroups: BacklogGroup[];
   enableResearchBoard: boolean;
+  researchItems: ResearchBacklogItem[];
 };
 
 export default function BacklogPageClient({
@@ -44,6 +40,7 @@ export default function BacklogPageClient({
   manageTeamLink,
   backlogGroups: initialBacklogGroups,
   enableResearchBoard,
+  researchItems: initialResearchItems,
 }: BacklogPageClientProps) {
   const router = useRouter();
 
@@ -56,12 +53,16 @@ export default function BacklogPageClient({
   const [activeSegment, setActiveSegment] = useState<"product" | "research">(
     "product"
   );
-  const [researchItems, setResearchItems] = useState<ResearchTableItem[]>([]);
-  const [isResearchLoading, setIsResearchLoading] = useState(false);
+  const [researchItems, setResearchItems] = useState<ResearchBacklogItem[]>(
+    initialResearchItems
+  );
+  const [isResearchLoading, setIsResearchLoading] = useState(
+    initialResearchItems.length === 0
+  );
   const [researchError, setResearchError] = useState("");
-  const [hasLoadedResearch, setHasLoadedResearch] = useState(false);
-  const [selectedResearchId, setSelectedResearchId] = useState<string | null>(null);
-  const [isResearchDetailOpen, setIsResearchDetailOpen] = useState(false);
+  const [hasLoadedResearch, setHasLoadedResearch] = useState(
+    initialResearchItems.length > 0
+  );
 
   const isReadOnly = projectRole === "VIEWER";
 
@@ -136,7 +137,7 @@ export default function BacklogPageClient({
 
     try {
       const response = await fetch(
-        `/api/projects/${projectId}/research-items`
+        `/api/projects/${projectId}/research-board`
       );
 
       if (!response.ok) {
@@ -150,8 +151,8 @@ export default function BacklogPageClient({
         return;
       }
 
-      const data: ResearchTableItem[] = await response.json();
-      setResearchItems(data);
+      const data = (await response.json()) as { items: ResearchBacklogItem[] };
+      setResearchItems(data.items ?? []);
       setHasLoadedResearch(true);
     } catch (err) {
       setResearchError("An unexpected error occurred while loading research.");
@@ -170,11 +171,6 @@ export default function BacklogPageClient({
 
   const handleRowClick = (issueId: string) => {
     router.push(`/issues/${issueId}`);
-  };
-
-  const handleResearchRowClick = (researchId: string) => {
-    setSelectedResearchId(researchId);
-    setIsResearchDetailOpen(true);
   };
 
   if (!hasAccess) {
@@ -240,16 +236,6 @@ export default function BacklogPageClient({
             />
           )}
 
-          {activeSegment === "research" && enableResearchBoard && (
-            <ResearchItemDrawer
-              projectId={projectId}
-              isReadOnly={isReadOnly}
-              mode="create"
-              trigger={<Button disabled={isReadOnly}>Create Research Item</Button>}
-              onSuccess={fetchResearchItems}
-              onForbidden={() => setHasAccess(false)}
-            />
-          )}
         </div>
       </div>
 
@@ -305,29 +291,21 @@ export default function BacklogPageClient({
             })}
           </div>
         )
-      ) : isResearchLoading ? (
-        <div className="rounded-xl border border-slate-200 bg-white px-6 py-4 text-sm text-slate-600 shadow-sm">
-          Loading research...
-        </div>
       ) : (
-        <ResearchTable items={researchItems} onRowClick={handleResearchRowClick} />
+        <ResearchBacklogContainer
+          projectId={projectId}
+          enableResearchBoard={enableResearchBoard}
+          items={researchItems}
+          isReadOnly={isReadOnly}
+          isLoading={isResearchLoading}
+          error={researchError}
+          projectIssues={projectIssues}
+          onRefresh={fetchResearchItems}
+          onItemsChange={setResearchItems}
+        />
       )}
 
       {manageTeamLink}
-
-      {enableResearchBoard && (
-        <ResearchDetailsDrawer
-          researchItemId={selectedResearchId}
-          isReadOnly={isReadOnly}
-          issues={projectIssues}
-          open={isResearchDetailOpen}
-          onClose={() => {
-            setIsResearchDetailOpen(false);
-            setSelectedResearchId(null);
-          }}
-          onUpdated={fetchResearchItems}
-        />
-      )}
     </div>
   );
 }
