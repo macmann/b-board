@@ -1,0 +1,212 @@
+import { NextRequest, NextResponse } from "next/server";
+
+import { getUserFromRequest } from "../../../../../../lib/auth";
+import prisma from "../../../../../../lib/db";
+import {
+  ensureProjectRole,
+  ForbiddenError,
+  PROJECT_VIEWER_ROLES,
+} from "../../../../../../lib/permissions";
+import { resolveProjectId, type ProjectParams } from "../../../../../../lib/params";
+
+const standupInclude = {
+  issues: {
+    include: { issue: true },
+  },
+};
+
+const parseDate = (value: string | null): Date | null => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const computeCompletion = (summaryToday?: string | null, issueIds?: string[]) => {
+  return Boolean(summaryToday && summaryToday.trim()) && Boolean(issueIds?.length);
+};
+
+const normalizeIssueIds = (issueIds: unknown): string[] => {
+  if (!Array.isArray(issueIds)) return [];
+  return Array.from(new Set(issueIds.filter((id): id is string => typeof id === "string")));
+};
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: ProjectParams }
+) {
+  const projectId = await resolveProjectId(params);
+
+  if (!projectId) {
+    return NextResponse.json({ message: "projectId is required" }, { status: 400 });
+  }
+
+  const user = await getUserFromRequest(request);
+
+  if (!user) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    await ensureProjectRole(prisma, user.id, projectId, PROJECT_VIEWER_ROLES);
+  } catch (error) {
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    }
+
+    throw error;
+  }
+
+  const dateParam = request.nextUrl.searchParams.get("date");
+  const date = parseDate(dateParam);
+
+  if (!date) {
+    return NextResponse.json({ message: "date is required" }, { status: 400 });
+  }
+
+  const entry = await prisma.dailyStandupEntry.findUnique({
+    where: {
+      projectId_userId_date: {
+        projectId,
+        userId: user.id,
+        date,
+      },
+    },
+    include: standupInclude,
+  });
+
+  return NextResponse.json(entry);
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: ProjectParams }
+) {
+  return upsertEntry(request, params);
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: ProjectParams }
+) {
+  return upsertEntry(request, params);
+}
+
+const upsertEntry = async (
+  request: NextRequest,
+  params: ProjectParams
+): Promise<NextResponse> => {
+  const projectId = await resolveProjectId(params);
+
+  if (!projectId) {
+    return NextResponse.json({ message: "projectId is required" }, { status: 400 });
+  }
+
+  const user = await getUserFromRequest(request);
+
+  if (!user) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    await ensureProjectRole(prisma, user.id, projectId, PROJECT_VIEWER_ROLES);
+  } catch (error) {
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    }
+
+    throw error;
+  }
+
+  const body = await request.json();
+
+  const {
+    date: dateInput,
+    summaryToday,
+    progressSinceYesterday,
+    blockers,
+    dependencies,
+    notes,
+    issueIds: issueIdsInput,
+  } = body ?? {};
+
+  const date = parseDate(dateInput ?? null);
+
+  if (!date) {
+    return NextResponse.json({ message: "date is required" }, { status: 400 });
+  }
+
+  const issueIds = normalizeIssueIds(issueIdsInput);
+
+  const validIssues = issueIds.length
+    ? await prisma.issue.findMany({
+        where: { id: { in: issueIds }, projectId },
+        select: { id: true },
+      })
+    : [];
+
+  const validIssueIds = validIssues.map((issue) => issue.id);
+  const isComplete = computeCompletion(summaryToday, validIssueIds);
+
+  const entry = await prisma.$transaction(async (tx) => {
+    const upserted = await tx.dailyStandupEntry.upsert({
+      where: {
+        projectId_userId_date: {
+          projectId,
+          userId: user.id,
+          date,
+        },
+      },
+      update: {
+        summaryToday: summaryToday ?? null,
+        progressSinceYesterday: progressSinceYesterday ?? null,
+        blockers: blockers ?? null,
+        dependencies: dependencies ?? null,
+        notes: notes ?? null,
+        isComplete,
+      },
+      create: {
+        projectId,
+        userId: user.id,
+        date,
+        summaryToday: summaryToday ?? null,
+        progressSinceYesterday: progressSinceYesterday ?? null,
+        blockers: blockers ?? null,
+        dependencies: dependencies ?? null,
+        notes: notes ?? null,
+        isComplete,
+      },
+    });
+
+    if (validIssueIds.length) {
+      await tx.standupEntryIssueLink.deleteMany({
+        where: {
+          standupEntryId: upserted.id,
+          issueId: { notIn: validIssueIds },
+        },
+      });
+    } else {
+      await tx.standupEntryIssueLink.deleteMany({
+        where: { standupEntryId: upserted.id },
+      });
+    }
+
+    if (validIssueIds.length) {
+      await tx.standupEntryIssueLink.createMany({
+        data: validIssueIds.map((issueId) => ({
+          standupEntryId: upserted.id,
+          issueId,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    return upserted;
+  });
+
+  const result = await prisma.dailyStandupEntry.findUnique({
+    where: { id: entry.id },
+    include: standupInclude,
+  });
+
+  return NextResponse.json(result, { status: 200 });
+};
