@@ -1,7 +1,9 @@
+import { notFound } from "next/navigation";
+
 import { getCurrentProjectContext } from "@/lib/projectContext";
 import { UserRole } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
-import { notFound } from "next/navigation";
+
 import BoardPageClient from "./pageClient";
 
 const mapRole = (
@@ -12,25 +14,27 @@ const mapRole = (
   return membershipRole;
 };
 
-type Props = {
-  params: { projectId: string };
+type ServerProps = {
+  params: { projectId: string } | Promise<{ projectId: string }>;
   searchParams?: Record<string, string | string[] | undefined>;
 };
 
-export default async function SprintBoardPage({ params }: Props) {
-  const { projectId } = params;
+export default async function Page(props: ServerProps) {
+  const resolvedParams = await props.params;
+  const projectId = resolvedParams?.projectId;
 
-  if (!projectId) {
-    notFound();
-  }
+  console.log("[ProjectPage] projectId:", projectId);
 
-  const { membership, user, project } = await getCurrentProjectContext(projectId);
+  if (!projectId) return notFound();
 
-  if (!project) {
-    notFound();
-  }
+  const { project, membership, user } = await getCurrentProjectContext(projectId);
 
-  const projectRole = mapRole(membership?.role as ProjectRole | null, user?.role ?? null);
+  if (!project) return notFound();
+
+  const projectRole = mapRole(
+    (membership?.role as ProjectRole | null) ?? null,
+    user?.role ?? null
+  );
 
   return <BoardPageClient projectId={projectId} projectRole={projectRole} />;
 }
