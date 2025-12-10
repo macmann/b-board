@@ -21,14 +21,13 @@ type Props = {
   searchParams?: Record<string, string | string[] | undefined>;
 };
 
-export default async function ProjectBacklogPage({ params }: Props) {
-  // Use the shared helper so we work with both plain objects and Promises
+export default async function ProjectBacklogPage(props: Props) {
+  const params = await props.params;
   const projectId = await resolveProjectId(params);
 
   console.log("[ProjectBacklogPage] resolved projectId:", projectId);
 
   if (!projectId) {
-    console.warn("[ProjectBacklogPage] Missing projectId, returning 404");
     notFound();
   }
 

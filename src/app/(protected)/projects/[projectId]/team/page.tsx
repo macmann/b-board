@@ -2,6 +2,8 @@ import { getCurrentProjectContext } from "@/lib/projectContext";
 import { UserRole } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
 import { notFound } from "next/navigation";
+
+import { resolveProjectId, type ProjectParams } from "@/lib/params";
 import ProjectTeamPageClient from "./pageClient";
 
 const mapRole = (
@@ -13,12 +15,13 @@ const mapRole = (
 };
 
 type Props = {
-  params: { projectId: string };
+  params: ProjectParams;
   searchParams?: Record<string, string | string[] | undefined>;
 };
 
-export default async function ProjectTeamPage({ params }: Props) {
-  const { projectId } = params;
+export default async function ProjectTeamPage(props: Props) {
+  const params = await props.params;
+  const projectId = await resolveProjectId(params);
 
   if (!projectId) {
     notFound();
