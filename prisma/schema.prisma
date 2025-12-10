@@ -111,6 +111,7 @@ model User {
   comments              Comment[]
   historyEntries        IssueHistory[]
   assignedResearchItems ResearchItem[]    @relation("ResearchItemAssignee")
+  standupEntries        DailyStandupEntry[]
 }
 
 model Workspace {
@@ -158,6 +159,7 @@ model Project {
   epics         Epic[]
   issues        Issue[]
   researchItems ResearchItem[]
+  standupEntries DailyStandupEntry[]
 
   @@unique([workspaceId, key])
 }
@@ -254,6 +256,7 @@ model Issue {
   comments      Comment[]
   history       IssueHistory[]
   researchLinks ResearchItemIssueLink[]
+  standupLinks  StandupEntryIssueLink[]
 
   @@index([projectId])
   @@index([sprintId])
@@ -327,6 +330,42 @@ model ResearchItemIssueLink {
   issue        Issue        @relation(fields: [issueId], references: [id], onDelete: Cascade)
 
   @@unique([researchItemId, issueId])
+  @@index([issueId])
+}
+
+model DailyStandupEntry {
+  id                     String   @id @default(cuid())
+  projectId              String
+  userId                 String
+  date                   DateTime @db.Date
+  summaryToday           String?
+  progressSinceYesterday String?
+  blockers               String?
+  dependencies           String?
+  notes                  String?
+  isComplete             Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  issues  StandupEntryIssueLink[]
+
+  @@unique([projectId, userId, date])
+  @@index([projectId])
+  @@index([userId])
+}
+
+model StandupEntryIssueLink {
+  id              String   @id @default(cuid())
+  standupEntryId  String
+  issueId         String
+  createdAt       DateTime @default(now())
+
+  standupEntry DailyStandupEntry @relation(fields: [standupEntryId], references: [id], onDelete: Cascade)
+  issue        Issue             @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@unique([standupEntryId, issueId])
   @@index([issueId])
 }
 
