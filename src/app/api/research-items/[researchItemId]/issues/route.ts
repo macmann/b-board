@@ -43,9 +43,9 @@ async function ensureAccess(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { researchItemId: string } }
+  context: { params: Promise<{ researchItemId: string }> }
 ) {
-  const { researchItemId } = params;
+  const { researchItemId } = await context.params;
 
   try {
     const user = await getUserFromRequest(request);
@@ -106,9 +106,9 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { researchItemId: string } }
+  context: { params: Promise<{ researchItemId: string }> }
 ) {
-  const { researchItemId } = params;
+  const { researchItemId } = await context.params;
 
   try {
     const user = await getUserFromRequest(request);
@@ -184,9 +184,9 @@ export async function POST(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { researchItemId: string } }
+  context: { params: Promise<{ researchItemId: string }> }
 ) {
-  const { researchItemId } = params;
+  const { researchItemId } = await context.params;
 
   try {
     const user = await getUserFromRequest(request);
