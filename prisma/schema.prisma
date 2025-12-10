@@ -195,6 +195,7 @@ model Epic {
 model Issue {
   id           String        @id @default(cuid())
   projectId    String
+  key          String?       @unique
   sprintId     String?
   epicId       String?
   type         IssueType
