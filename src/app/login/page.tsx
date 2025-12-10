@@ -47,7 +47,7 @@ export default function LoginPage() {
 
   return (
     <AuthLayout
-      title="Sign in to Mini Jira"
+      title="Sign in to B Board"
       subtitle="Welcome back! Enter your details to access your workspace."
     >
       <form className="space-y-4" onSubmit={handleSubmit}>

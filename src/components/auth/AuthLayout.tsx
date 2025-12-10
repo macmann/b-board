@@ -12,10 +12,10 @@ export default function AuthLayout({ title, subtitle, children }: AuthLayoutProp
       <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white px-8 py-6 shadow-md dark:border-slate-800 dark:bg-slate-900">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-white">
-            MJ
+            BB
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-semibold">Mini Jira</span>
+            <span className="text-sm font-semibold">B Board</span>
             <span className="text-xs text-slate-500 dark:text-slate-400">Plan and ship with confidence</span>
           </div>
         </div>

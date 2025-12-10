@@ -1,6 +1,12 @@
 import type { ReactNode } from "react";
+import type { Metadata } from "next";
 
 import AppThemeProvider from "@/components/theme/ThemeProvider";
+
+export const metadata: Metadata = {
+  title: "B Board",
+  description: "Lightweight agile board and backlog manager.",
+};
 
 import "./globals.css";
 
