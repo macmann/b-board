@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import CreateSprintDrawer from "@/components/sprints/CreateSprintDrawer";
+import Button from "@/components/ui/Button";
 
 import { SprintStatus } from "../../../../../lib/prismaEnums";
 
@@ -34,6 +35,16 @@ export default function ProjectSprintsPageClient({
   const [error, setError] = useState("");
 
   const allowSprintManagement = canManageSprints(projectRole);
+
+  const statusStyles = useMemo(
+    () => ({
+      [SprintStatus.PLANNED]:
+        "bg-slate-100 text-slate-700 border border-slate-200",
+      [SprintStatus.ACTIVE]: "bg-blue-50 text-blue-700 border border-blue-200",
+      [SprintStatus.COMPLETED]: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+    }),
+    []
+  );
 
   const fetchSprints = async () => {
     setIsLoading(true);
@@ -95,9 +106,27 @@ export default function ProjectSprintsPageClient({
   };
 
   const formatDate = (value: string | null) => {
-    if (!value) return "-";
+    if (!value) return null;
+
     const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? "-" : date.toLocaleDateString();
+
+    if (Number.isNaN(date.getTime())) return null;
+
+    return new Intl.DateTimeFormat("en-US", {
+      day: "2-digit",
+      month: "short",
+    }).format(date);
+  };
+
+  const formatDateRange = (start: string | null, end: string | null) => {
+    const startLabel = formatDate(start);
+    const endLabel = formatDate(end);
+
+    if (startLabel && endLabel) return `${startLabel} – ${endLabel}`;
+    if (startLabel) return `Starts ${startLabel}`;
+    if (endLabel) return `Ends ${endLabel}`;
+
+    return "No dates set";
   };
 
   const navigateToSprintBoard = (sprintId: string) => {
@@ -105,104 +134,109 @@ export default function ProjectSprintsPageClient({
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 p-6">
-      <div className="mx-auto flex max-w-6xl flex-col gap-8">
-        <header className="flex flex-col gap-2">
-          <h1 className="text-3xl font-semibold text-gray-900">Sprints</h1>
-          <p className="text-gray-600">
-            Manage sprints for this project. Plan, start, and complete sprints.
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="space-y-1">
+          <h2 className="text-xl font-semibold text-slate-900">Sprints</h2>
+          <p className="text-sm text-slate-600">
+            Plan, start, and complete sprints for this project.
           </p>
-        </header>
-
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-gray-900">Sprints</h2>
-          {allowSprintManagement && (
-            <CreateSprintDrawer
-              projectId={projectId}
-              onSprintCreated={fetchSprints}
-              onError={setError}
-            />
-          )}
         </div>
 
-        <section className="rounded-lg bg-white p-6 shadow">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">Sprint list</h3>
-            {error && <p className="text-sm text-red-600">{error}</p>}
-          </div>
-
-          {isLoading ? (
-            <p className="text-gray-600">Loading sprints...</p>
-          ) : sprints.length === 0 ? (
-            <p className="text-gray-600">No sprints have been created yet.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead>
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                      Name
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                      Status
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                      Start Date
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                      End Date
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                      Goal
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {sprints.map((sprint) => (
-                    <tr key={sprint.id} className="hover:bg-gray-50">
-                      <td
-                        className="cursor-pointer px-4 py-3 text-sm font-medium text-blue-700 hover:underline"
-                        onClick={() => navigateToSprintBoard(sprint.id)}
-                      >
-                        {sprint.name}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{sprint.status}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{formatDate(sprint.startDate)}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{formatDate(sprint.endDate)}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">{sprint.goal || "-"}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
-                        <div className="flex gap-2">
-                          {allowSprintManagement && sprint.status === SprintStatus.PLANNED && (
-                            <button
-                              type="button"
-                              onClick={() => handleStartSprint(sprint.id)}
-                              className="rounded-md bg-green-600 px-3 py-1 text-white shadow hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-                            >
-                              Start
-                            </button>
-                          )}
-                          {allowSprintManagement && sprint.status === SprintStatus.ACTIVE && (
-                            <button
-                              type="button"
-                              onClick={() => handleCompleteSprint(sprint.id)}
-                              className="rounded-md bg-indigo-600 px-3 py-1 text-white shadow hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                            >
-                              Complete
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
+        {allowSprintManagement && (
+          <CreateSprintDrawer
+            projectId={projectId}
+            onSprintCreated={fetchSprints}
+            onError={setError}
+          />
+        )}
       </div>
-    </main>
+
+      {error && !isLoading && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        {isLoading ? (
+          <div className="px-5 py-6 text-sm text-slate-600">Loading sprints...</div>
+        ) : sprints.length === 0 ? (
+          <div className="px-5 py-10 text-center text-sm text-slate-500">
+            No sprints for this project yet. Create the first sprint to start planning.
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {sprints.map((sprint) => (
+              <div
+                key={sprint.id}
+                className="flex items-center justify-between px-5 py-4 transition hover:bg-slate-50"
+                role="button"
+                tabIndex={0}
+                onClick={() => navigateToSprintBoard(sprint.id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    navigateToSprintBoard(sprint.id);
+                  }
+                }}
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-slate-900">{sprint.name}</p>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusStyles[sprint.status]}`}
+                    >
+                      {sprint.status.replace("_", " ")}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    {sprint.goal?.trim() ? sprint.goal : "No goal set."}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-4 text-sm text-slate-700">
+                  <div className="text-right">
+                    <div className="font-medium text-slate-900">
+                      {formatDateRange(sprint.startDate, sprint.endDate)}
+                    </div>
+                    <div className="text-xs text-slate-500">Story points: —</div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {allowSprintManagement && sprint.status === SprintStatus.PLANNED && (
+                      <Button
+                        variant="secondary"
+                        className="px-3 py-1 text-xs"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleStartSprint(sprint.id);
+                        }}
+                      >
+                        Start
+                      </Button>
+                    )}
+                    {allowSprintManagement && sprint.status === SprintStatus.ACTIVE && (
+                      <Button
+                        variant="secondary"
+                        className="px-3 py-1 text-xs"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleCompleteSprint(sprint.id);
+                        }}
+                      >
+                        Complete
+                      </Button>
+                    )}
+
+                    <span className="text-lg text-slate-300">›</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
