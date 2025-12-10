@@ -105,12 +105,12 @@ model User {
 
   workspaces            WorkspaceMember[]
   projectMemberships    ProjectMember[]
-  sentInvitations       Invitation[]      @relation("InvitationsSent")
-  reportedIssues        Issue[]           @relation("ReportedIssues")
-  assignedIssues        Issue[]           @relation("AssignedIssues")
+  sentInvitations       Invitation[]        @relation("InvitationsSent")
+  reportedIssues        Issue[]             @relation("ReportedIssues")
+  assignedIssues        Issue[]             @relation("AssignedIssues")
   comments              Comment[]
   historyEntries        IssueHistory[]
-  assignedResearchItems ResearchItem[]    @relation("ResearchItemAssignee")
+  assignedResearchItems ResearchItem[]      @relation("ResearchItemAssignee")
   standupEntries        DailyStandupEntry[]
 }
 
@@ -151,14 +151,14 @@ model Project {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  workspace     Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  members       ProjectMember[]
-  invitations   Invitation[]
-  inviteTokens  InviteToken[]
-  sprints       Sprint[]
-  epics         Epic[]
-  issues        Issue[]
-  researchItems ResearchItem[]
+  workspace      Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  members        ProjectMember[]
+  invitations    Invitation[]
+  inviteTokens   InviteToken[]
+  sprints        Sprint[]
+  epics          Epic[]
+  issues         Issue[]
+  researchItems  ResearchItem[]
   standupEntries DailyStandupEntry[]
 
   @@unique([workspaceId, key])
@@ -299,6 +299,7 @@ model ResearchItem {
   decision    ResearchDecision @default(PENDING)
   tags        String[]         @default([])
   dueDate     DateTime?
+  position    Int              @default(0)
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -347,8 +348,8 @@ model DailyStandupEntry {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   issues  StandupEntryIssueLink[]
 
   @@unique([projectId, userId, date])
@@ -357,10 +358,10 @@ model DailyStandupEntry {
 }
 
 model StandupEntryIssueLink {
-  id              String   @id @default(cuid())
-  standupEntryId  String
-  issueId         String
-  createdAt       DateTime @default(now())
+  id             String   @id @default(cuid())
+  standupEntryId String
+  issueId        String
+  createdAt      DateTime @default(now())
 
   standupEntry DailyStandupEntry @relation(fields: [standupEntryId], references: [id], onDelete: Cascade)
   issue        Issue             @relation(fields: [issueId], references: [id], onDelete: Cascade)

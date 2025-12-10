@@ -15,6 +15,7 @@ import {
 } from "../../../../../lib/permissions";
 import { resolveProjectId, type ProjectParams } from "../../../../../lib/params";
 import { ResearchStatus } from "../../../../../lib/prismaEnums";
+import { getNextResearchPosition } from "../../../../../lib/researchPosition";
 
 const RESEARCH_STATUS_SET = new Set(Object.values(ResearchStatus));
 const RESEARCH_PRIORITY_SET = new Set(Object.values(PrismaResearchPriority));
@@ -268,6 +269,7 @@ export async function POST(
     title,
     description: description ?? null,
     status: validStatus,
+    position: await getNextResearchPosition(projectId, validStatus),
     priority: validPriority ?? undefined,
     decision: validDecision ?? undefined,
     tags: normalizedTags,
