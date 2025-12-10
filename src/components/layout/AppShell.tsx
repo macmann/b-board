@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import Button from "../ui/Button";
+import ThemeToggle from "../theme/ThemeToggle";
 
 type AppShellProps = {
   children: ReactNode;
@@ -30,15 +31,15 @@ export default function AppShell({
   const projectLabel = currentProjectName && currentProjectName.length > 0 ? currentProjectName : "Select a project";
 
   return (
-    <div className="flex min-h-screen bg-slate-50 text-slate-900">
-      <aside className="flex w-64 flex-col border-r border-slate-200 bg-white">
-        <div className="flex items-center gap-3 border-b border-slate-200 px-5 py-5">
+    <div className="flex min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-50">
+      <aside className="flex w-64 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+        <div className="flex items-center gap-3 border-b border-slate-200 px-5 py-5 dark:border-slate-800">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-white">
             BB
           </div>
           <div className="flex flex-col">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">B Board</span>
-            <span className="text-sm font-semibold text-slate-900">Workspace</span>
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">B Board</span>
+            <span className="text-sm font-semibold text-slate-900 dark:text-slate-50">Workspace</span>
           </div>
         </div>
 
@@ -52,28 +53,29 @@ export default function AppShell({
                 className={classNames(
                   "group flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition",
                   isActive
-                    ? "-ml-1 border-l-2 border-primary bg-slate-100 pl-4 text-slate-900"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    ? "-ml-1 border-l-2 border-primary bg-slate-100 pl-4 text-slate-900 dark:border-primary/80 dark:bg-slate-900 dark:text-slate-50"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-slate-50"
                 )}
               >
                 {link.label}
               </Link>
-            );
-          })}
-        </nav>
-      </aside>
+          );
+        })}
+      </nav>
+    </aside>
 
       <div className="flex flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-slate-200 bg-white/80 px-8 py-4 backdrop-blur">
+        <header className="flex items-center justify-between border-b border-slate-200 bg-white/80 px-8 py-4 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
           <div className="flex flex-col">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Current Project</span>
-            <span className="text-lg font-semibold text-slate-900">{projectLabel}</span>
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Current Project</span>
+            <span className="text-lg font-semibold text-slate-900 dark:text-slate-50">{projectLabel}</span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
             {user && (
               <div className="text-right">
-                <div className="text-sm font-semibold text-slate-900">{user.name ?? "Admin"}</div>
-                <div className="text-xs text-slate-500">{user.email ?? "admin@bboard.com"}</div>
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{user.name ?? "Admin"}</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">{user.email ?? "admin@bboard.com"}</div>
               </div>
             )}
             {onLogout && (

@@ -232,9 +232,9 @@ export default function BoardPageClient({ projectId, projectRole }: BoardPageCli
   if (!hasAccess) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-          <h1 className="text-xl font-semibold text-slate-900">You don’t have access to this project.</h1>
-          <p className="mt-2 text-sm text-slate-600">Ask a project admin to invite you to this project.</p>
+        <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-50">You don’t have access to this project.</h1>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Ask a project admin to invite you to this project.</p>
           <Link
             href="/my-projects"
             className="mt-4 inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
@@ -250,14 +250,14 @@ export default function BoardPageClient({ projectId, projectRole }: BoardPageCli
     <div className="space-y-4">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
-          <h1 className="text-xl font-semibold text-slate-900">Board</h1>
-          <p className="text-sm text-slate-500">
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-50">Board</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             Drag cards between columns to keep work moving for the active sprint.
           </p>
         </div>
         <div className="flex items-center gap-3">
           {isReadOnly && (
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               View only
             </span>
           )}
@@ -267,35 +267,35 @@ export default function BoardPageClient({ projectId, projectRole }: BoardPageCli
         </div>
       </header>
 
-      <div className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
-        <div className="flex items-center gap-2 text-slate-700">
-          <span className="font-semibold text-slate-900">Sprint:</span>
-          <span className="text-slate-600">{sprint?.name ?? "No active sprint"}</span>
+      <div className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
+          <span className="font-semibold text-slate-900 dark:text-slate-50">Sprint:</span>
+          <span className="text-slate-600 dark:text-slate-300">{sprint?.name ?? "No active sprint"}</span>
         </div>
-        <div className="flex items-center gap-2 text-slate-700">
-          <span className="font-semibold text-slate-900">Status:</span>
-          <span className="text-slate-600">{sprint?.status ?? "-"}</span>
+        <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
+          <span className="font-semibold text-slate-900 dark:text-slate-50">Status:</span>
+          <span className="text-slate-600 dark:text-slate-300">{sprint?.status ?? "-"}</span>
         </div>
-        <div className="flex items-center gap-2 text-slate-700">
-          <span className="font-semibold text-slate-900">Total Story Points:</span>
-          <span className="text-slate-600">{issuesCount}</span>
+        <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
+          <span className="font-semibold text-slate-900 dark:text-slate-50">Total Story Points:</span>
+          <span className="text-slate-600 dark:text-slate-300">{issuesCount}</span>
         </div>
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
           {error}
         </div>
       )}
 
       {isLoading ? (
-        <div className="rounded-lg border border-slate-200 bg-white px-4 py-6 text-sm text-slate-600 shadow-sm">
+        <div className="rounded-lg border border-slate-200 bg-white px-4 py-6 text-sm text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
           Loading sprint board...
         </div>
       ) : !sprint ? (
-        <div className="rounded-xl border border-dashed border-slate-200 bg-white px-6 py-8 text-center shadow-sm">
-          <p className="text-base font-semibold text-slate-900">No active sprint found</p>
-          <p className="mt-2 text-sm text-slate-600">
+        <div className="rounded-xl border border-dashed border-slate-200 bg-white px-6 py-8 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <p className="text-base font-semibold text-slate-900 dark:text-slate-50">No active sprint found</p>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
             Please create or start a sprint to see issues here.
           </p>
         </div>
@@ -311,13 +311,13 @@ export default function BoardPageClient({ projectId, projectRole }: BoardPageCli
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
-                      className="flex min-h-[300px] flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm"
+                      className="flex min-h-[300px] flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"
                     >
                       <div className="flex items-center justify-between">
-                        <div className="text-sm font-semibold uppercase tracking-wide text-slate-700">
+                        <div className="text-sm font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-200">
                           {status.label}
                         </div>
-                        <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700">
+                        <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                           {issues.length}
                         </span>
                       </div>
@@ -330,36 +330,36 @@ export default function BoardPageClient({ projectId, projectRole }: BoardPageCli
                                 ref={dragProvided.innerRef}
                                 {...dragProvided.draggableProps}
                                 {...dragProvided.dragHandleProps}
-                                className={`cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm transition hover:border-primary/70 hover:shadow-md ${
+                                className={`cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm transition hover:border-primary/70 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-primary/80 ${
                                   snapshot.isDragging ? "border-primary shadow-lg" : ""
                                 }`}
                               >
                                 <div className="flex items-start justify-between gap-2">
-                                  <p className="truncate font-medium text-slate-900">
+                                  <p className="truncate font-medium text-slate-900 dark:text-slate-50">
                                     {issue.key ? `${issue.key} · ` : ""}
                                     {issue.title}
                                   </p>
                                   {statusUpdating[issue.id] && (
-                                    <span className="text-[11px] text-slate-400">Updating...</span>
+                                    <span className="text-[11px] text-slate-400 dark:text-slate-500">Updating...</span>
                                   )}
                                 </div>
 
-                                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                                  <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-slate-700">
+                                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                                  <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                                     {formatLabel(issue.type)}
                                   </span>
-                                  <span className="rounded-full bg-amber-100 px-2 py-1 font-medium text-amber-700">
+                                  <span className="rounded-full bg-amber-100 px-2 py-1 font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
                                     {formatLabel(issue.priority)}
                                   </span>
-                                  <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-slate-700">
+                                  <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                                     {issue.storyPoints ?? "—"} pts
                                   </span>
                                   {issue.assignee && (
                                     <span className="ml-auto inline-flex items-center gap-2">
-                                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary dark:bg-primary/20">
                                         {issue.assignee.name?.[0] ?? "?"}
                                       </span>
-                                      <span className="text-[12px] text-slate-700">{issue.assignee.name}</span>
+                                      <span className="text-[12px] text-slate-700 dark:text-slate-200">{issue.assignee.name}</span>
                                     </span>
                                   )}
                                 </div>
@@ -368,7 +368,7 @@ export default function BoardPageClient({ projectId, projectRole }: BoardPageCli
                           </Draggable>
                         ))}
                         {!issues.length && (
-                          <p className="pt-1 text-center text-xs text-slate-400">No issues in this column.</p>
+                          <p className="pt-1 text-center text-xs text-slate-400 dark:text-slate-500">No issues in this column.</p>
                         )}
                         {provided.placeholder}
                       </div>
