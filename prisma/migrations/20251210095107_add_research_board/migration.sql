@@ -4,7 +4,7 @@
 CREATE TYPE "ResearchStatus" AS ENUM ('BACKLOG', 'IN_PROGRESS', 'REVIEW', 'COMPLETED', 'ARCHIVED');
 CREATE TYPE "ResearchPriority" AS ENUM ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL');
 CREATE TYPE "ResearchDecision" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'DEFERRED');
-CREATE TYPE "ResearchObservationType" AS ENUM ('INTERVIEW', 'SURVEY', 'ANALYTICS', 'USABILITY_TEST', 'OTHER');
+CREATE TYPE "ResearchObservationType" AS ENUM ('INTERVIEW', 'SURVEY', 'ANALYTICS', 'USABILITY_TEST', 'NOTE', 'OTHER');
 
 -- Projects can opt into the research board
 ALTER TABLE "Project" ADD COLUMN "enableResearchBoard" BOOLEAN NOT NULL DEFAULT false;

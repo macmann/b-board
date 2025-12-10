@@ -82,6 +82,7 @@ enum ResearchObservationType {
   SURVEY
   ANALYTICS
   USABILITY_TEST
+  NOTE
   OTHER
 }
 
