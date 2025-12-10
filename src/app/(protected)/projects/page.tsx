@@ -17,6 +17,7 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchProjects = async () => {
     setIsLoading(true);
@@ -45,6 +46,38 @@ export default function ProjectsPage() {
 
   const handleProjectClick = (projectId: string) => {
     router.push(`/projects/${projectId}/backlog`);
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this project? This action cannot be undone."
+    );
+
+    if (!confirmed) return;
+
+    setDeletingId(projectId);
+    setError("");
+
+    try {
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        const errorMessage =
+          (data && (data.error || data.message)) ||
+          "Failed to delete project. Please try again.";
+        setError(errorMessage);
+        return;
+      }
+
+      await fetchProjects();
+    } catch (err) {
+      setError("An unexpected error occurred while deleting the project.");
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -98,6 +131,12 @@ export default function ProjectsPage() {
                     >
                       Description
                     </th>
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500"
+                    >
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
@@ -113,6 +152,18 @@ export default function ProjectsPage() {
                       <td className="px-6 py-4 text-sm text-gray-900">{project.name}</td>
                       <td className="px-6 py-4 text-sm text-gray-600">
                         {project.description || "—"}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleDeleteProject(project.id);
+                          }}
+                          disabled={deletingId === project.id}
+                          className="rounded-md bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-700 ring-1 ring-inset ring-red-200 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {deletingId === project.id ? "Deleting..." : "Delete"}
+                        </button>
                       </td>
                     </tr>
                   ))}
