@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
 
 import Button from "@/components/ui/Button";
+import IssueTypeIcon from "@/components/issues/IssueTypeIcon";
 import {
   IssuePriority,
   IssueStatus,
@@ -346,7 +347,7 @@ export default function BoardPageClient({ projectId, projectRole }: BoardPageCli
 
                                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
                                   <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                                    {formatLabel(issue.type)}
+                                    <IssueTypeIcon type={issue.type} />
                                   </span>
                                   <span className="rounded-full bg-amber-100 px-2 py-1 font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
                                     {formatLabel(issue.priority)}
