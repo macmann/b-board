@@ -1,13 +1,16 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+
 import { Role } from "../../../../../lib/prismaEnums";
 
 import { ProjectRole } from "../../../../../lib/roles";
 import { canInviteMembers } from "../../../../../lib/uiPermissions";
+import Button from "@/components/ui/Button";
 
 type Member = {
   id: string;
+  createdAt?: string;
   role: Role;
   user: {
     id: string;
@@ -45,6 +48,8 @@ export default function ProjectTeamPageClient({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [inviteUrl, setInviteUrl] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
+
+  const inviteSectionRef = useRef<HTMLDivElement | null>(null);
 
   const allowInvites = canInviteMembers(projectRole);
 
@@ -130,6 +135,33 @@ export default function ProjectTeamPageClient({
 
   const pendingInvitations = useMemo(() => invitations, [invitations]);
 
+  const getInitials = (name: string) => {
+    const parts = name.trim().split(" ");
+
+    if (parts.length === 1) return parts[0]?.slice(0, 2).toUpperCase();
+
+    return (parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "");
+  };
+
+  const formatJoined = (date?: string) => {
+    if (!date) return "";
+
+    const joinedDate = new Date(date);
+    if (Number.isNaN(joinedDate.getTime())) return "";
+
+    const now = new Date();
+    const diff = now.getTime() - joinedDate.getTime();
+    const months = Math.floor(diff / (1000 * 60 * 60 * 24 * 30));
+
+    if (months <= 0) return "Joined recently";
+    if (months === 1) return "Joined 1 month ago";
+    return `Joined ${months} months ago`;
+  };
+
+  const handleOpenInvite = () => {
+    inviteSectionRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
   const handleCopy = async () => {
     if (!inviteUrl) return;
 
@@ -142,215 +174,221 @@ export default function ProjectTeamPageClient({
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 p-6">
-      <div className="mx-auto flex max-w-6xl flex-col gap-8">
-        <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-semibold text-gray-900">Team</h1>
-            <p className="text-gray-600">
-              Manage project members and send invitations.
-            </p>
-          </div>
-          <button
-            type="button"
+    <div className="space-y-4">
+      <header className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-900">Team</h2>
+          <p className="text-sm text-slate-500">
+            Manage project members, roles, and invitations.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
             onClick={fetchTeamData}
-            className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="px-3 py-2 text-sm"
           >
             Refresh
-          </button>
-        </header>
+          </Button>
+          {allowInvites ? (
+            <Button
+              variant="primary"
+              onClick={handleOpenInvite}
+              className="px-3 py-2 text-sm"
+            >
+              Invite member
+            </Button>
+          ) : (
+            <Button variant="secondary" className="px-3 py-2 text-sm">
+              Invite member
+            </Button>
+          )}
+        </div>
+      </header>
 
-        {error && (
-          <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            {error}
-          </div>
-        )}
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
-        <section className="rounded-lg bg-white p-6 shadow">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-xl font-semibold text-gray-900">Current Members</h2>
-            <p className="text-sm text-gray-500">
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-900">Members</h3>
+            <p className="text-sm text-slate-500">
               Only Admins and Product Owners can manage the team.
             </p>
           </div>
+        </div>
 
-          {isLoading ? (
-            <p className="mt-4 text-gray-600">Loading team members...</p>
-          ) : members.length === 0 ? (
-            <p className="mt-4 text-gray-600">No members found.</p>
-          ) : (
-            <div className="mt-4 overflow-hidden rounded-lg border border-gray-200">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
-                    >
-                      Name
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
-                    >
-                      Email
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
-                    >
-                      Role
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 bg-white">
-                  {members.map((member) => (
-                    <tr key={member.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                        {member.user.name}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {member.user.email}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {member.role}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-
-        <section className="rounded-lg bg-white p-6 shadow">
-          <h2 className="text-xl font-semibold text-gray-900">Pending Invitations</h2>
-          {isLoading ? (
-            <p className="mt-4 text-gray-600">Loading invitations...</p>
-          ) : pendingInvitations.length === 0 ? (
-            <p className="mt-4 text-gray-600">No pending invitations.</p>
-          ) : (
-            <div className="mt-4 overflow-hidden rounded-lg border border-gray-200">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
-                    >
-                      Email
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
-                    >
-                      Role
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
-                    >
-                      Expires At
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 bg-white">
-                  {pendingInvitations.map((invitation) => (
-                    <tr key={invitation.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                        {invitation.email}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {invitation.role}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {new Date(invitation.expiresAt).toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-
-        {allowInvites ? (
-          <section className="rounded-lg bg-white p-6 shadow">
-            <h2 className="text-xl font-semibold text-gray-900">Invite Member</h2>
-            <p className="mt-1 text-sm text-gray-600">
-              Send an invitation link to add a new member to this project.
-            </p>
-
-            <form className="mt-4 grid gap-4 sm:grid-cols-2" onSubmit={handleInviteSubmit}>
-              <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-gray-700" htmlFor="email">
-                  Email
-                </label>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  required
-                  className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-gray-700" htmlFor="role">
-                  Role
-                </label>
-                <select
-                  id="role"
-                  name="role"
-                  value={role}
-                  onChange={(event) => setRole(event.target.value as Role)}
-                  className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  {ROLE_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="sm:col-span-2">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="inline-flex w-full justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-blue-300"
-                >
-                  {isSubmitting ? "Sending..." : "Send Invitation"}
-                </button>
-              </div>
-            </form>
-
-            {inviteUrl && (
-              <div className="mt-4 rounded-md border border-blue-200 bg-blue-50 p-4">
-                <p className="text-sm font-semibold text-gray-900">Invite Link</p>
-                <p className="mt-2 break-all text-sm text-gray-700">{inviteUrl}</p>
-                <div className="mt-3 flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={handleCopy}
-                    className="inline-flex items-center justify-center rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                  >
-                    Copy Link
-                  </button>
-                  {copyStatus && <p className="text-sm text-gray-700">{copyStatus}</p>}
-                </div>
-              </div>
-            )}
-          </section>
+        {isLoading ? (
+          <div className="rounded-xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-600 shadow-sm">
+            Loading team members...
+          </div>
+        ) : members.length <= 1 ? (
+          <div className="rounded-xl border border-slate-200 bg-white px-5 py-6 text-sm text-slate-500 shadow-sm">
+            You’re the only member in this project. Invite teammates to collaborate.
+          </div>
         ) : (
-          <section className="rounded-lg bg-white p-6 shadow">
-            <h2 className="text-xl font-semibold text-gray-900">Invite Member</h2>
-            <p className="mt-2 text-sm text-gray-600">You do not have permission to invite members.</p>
-          </section>
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="divide-y divide-slate-200">
+              {members.map((member) => (
+                <div
+                  key={member.id}
+                  className="flex items-center justify-between px-5 py-3 text-sm hover:bg-slate-50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-xs font-medium text-slate-700">
+                      {getInitials(member.user.name || member.user.email)}
+                    </div>
+                    <div className="space-y-0.5">
+                      <div className="font-medium text-slate-900">{member.user.name}</div>
+                      <div className="text-xs text-slate-500">{member.user.email}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium uppercase text-slate-700">
+                      {member.role}
+                    </span>
+                    {formatJoined(member.createdAt) && (
+                      <span className="text-xs text-slate-500">{formatJoined(member.createdAt)}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
-      </div>
-    </main>
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-slate-900">Pending invitations</h3>
+        </div>
+
+        {isLoading ? (
+          <div className="rounded-xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-600 shadow-sm">
+            Loading invitations...
+          </div>
+        ) : pendingInvitations.length === 0 ? (
+          <div className="rounded-xl border border-slate-200 bg-white px-5 py-6 text-sm text-slate-500 shadow-sm">
+            No pending invitations.
+          </div>
+        ) : (
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="divide-y divide-slate-200">
+              {pendingInvitations.map((invitation) => (
+                <div
+                  key={invitation.id}
+                  className="flex items-center justify-between px-5 py-3 text-sm hover:bg-slate-50"
+                >
+                  <div className="space-y-0.5">
+                    <div className="font-medium text-slate-900">{invitation.email}</div>
+                    <div className="text-xs text-slate-500">
+                      Expires {new Date(invitation.expiresAt).toLocaleString()}
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium uppercase text-slate-700">
+                    {invitation.role}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {allowInvites ? (
+        <section
+          ref={inviteSectionRef}
+          className="space-y-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">Invite member</h3>
+              <p className="text-sm text-slate-500">
+                Send an invitation link to add a new member to this project.
+              </p>
+            </div>
+            <span className="text-xs uppercase text-slate-400">Invite form</span>
+          </div>
+
+          <form className="grid gap-4 sm:grid-cols-2" onSubmit={handleInviteSubmit}>
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-slate-700" htmlFor="email">
+                Email
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+                className="rounded-md border border-slate-300 px-3 py-2 text-slate-900 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-slate-700" htmlFor="role">
+                Role
+              </label>
+              <select
+                id="role"
+                name="role"
+                value={role}
+                onChange={(event) => setRole(event.target.value as Role)}
+                className="rounded-md border border-slate-300 px-3 py-2 text-slate-900 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                {ROLE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="sm:col-span-2">
+              <Button
+                type="submit"
+                variant="primary"
+                className="w-full"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Sending..." : "Send invitation"}
+              </Button>
+            </div>
+          </form>
+
+          {inviteUrl && (
+            <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+              <p className="text-sm font-semibold text-slate-900">Invite link</p>
+              <p className="mt-2 break-all text-sm text-slate-700">{inviteUrl}</p>
+              <div className="mt-3 flex items-center gap-3">
+                <Button
+                  variant="secondary"
+                  className="px-3 py-1.5 text-sm"
+                  onClick={handleCopy}
+                >
+                  Copy link
+                </Button>
+                {copyStatus && (
+                  <p className="text-sm text-slate-700">{copyStatus}</p>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+      ) : (
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="text-lg font-semibold text-slate-900">Invite member</h3>
+          <p className="mt-2 text-sm text-slate-500">
+            You do not have permission to invite members.
+          </p>
+        </section>
+      )}
+    </div>
   );
 }
