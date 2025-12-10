@@ -54,3 +54,11 @@ This repository includes a `render.yaml` for one-click deployment.
 | `DATABASE_URL` | Connection string for the PostgreSQL database used by Prisma. **Required in deployed environments**. |
 
 For local development, create a `.env` file with these values. In production (e.g., Render), configure the same variables through your hosting provider's environment settings.
+
+## Testing
+
+Run the automated test suite (Vitest) with:
+
+```bash
+npm test
+```
