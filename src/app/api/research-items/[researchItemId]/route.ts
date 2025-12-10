@@ -31,7 +31,10 @@ const researchBoardDisabledResponse = () =>
 async function getResearchItemWithProject(researchItemId: string) {
   return prisma.researchItem.findUnique({
     where: { id: researchItemId },
-    include: { project: { select: { id: true, enableResearchBoard: true } } },
+    include: {
+      project: { select: { id: true, enableResearchBoard: true } },
+      assignee: { select: { id: true, name: true } },
+    },
   });
 }
 
@@ -87,6 +90,11 @@ export async function GET(
       projectId: result.researchItem.projectId,
       title: result.researchItem.title,
       description: result.researchItem.description,
+      assigneeId: result.researchItem.assigneeId,
+      assignee: result.researchItem.assignee
+        ? { id: result.researchItem.assignee.id, name: result.researchItem.assignee.name }
+        : null,
+      dueDate: result.researchItem.dueDate,
       status: result.researchItem.status,
       priority: result.researchItem.priority,
       decision: result.researchItem.decision,
@@ -131,7 +139,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { title, description, status, priority, decision, tags } =
+    const { title, description, status, priority, decision, tags, assigneeId, dueDate } =
       (body ?? {}) as {
         title?: string;
         description?: string | null;
@@ -139,6 +147,8 @@ export async function PATCH(
         priority?: string;
         decision?: string;
         tags?: string[];
+        assigneeId?: string | null;
+        dueDate?: string | null;
         archive?: boolean;
       };
 
@@ -146,6 +156,25 @@ export async function PATCH(
 
     if (typeof title !== "undefined") data.title = title;
     if (typeof description !== "undefined") data.description = description;
+    if (typeof assigneeId !== "undefined") {
+      if (assigneeId) {
+        const membership = await prisma.projectMember.findFirst({
+          where: { projectId: result.projectId, userId: assigneeId },
+          select: { id: true },
+        });
+
+        if (!membership) {
+          return NextResponse.json(
+            { message: "Assignee must be a member of this project" },
+            { status: 400 }
+          );
+        }
+      }
+
+      data.assignee = assigneeId
+        ? { connect: { id: assigneeId } }
+        : { disconnect: true };
+    }
     if (typeof priority !== "undefined") {
       if (!RESEARCH_PRIORITY_SET.has(priority as PrismaResearchPriority)) {
         return NextResponse.json({ message: "Invalid priority" }, { status: 400 });
@@ -162,6 +191,15 @@ export async function PATCH(
       data.decision = decision as PrismaResearchDecision;
     }
     if (Array.isArray(tags)) data.tags = tags.filter(Boolean);
+
+    if (typeof dueDate !== "undefined") {
+      const dueDateValue = dueDate ? new Date(dueDate) : null;
+      if (dueDateValue && Number.isNaN(dueDateValue.getTime())) {
+        return NextResponse.json({ message: "Invalid due date" }, { status: 400 });
+      }
+
+      data.dueDate = dueDateValue;
+    }
 
     if (typeof status !== "undefined") {
       if (!RESEARCH_STATUS_SET.has(status as ResearchStatus)) {

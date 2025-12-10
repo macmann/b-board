@@ -8,9 +8,12 @@ import BacklogTable, {
   type BacklogTableIssue,
 } from "@/components/issues/BacklogTable";
 import CreateIssueDrawer from "@/components/issues/CreateIssueDrawer";
+import ResearchDetailsDrawer from "@/components/research/ResearchDetailsDrawer";
 import ResearchTable, {
   type ResearchTableItem,
 } from "@/components/research/ResearchTable";
+import ResearchItemDrawer from "@/components/research/ResearchItemDrawer";
+import Button from "@/components/ui/Button";
 import { SprintStatus } from "@/lib/prismaEnums";
 
 import { ProjectRole } from "../../../../../lib/roles";
@@ -57,6 +60,8 @@ export default function BacklogPageClient({
   const [isResearchLoading, setIsResearchLoading] = useState(false);
   const [researchError, setResearchError] = useState("");
   const [hasLoadedResearch, setHasLoadedResearch] = useState(false);
+  const [selectedResearchId, setSelectedResearchId] = useState<string | null>(null);
+  const [isResearchDetailOpen, setIsResearchDetailOpen] = useState(false);
 
   const isReadOnly = projectRole === "VIEWER";
 
@@ -88,6 +93,8 @@ export default function BacklogPageClient({
 
     return options;
   }, [allIssues]);
+
+  const projectIssues = useMemo(() => allIssues, [allIssues]);
 
   const fetchBacklogGroups = useCallback(async () => {
     setIsLoading(true);
@@ -165,6 +172,11 @@ export default function BacklogPageClient({
     router.push(`/issues/${issueId}`);
   };
 
+  const handleResearchRowClick = (researchId: string) => {
+    setSelectedResearchId(researchId);
+    setIsResearchDetailOpen(true);
+  };
+
   if (!hasAccess) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
@@ -224,6 +236,17 @@ export default function BacklogPageClient({
               assigneeOptions={assigneeOptions}
               epicOptions={epicOptions}
               onIssueCreated={fetchBacklogGroups}
+              onForbidden={() => setHasAccess(false)}
+            />
+          )}
+
+          {activeSegment === "research" && enableResearchBoard && (
+            <ResearchItemDrawer
+              projectId={projectId}
+              isReadOnly={isReadOnly}
+              mode="create"
+              trigger={<Button disabled={isReadOnly}>Create Research Item</Button>}
+              onSuccess={fetchResearchItems}
               onForbidden={() => setHasAccess(false)}
             />
           )}
@@ -287,10 +310,24 @@ export default function BacklogPageClient({
           Loading research...
         </div>
       ) : (
-        <ResearchTable items={researchItems} />
+        <ResearchTable items={researchItems} onRowClick={handleResearchRowClick} />
       )}
 
       {manageTeamLink}
+
+      {enableResearchBoard && (
+        <ResearchDetailsDrawer
+          researchItemId={selectedResearchId}
+          isReadOnly={isReadOnly}
+          issues={projectIssues}
+          open={isResearchDetailOpen}
+          onClose={() => {
+            setIsResearchDetailOpen(false);
+            setSelectedResearchId(null);
+          }}
+          onUpdated={fetchResearchItems}
+        />
+      )}
     </div>
   );
 }

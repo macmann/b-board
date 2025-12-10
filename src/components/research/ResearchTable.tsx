@@ -13,6 +13,7 @@ export type ResearchTableItem = {
 
 type ResearchTableProps = {
   items: ResearchTableItem[];
+  onRowClick?: (id: string) => void;
 };
 
 const statusStyles: Record<ResearchStatus, string> = {
@@ -23,7 +24,7 @@ const statusStyles: Record<ResearchStatus, string> = {
   ARCHIVED: "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
 };
 
-const formatDate = (value: string | null | undefined) => {
+const formatDate = (value: string | Date | null | undefined) => {
   if (!value) return "—";
 
   const date = new Date(value);
@@ -38,7 +39,7 @@ const formatDate = (value: string | null | undefined) => {
 
 const formatLabel = (label: string) => label.replace(/_/g, " ");
 
-export default function ResearchTable({ items }: ResearchTableProps) {
+export default function ResearchTable({ items, onRowClick }: ResearchTableProps) {
   if (items.length === 0) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
@@ -65,7 +66,8 @@ export default function ResearchTable({ items }: ResearchTableProps) {
           {items.map((item) => (
             <tr
               key={item.id}
-              className="border-b last:border-b-0 border-slate-100 text-sm text-slate-700 dark:border-slate-800 dark:text-slate-200"
+              className={`border-b last:border-b-0 border-slate-100 text-sm text-slate-700 transition hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800/60 ${onRowClick ? "cursor-pointer" : ""}`}
+              onClick={() => onRowClick?.(item.id)}
             >
               <td className="px-6 py-3 font-medium text-slate-900 dark:text-slate-100">{item.title}</td>
               <td className="px-6 py-3">

@@ -106,6 +106,7 @@ export async function GET(
       prisma.researchItem.findMany({
         where,
         include: {
+          assignee: { select: { id: true, name: true } },
           issueLinks: {
             include: {
               issue: {
@@ -129,10 +130,11 @@ export async function GET(
         title: item.title,
         status: item.status,
         researchType: item.tags[0] ?? null,
-        assignee: item.issueLinks
-          .map((link) => link.issue?.assignee)
-          .find(Boolean) ?? null,
-        dueDate: null,
+        assignee: item.assignee ??
+          (item.issueLinks
+            .map((link) => link.issue?.assignee)
+            .find(Boolean) ?? null),
+        dueDate: item.dueDate,
         linkedIssuesCount: item.issueLinks.length,
         updatedAt: item.updatedAt,
       })),
@@ -194,24 +196,28 @@ export async function POST(
     return researchBoardDisabledResponse();
   }
 
-  const body = await request.json();
-  const {
-    title,
-    description,
-    status,
-    priority,
-    decision,
-    tags,
-    type,
-  }: {
-    title?: string;
-    description?: string | null;
-    status?: string;
-    priority?: string;
-    decision?: string;
-    tags?: string[];
-    type?: string | null;
-  } = body ?? {};
+    const body = await request.json();
+    const {
+      title,
+      description,
+      status,
+      priority,
+      decision,
+      tags,
+      type,
+      assigneeId,
+      dueDate,
+    }: {
+      title?: string;
+      description?: string | null;
+      status?: string;
+      priority?: string;
+      decision?: string;
+      tags?: string[];
+      type?: string | null;
+      assigneeId?: string | null;
+      dueDate?: string | null;
+    } = body ?? {};
 
   if (!title) {
     return NextResponse.json({ message: "Title is required" }, { status: 400 });
@@ -238,6 +244,25 @@ export async function POST(
     ? (decision as PrismaResearchDecision)
     : undefined;
 
+  const dueDateValue = dueDate ? new Date(dueDate) : null;
+  if (dueDateValue && Number.isNaN(dueDateValue.getTime())) {
+    return NextResponse.json({ message: "Invalid due date" }, { status: 400 });
+  }
+
+  if (assigneeId) {
+    const membership = await prisma.projectMember.findFirst({
+      where: { projectId, userId: assigneeId },
+      select: { id: true },
+    });
+
+    if (!membership) {
+      return NextResponse.json(
+        { message: "Assignee must be a member of this project" },
+        { status: 400 }
+      );
+    }
+  }
+
   const data: Prisma.ResearchItemCreateInput = {
     project: { connect: { id: projectId } },
     title,
@@ -246,6 +271,8 @@ export async function POST(
     priority: validPriority ?? undefined,
     decision: validDecision ?? undefined,
     tags: normalizedTags,
+    dueDate: dueDateValue,
+    ...(assigneeId ? { assignee: { connect: { id: assigneeId } } } : {}),
   };
 
   const researchItem = await prisma.researchItem.create({ data });
