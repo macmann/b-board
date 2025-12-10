@@ -311,7 +311,7 @@ export default function ResearchDetailsDrawer({
             <div className="flex items-center gap-2">
               {detail && (
                 <ResearchItemDrawer
-                  projectId={projectId}
+                  projectId={detail.projectId}
                   isReadOnly={isReadOnly}
                   mode="edit"
                   trigger={
@@ -553,7 +553,7 @@ export default function ResearchDetailsDrawer({
                             </div>
                             <Button
                               variant="secondary"
-                              size="sm"
+                              className="px-3 py-1"
                               disabled={isLinking}
                               onClick={() => handleLinkIssue(issue.id)}
                             >
