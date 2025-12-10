@@ -118,11 +118,21 @@ export async function PATCH(
   }
 
   const body = await request.json();
-  const { name, key, description } = body ?? {};
+  const { name, key, description, enableResearchBoard } = body ?? {};
 
   if (!name || !key) {
     return NextResponse.json(
       { message: "name and key are required" },
+      { status: 400 }
+    );
+  }
+
+  if (
+    typeof enableResearchBoard !== "undefined" &&
+    typeof enableResearchBoard !== "boolean"
+  ) {
+    return NextResponse.json(
+      { message: "enableResearchBoard must be a boolean" },
       { status: 400 }
     );
   }
@@ -134,6 +144,9 @@ export async function PATCH(
         name,
         key,
         description,
+        ...(typeof enableResearchBoard === "boolean"
+          ? { enableResearchBoard }
+          : {}),
       },
     });
 
