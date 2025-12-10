@@ -67,6 +67,7 @@ const provisionDefaultAdmin = async () => {
     data: [
       {
         projectId: project.id,
+        key: `${DEFAULT_PROJECT_KEY}-1`,
         type: IssueType.STORY,
         title: "Set up project",
         description: "Initialize repository and project settings.",
@@ -76,6 +77,7 @@ const provisionDefaultAdmin = async () => {
       },
       {
         projectId: project.id,
+        key: `${DEFAULT_PROJECT_KEY}-2`,
         type: IssueType.TASK,
         title: "Create initial backlog",
         description: "Add starter tasks for the demo project.",
