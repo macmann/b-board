@@ -60,9 +60,9 @@ async function ensureResearchAccess(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { researchItemId: string } }
+  context: { params: Promise<{ researchItemId: string }> }
 ) {
-  const { researchItemId } = params;
+  const { researchItemId } = await context.params;
 
   try {
     const user = await getUserFromRequest(request);
@@ -113,9 +113,9 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { researchItemId: string } }
+  context: { params: Promise<{ researchItemId: string }> }
 ) {
-  const { researchItemId } = params;
+  const { researchItemId } = await context.params;
 
   try {
     const user = await getUserFromRequest(request);
@@ -233,9 +233,9 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { researchItemId: string } }
+  context: { params: Promise<{ researchItemId: string }> }
 ) {
-  const { researchItemId } = params;
+  const { researchItemId } = await context.params;
 
   try {
     const user = await getUserFromRequest(request);
