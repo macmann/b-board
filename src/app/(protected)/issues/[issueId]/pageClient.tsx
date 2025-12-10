@@ -23,7 +23,9 @@ type IssueDetails = {
   priority: IssuePriority;
   storyPoints: number | null;
   description: string | null;
-  project: { id: string; name: string };
+  key?: string;
+  updatedAt?: string;
+  project: { id: string; name: string; key?: string };
   sprint: { id: string; name: string } | null;
   epic: { id: string; title: string } | null;
   assignee: UserSummary;
@@ -126,6 +128,14 @@ export default function IssueDetailsPageClient({
   const isViewer = projectRole === "VIEWER";
   const disableEditing = isViewer || !allowEditing;
   const allowDelete = canDeleteIssue(projectRole);
+
+  const baseFieldClasses =
+    "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50 disabled:cursor-not-allowed disabled:opacity-60";
+  const formattedUpdatedAt = issue?.updatedAt
+    ? new Date(issue.updatedAt).toLocaleString()
+    : "Recently";
+  const issueKey = issue?.key ?? issue?.id ?? issueId;
+  const projectKey = issue?.project?.key ?? issue?.project?.name ?? "Project";
 
   const fetchIssue = async () => {
     setIsLoading(true);
@@ -270,26 +280,27 @@ export default function IssueDetailsPageClient({
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 p-6">
-      <div className="mx-auto flex max-w-5xl flex-col gap-8">
-        <header className="flex flex-col gap-2">
-          <h1 className="text-3xl font-semibold text-gray-900">Issue Details</h1>
-          {issue ? (
-            <p className="text-gray-600">{issue.id}</p>
-          ) : (
-            <p className="text-gray-600">Loading issue information</p>
-          )}
+    <main className="min-h-screen bg-slate-50 px-4 py-10 dark:bg-slate-950">
+      <div className="mx-auto max-w-5xl space-y-6">
+        <header className="space-y-1">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Issue</p>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">
+            {issue?.title || title || "Untitled issue"}
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {issueKey} · {projectKey} · {issue?.id ?? issueId}
+          </p>
         </header>
 
-        <section className="rounded-lg bg-white p-6 shadow">
+        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           {isLoading ? (
-            <p className="text-gray-700">Loading issue...</p>
-          ) : error ? (
-            <p className="text-red-600">{error}</p>
+            <p className="text-sm text-slate-700 dark:text-slate-200">Loading issue...</p>
+          ) : error && !issue ? (
+            <p className="text-sm text-red-500">{error}</p>
           ) : issue ? (
-            <form className="grid gap-4" onSubmit={handleUpdate}>
-              <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-gray-700" htmlFor="title">
+            <form onSubmit={handleUpdate} className="space-y-6">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="title">
                   Title
                 </label>
                 <input
@@ -298,13 +309,13 @@ export default function IssueDetailsPageClient({
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
                   disabled={disableEditing}
-                  className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                  className={baseFieldClasses}
                 />
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm font-medium text-gray-700" htmlFor="type">
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="type">
                     Type
                   </label>
                   <input
@@ -312,12 +323,12 @@ export default function IssueDetailsPageClient({
                     name="type"
                     value={issue.type}
                     readOnly
-                    className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-gray-900 shadow-sm"
+                    className={`${baseFieldClasses} bg-slate-50 dark:bg-slate-800`}
                   />
                 </div>
 
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm font-medium text-gray-700" htmlFor="status">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="status">
                     Status
                   </label>
                   <select
@@ -326,7 +337,7 @@ export default function IssueDetailsPageClient({
                     value={status}
                     onChange={(event) => setStatus(event.target.value as IssueStatus)}
                     disabled={disableEditing}
-                    className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                    className={baseFieldClasses}
                   >
                     {Object.values(IssueStatus).map((option) => (
                       <option key={option} value={option}>
@@ -336,8 +347,8 @@ export default function IssueDetailsPageClient({
                   </select>
                 </div>
 
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm font-medium text-gray-700" htmlFor="priority">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="priority">
                     Priority
                   </label>
                   <select
@@ -346,7 +357,7 @@ export default function IssueDetailsPageClient({
                     value={priority}
                     onChange={(event) => setPriority(event.target.value as IssuePriority)}
                     disabled={disableEditing}
-                    className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                    className={baseFieldClasses}
                   >
                     {Object.values(IssuePriority).map((option) => (
                       <option key={option} value={option}>
@@ -355,9 +366,11 @@ export default function IssueDetailsPageClient({
                     ))}
                   </select>
                 </div>
+              </div>
 
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm font-medium text-gray-700" htmlFor="storyPoints">
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="storyPoints">
                     Story Points
                   </label>
                   <input
@@ -368,12 +381,12 @@ export default function IssueDetailsPageClient({
                     value={storyPoints}
                     onChange={(event) => setStoryPoints(event.target.value)}
                     disabled={disableEditing}
-                    className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                    className={baseFieldClasses}
                   />
                 </div>
 
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm font-medium text-gray-700" htmlFor="assignee">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="assignee">
                     Assignee
                   </label>
                   <select
@@ -382,7 +395,7 @@ export default function IssueDetailsPageClient({
                     value={assigneeId}
                     onChange={(event) => setAssigneeId(event.target.value)}
                     disabled={disableEditing}
-                    className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                    className={baseFieldClasses}
                   >
                     <option value="">Unassigned</option>
                     {assigneeOptions.map((option) => (
@@ -393,8 +406,8 @@ export default function IssueDetailsPageClient({
                   </select>
                 </div>
 
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm font-medium text-gray-700" htmlFor="epic">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="epic">
                     Epic
                   </label>
                   <select
@@ -403,7 +416,7 @@ export default function IssueDetailsPageClient({
                     value={epicId}
                     onChange={(event) => setEpicId(event.target.value)}
                     disabled={disableEditing}
-                    className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                    className={baseFieldClasses}
                   >
                     <option value="">No epic</option>
                     {epicOptions.map((option) => (
@@ -413,9 +426,11 @@ export default function IssueDetailsPageClient({
                     ))}
                   </select>
                 </div>
+              </div>
 
-                <div className="flex flex-col gap-2">
-                  <label className="text-sm font-medium text-gray-700" htmlFor="sprint">
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="space-y-1.5 sm:max-w-xs">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="sprint">
                     Sprint
                   </label>
                   <select
@@ -424,7 +439,7 @@ export default function IssueDetailsPageClient({
                     value={sprintId}
                     onChange={(event) => setSprintId(event.target.value)}
                     disabled={disableEditing}
-                    className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                    className={baseFieldClasses}
                   >
                     <option value="">No sprint</option>
                     {sprintOptions.map((option) => (
@@ -436,8 +451,8 @@ export default function IssueDetailsPageClient({
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-gray-700" htmlFor="description">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="description">
                   Description
                 </label>
                 <textarea
@@ -445,75 +460,87 @@ export default function IssueDetailsPageClient({
                   name="description"
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
-                  rows={6}
+                  rows={5}
                   disabled={disableEditing}
-                  className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                  className={baseFieldClasses}
                 />
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="submit"
-                  disabled={disableEditing || isSaving}
-                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
-                >
-                  {isSaving ? "Saving..." : "Save changes"}
-                </button>
-                {allowDelete && (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4 dark:border-slate-700">
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  <div>Last updated {formattedUpdatedAt}</div>
+                  {disableEditing && <div className="text-[11px]">Editing disabled based on your role.</div>}
+                  {error && <div className="text-[11px] text-red-500">{error}</div>}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {allowDelete && (
+                    <button
+                      type="button"
+                      onClick={handleDelete}
+                      disabled={isDeleting}
+                      className="inline-flex items-center rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-red-700 disabled:opacity-60"
+                    >
+                      {isDeleting ? "Deleting..." : "Delete issue"}
+                    </button>
+                  )}
                   <button
-                    type="button"
-                    disabled={isDeleting}
-                    onClick={handleDelete}
-                    className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
+                    type="submit"
+                    disabled={disableEditing || isSaving}
+                    className="inline-flex items-center rounded-md bg-primary px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-primary/90 disabled:opacity-60"
                   >
-                    {isDeleting ? "Deleting..." : "Delete issue"}
+                    {isSaving ? "Saving..." : "Save changes"}
                   </button>
-                )}
-                {error && <span className="text-sm text-red-600">{error}</span>}
-                {disableEditing && (
-                  <span className="text-sm text-gray-500">Editing disabled based on your role.</span>
-                )}
+                </div>
               </div>
             </form>
           ) : (
-            <p className="text-gray-700">Issue not found.</p>
+            <p className="text-sm text-slate-700 dark:text-slate-200">Issue not found.</p>
           )}
         </section>
 
-        <section className="rounded-lg bg-white p-6 shadow">
-          <h2 className="text-xl font-semibold text-gray-900">Comments</h2>
-          <div className="mt-4 flex flex-col gap-4">
+        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Comments</h2>
+          <div className="mt-4">
             {comments.length === 0 ? (
-              <p className="text-gray-600">No comments yet.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-300">No comments yet.</p>
             ) : (
-              comments.map((comment) => (
-                <div key={comment.id} className="rounded-md border border-gray-200 p-4">
-                  <div className="flex items-center justify-between text-sm text-gray-600">
-                    <span>{comment.author?.name ?? "Unknown"}</span>
-                    <span>{new Date(comment.createdAt).toLocaleString()}</span>
-                  </div>
-                  <p className="mt-2 text-gray-900">{comment.body}</p>
-                </div>
-              ))
+              <ul className="space-y-3">
+                {comments.map((comment) => (
+                  <li
+                    key={comment.id}
+                    className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  >
+                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-300">
+                      <span>{comment.author?.name ?? "Unknown"}</span>
+                      <span>{new Date(comment.createdAt).toLocaleString()}</span>
+                    </div>
+                    <p className="mt-2 whitespace-pre-line text-slate-900 dark:text-slate-100">{comment.body}</p>
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
 
-          <form className="mt-6 flex flex-col gap-3" onSubmit={handleCommentSubmit}>
-            <label className="text-sm font-medium text-gray-700" htmlFor="newComment">
-              Add a comment
-            </label>
-            <textarea
-              id="newComment"
-              name="newComment"
-              value={commentBody}
-              onChange={(event) => setCommentBody(event.target.value)}
-              rows={3}
-              className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
+          <form className="mt-6 space-y-3" onSubmit={handleCommentSubmit}>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="newComment">
+                Add a comment
+              </label>
+              <textarea
+                id="newComment"
+                name="newComment"
+                value={commentBody}
+                onChange={(event) => setCommentBody(event.target.value)}
+                rows={3}
+                className={baseFieldClasses}
+              />
+            </div>
+
             <button
               type="submit"
               disabled={isSubmittingComment || !commentBody.trim()}
-              className="self-start rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+              className="inline-flex items-center rounded-md bg-primary px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-primary/90 disabled:opacity-60"
             >
               {isSubmittingComment ? "Posting..." : "Post comment"}
             </button>

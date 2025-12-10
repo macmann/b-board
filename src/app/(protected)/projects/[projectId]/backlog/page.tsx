@@ -93,7 +93,7 @@ export default async function ProjectBacklogPage(props: Props) {
       </p>
       {projectRole && (projectRole === "ADMIN" || projectRole === "PO") && (
         <Button asChild>
-          <Link href={`/projects/${projectId}/team`}>Manage Team</Link>
+          <Link href={`/projects/${projectId}/settings#team`}>Manage Team</Link>
         </Button>
       )}
     </div>
