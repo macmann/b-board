@@ -36,7 +36,6 @@ export const buildIssue = (overrides: Partial<Issue> = {}): Issue => ({
   sprintId: overrides.sprintId ?? null,
   storyPoints: overrides.storyPoints ?? null,
   epicId: overrides.epicId ?? null,
-  rank: overrides.rank ?? null,
   dueDate: overrides.dueDate ?? null,
   createdAt: overrides.createdAt ?? new Date(),
   updatedAt: overrides.updatedAt ?? new Date(),
