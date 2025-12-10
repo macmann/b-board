@@ -42,13 +42,11 @@ export default async function MyProjectsPage() {
 
   return (
     <main className="min-h-screen bg-gray-50 p-6">
-      <div className="mx-auto flex max-w-5xl flex-col gap-6">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6">
         <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-semibold text-gray-900">My Projects</h1>
-            <p className="text-gray-600">
-              View and access the projects you are a member of.
-            </p>
+            <p className="text-gray-600">Projects you are a member of.</p>
           </div>
           <Link
             href="/projects"
@@ -58,7 +56,7 @@ export default async function MyProjectsPage() {
           </Link>
         </header>
 
-        <section className="rounded-lg bg-white p-6 shadow">
+        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-gray-900">Project List</h2>
           <MyProjectsTable projects={projects} />
         </section>

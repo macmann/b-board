@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import CreateProjectDrawer from "@/components/projects/CreateProjectDrawer";
+import ProjectCard from "@/components/projects/ProjectCard";
 
 type Project = {
   id: string;
@@ -17,7 +18,6 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchProjects = async () => {
     setIsLoading(true);
@@ -44,45 +44,9 @@ export default function ProjectsPage() {
     fetchProjects();
   }, []);
 
-  const handleProjectClick = (projectId: string) => {
-    router.push(`/projects/${projectId}/backlog`);
-  };
-
-  const handleDeleteProject = async (projectId: string) => {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this project? This action cannot be undone."
-    );
-
-    if (!confirmed) return;
-
-    setDeletingId(projectId);
-    setError("");
-
-    try {
-      const response = await fetch(`/api/projects/${projectId}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        const errorMessage =
-          (data && (data.error || data.message)) ||
-          "Failed to delete project. Please try again.";
-        setError(errorMessage);
-        return;
-      }
-
-      await fetchProjects();
-    } catch (err) {
-      setError("An unexpected error occurred while deleting the project.");
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
   return (
     <main className="min-h-screen bg-gray-50 p-6">
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6">
         <div className="flex items-start justify-between">
           <div className="space-y-1">
             <h1 className="text-2xl font-semibold text-slate-900">Projects</h1>
@@ -107,68 +71,29 @@ export default function ProjectsPage() {
           {isLoading ? (
             <p className="mt-4 text-gray-600">Loading projects...</p>
           ) : projects.length === 0 ? (
-            <p className="mt-4 text-gray-600">No projects found.</p>
+            <div className="mt-8 rounded-xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center dark:bg-slate-900/40">
+              <p className="text-sm font-medium text-slate-900 dark:text-slate-50">
+                No projects yet
+              </p>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Create a new project to start planning your work.
+              </p>
+              <div className="mt-4 flex justify-center">
+                <CreateProjectDrawer onCreated={fetchProjects} />
+              </div>
+            </div>
           ) : (
-            <div className="mt-4 overflow-hidden rounded-lg border border-gray-200">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
-                    >
-                      Key
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
-                    >
-                      Name
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"
-                    >
-                      Description
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500"
-                    >
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 bg-white">
-                  {projects.map((project) => (
-                    <tr
-                      key={project.id}
-                      className="cursor-pointer hover:bg-gray-50"
-                      onClick={() => handleProjectClick(project.id)}
-                    >
-                      <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                        {project.key}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">{project.name}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {project.description || "—"}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handleDeleteProject(project.id);
-                          }}
-                          disabled={deletingId === project.id}
-                          className="rounded-md bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-700 ring-1 ring-inset ring-red-200 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {deletingId === project.id ? "Deleting..." : "Delete"}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {projects.map((project) => (
+                <ProjectCard
+                  key={project.id}
+                  id={project.id}
+                  keyCode={project.key}
+                  name={project.name}
+                  description={project.description}
+                  onClick={() => router.push(`/projects/${project.id}/backlog`)}
+                />
+              ))}
             </div>
           )}
         </section>
