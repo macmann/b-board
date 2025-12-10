@@ -1,6 +1,12 @@
 import Link from "next/link";
 
-type ProjectTabKey = "backlog" | "board" | "sprints" | "reports" | "settings";
+type ProjectTabKey =
+  | "backlog"
+  | "board"
+  | "sprints"
+  | "reports"
+  | "standup"
+  | "settings";
 
 type ProjectTabsProps = {
   projectId: string;
@@ -12,6 +18,7 @@ const tabs: { key: ProjectTabKey; label: string }[] = [
   { key: "board", label: "Board" },
   { key: "sprints", label: "Sprints" },
   { key: "reports", label: "Reports" },
+  { key: "standup", label: "Standup" },
   { key: "settings", label: "Settings" },
 ];
 
