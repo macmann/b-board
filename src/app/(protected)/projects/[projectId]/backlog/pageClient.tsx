@@ -188,7 +188,7 @@ export default function BacklogPageClient({
                       className="cursor-pointer hover:bg-gray-50"
                       onClick={() => handleRowClick(issue.id)}
                     >
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{issue.key ?? "-"}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{issue.key ?? "—"}</td>
                       <td className="px-4 py-3 text-sm font-medium text-blue-700 hover:underline">
                         {issue.title}
                       </td>
