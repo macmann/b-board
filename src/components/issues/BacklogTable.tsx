@@ -1,4 +1,5 @@
 import { IssuePriority, IssueStatus, IssueType } from "@/lib/prismaEnums";
+import IssueTypeIcon from "./IssueTypeIcon";
 
 export type BacklogTableIssue = {
   id: string;
@@ -98,7 +99,9 @@ export default function BacklogTable({ issues, onIssueClick }: BacklogTableProps
               >
                 <td className={`${cellBaseClasses} font-medium text-slate-900 dark:text-slate-100`}>{issue.key ?? "—"}</td>
                 <td className={`${cellBaseClasses} font-medium text-slate-900 dark:text-slate-100`}>{issue.title}</td>
-                <td className={cellBaseClasses}>{issue.type}</td>
+                <td className={cellBaseClasses}>
+                  <IssueTypeIcon type={issue.type} />
+                </td>
                 <td className={cellBaseClasses}>
                   <span
                     className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[issue.status]}`}
