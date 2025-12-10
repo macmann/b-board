@@ -64,11 +64,11 @@ export default async function ProtectedLayout({ children }: Props) {
         <aside className="w-64 shrink-0 border-r border-slate-200 bg-white">
           <div className="flex items-center gap-2 border-b border-slate-200 px-5 py-4">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
-              MJ
+              BB
             </div>
             <div className="flex flex-col">
               <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                Mini Jira
+                B Board
               </span>
               <span className="text-sm font-semibold text-slate-900">Workspace</span>
             </div>

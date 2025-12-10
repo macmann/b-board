@@ -1,4 +1,4 @@
-// Prisma schema file for Mini Jira
+// Prisma schema file for B Board
 // datasource and generator configuration
 
 generator client {
