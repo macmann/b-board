@@ -8,6 +8,9 @@ import BacklogTable, {
   type BacklogTableIssue,
 } from "@/components/issues/BacklogTable";
 import CreateIssueDrawer from "@/components/issues/CreateIssueDrawer";
+import ResearchTable, {
+  type ResearchTableItem,
+} from "@/components/research/ResearchTable";
 import { SprintStatus } from "@/lib/prismaEnums";
 
 import { ProjectRole } from "../../../../../lib/roles";
@@ -29,6 +32,7 @@ type BacklogPageClientProps = {
   projectRole: ProjectRole | null;
   manageTeamLink: React.ReactNode;
   backlogGroups: BacklogGroup[];
+  enableResearchBoard: boolean;
 };
 
 export default function BacklogPageClient({
@@ -36,6 +40,7 @@ export default function BacklogPageClient({
   projectRole,
   manageTeamLink,
   backlogGroups: initialBacklogGroups,
+  enableResearchBoard,
 }: BacklogPageClientProps) {
   const router = useRouter();
 
@@ -45,6 +50,13 @@ export default function BacklogPageClient({
   const [isLoading, setIsLoading] = useState(initialBacklogGroups.length === 0);
   const [error, setError] = useState("");
   const [hasAccess, setHasAccess] = useState(true);
+  const [activeSegment, setActiveSegment] = useState<"product" | "research">(
+    "product"
+  );
+  const [researchItems, setResearchItems] = useState<ResearchTableItem[]>([]);
+  const [isResearchLoading, setIsResearchLoading] = useState(false);
+  const [researchError, setResearchError] = useState("");
+  const [hasLoadedResearch, setHasLoadedResearch] = useState(false);
 
   const isReadOnly = projectRole === "VIEWER";
 
@@ -110,6 +122,45 @@ export default function BacklogPageClient({
     fetchBacklogGroups();
   }, [fetchBacklogGroups, projectId]);
 
+  const fetchResearchItems = useCallback(async () => {
+    setIsResearchLoading(true);
+    setResearchError("");
+    setHasAccess(true);
+
+    try {
+      const response = await fetch(
+        `/api/projects/${projectId}/research-items`
+      );
+
+      if (!response.ok) {
+        if (response.status === 403) {
+          setHasAccess(false);
+          return;
+        }
+
+        const data = await response.json().catch(() => null);
+        setResearchError(data?.message ?? "Failed to load research items.");
+        return;
+      }
+
+      const data: ResearchTableItem[] = await response.json();
+      setResearchItems(data);
+      setHasLoadedResearch(true);
+    } catch (err) {
+      setResearchError("An unexpected error occurred while loading research.");
+    } finally {
+      setIsResearchLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!enableResearchBoard) return;
+    if (activeSegment !== "research") return;
+    if (hasLoadedResearch) return;
+
+    fetchResearchItems();
+  }, [activeSegment, enableResearchBoard, fetchResearchItems, hasLoadedResearch]);
+
   const handleRowClick = (issueId: string) => {
     router.push(`/issues/${issueId}`);
   };
@@ -137,59 +188,106 @@ export default function BacklogPageClient({
 
   return (
     <div className="space-y-4">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-semibold text-slate-900">Backlog</h2>
-        <CreateIssueDrawer
-          projectId={projectId}
-          isReadOnly={isReadOnly}
-          assigneeOptions={assigneeOptions}
-          epicOptions={epicOptions}
-          onIssueCreated={fetchBacklogGroups}
-          onForbidden={() => setHasAccess(false)}
-        />
+        <div className="flex items-center gap-3">
+          <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 p-1 text-xs font-medium text-slate-600 shadow-inner dark:border-slate-800 dark:bg-slate-900">
+            <button
+              type="button"
+              onClick={() => setActiveSegment("product")}
+              className={`rounded-full px-3 py-1 transition ${
+                activeSegment === "product"
+                  ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-slate-50"
+                  : "hover:text-slate-900"
+              }`}
+            >
+              Product
+            </button>
+            {enableResearchBoard && (
+              <button
+                type="button"
+                onClick={() => setActiveSegment("research")}
+                className={`rounded-full px-3 py-1 transition ${
+                  activeSegment === "research"
+                    ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-slate-50"
+                    : "hover:text-slate-900"
+                }`}
+              >
+                Research
+              </button>
+            )}
+          </div>
+          {activeSegment === "product" && (
+            <CreateIssueDrawer
+              projectId={projectId}
+              isReadOnly={isReadOnly}
+              assigneeOptions={assigneeOptions}
+              epicOptions={epicOptions}
+              onIssueCreated={fetchBacklogGroups}
+              onForbidden={() => setHasAccess(false)}
+            />
+          )}
+        </div>
       </div>
 
-      {error && !isLoading && (
+      {activeSegment === "product" && error && !isLoading && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
           {error}
         </div>
       )}
 
-      {isLoading ? (
+      {activeSegment === "research" && researchError && !isResearchLoading && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+          {researchError}
+        </div>
+      )}
+
+      {activeSegment === "product" ? (
+        isLoading ? (
+          <div className="rounded-xl border border-slate-200 bg-white px-6 py-4 text-sm text-slate-600 shadow-sm">
+            Loading backlog...
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {backlogGroups.map((group) => {
+              const isSprint = group.type === "sprint";
+
+              return (
+                <section
+                  key={group.id}
+                  className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+                >
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+                      {isSprint ? `Sprint: ${group.name}` : "Product Backlog"}
+                    </h2>
+                    {isSprint && group.status && (
+                      <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                        {group.status}
+                      </span>
+                    )}
+                  </div>
+
+                  {group.issues.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+                      {isSprint
+                        ? "No issues assigned to this sprint yet."
+                        : "No issues in the product backlog yet."}
+                    </div>
+                  ) : (
+                    <BacklogTable issues={group.issues} onIssueClick={handleRowClick} />
+                  )}
+                </section>
+              );
+            })}
+          </div>
+        )
+      ) : isResearchLoading ? (
         <div className="rounded-xl border border-slate-200 bg-white px-6 py-4 text-sm text-slate-600 shadow-sm">
-          Loading backlog...
+          Loading research...
         </div>
       ) : (
-        <div className="space-y-6">
-          {backlogGroups.map((group) => {
-            const isSprint = group.type === "sprint";
-
-            return (
-              <section key={group.id} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-                    {isSprint ? `Sprint: ${group.name}` : "Product Backlog"}
-                  </h2>
-                  {isSprint && group.status && (
-                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                      {group.status}
-                    </span>
-                  )}
-                </div>
-
-                {group.issues.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
-                    {isSprint
-                      ? "No issues assigned to this sprint yet."
-                      : "No issues in the product backlog yet."}
-                  </div>
-                ) : (
-                  <BacklogTable issues={group.issues} onIssueClick={handleRowClick} />
-                )}
-              </section>
-            );
-          })}
-        </div>
+        <ResearchTable items={researchItems} />
       )}
 
       {manageTeamLink}

@@ -73,3 +73,13 @@ export type IssueHistoryField =
 
 export const ProjectMemberRole = Role;
 export type ProjectMemberRole = Role;
+
+export const ResearchStatus = {
+  BACKLOG: "BACKLOG",
+  IN_PROGRESS: "IN_PROGRESS",
+  REVIEW: "REVIEW",
+  COMPLETED: "COMPLETED",
+  ARCHIVED: "ARCHIVED",
+} as const;
+
+export type ResearchStatus = (typeof ResearchStatus)[keyof typeof ResearchStatus];

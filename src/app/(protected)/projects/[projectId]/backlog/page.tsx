@@ -117,6 +117,7 @@ export default async function ProjectBacklogPage(props: Props) {
         projectRole={projectRole}
         manageTeamLink={manageTeamLink}
         backlogGroups={backlogGroups}
+        enableResearchBoard={project.enableResearchBoard}
       />
     </div>
   );
