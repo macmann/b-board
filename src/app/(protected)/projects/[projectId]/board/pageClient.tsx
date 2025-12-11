@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
+import type { Issue as IssueModel, IssueStatus as IssueStatusType } from "@prisma/client";
 
 import Button from "@/components/ui/Button";
 import IssueTypeIcon from "@/components/issues/IssueTypeIcon";
@@ -17,7 +18,7 @@ import {
 import { ProjectRole } from "../../../../../lib/roles";
 
 type StatusOption = {
-  value: IssueStatus;
+  value: IssueStatusType;
   label: string;
 };
 
@@ -35,18 +36,11 @@ type Sprint = {
   status: SprintStatus;
 };
 
-type Issue = {
-  id: string;
-  key?: string | null;
-  title: string;
-  type: IssueType;
-  priority: IssuePriority;
-  status: IssueStatus;
-  storyPoints: number | null;
+type Issue = IssueModel & {
   assignee: { id: string; name: string; avatarUrl: string | null } | null;
 };
 
-type IssuesByStatus = Record<IssueStatus, Issue[]>;
+type IssuesByStatus = Record<IssueStatusType, Issue[]>;
 
 const createEmptyIssuesByStatus = (): IssuesByStatus => ({
   [IssueStatus.TODO]: [],
@@ -75,7 +69,9 @@ export default function BoardPageClient({ projectId, projectRole }: BoardPageCli
   const sprintIdFromQuery = searchParams?.get("sprintId") || "";
 
   const [sprint, setSprint] = useState<Sprint | null>(null);
-  const [issuesByStatus, setIssuesByStatus] = useState<IssuesByStatus>(createEmptyIssuesByStatus);
+  const [issuesByStatus, setIssuesByStatus] = useState<Record<IssueStatusType, Issue[]>>(
+    () => createEmptyIssuesByStatus()
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [statusUpdating, setStatusUpdating] = useState<Record<string, boolean>>({});
@@ -179,7 +175,7 @@ export default function BoardPageClient({ projectId, projectRole }: BoardPageCli
 
   const formatLabel = (value: string) => value.replace(/_/g, " ");
 
-  const handleIssueStatusChange = async (issueId: string, newStatus: IssueStatus) => {
+  const handleIssueStatusChange = async (issueId: string, newStatus: IssueStatusType) => {
     if (!sprint) return;
 
     setStatusUpdating((prev) => ({ ...prev, [issueId]: true }));
@@ -198,19 +194,29 @@ export default function BoardPageClient({ projectId, projectRole }: BoardPageCli
       return;
     }
 
-    const updatedIssuesByStatus = { ...issuesByStatus } as IssuesByStatus;
+    const updatedIssuesByStatus: Record<IssueStatusType, Issue[]> = {
+      ...issuesByStatus,
+    };
     let movedIssue: Issue | null = null;
 
     Object.entries(updatedIssuesByStatus).forEach(([status, issues]) => {
       const index = issues.findIndex((issue) => issue.id === issueId);
       if (index !== -1) {
-        [movedIssue] = issues.splice(index, 1);
+        const columnIssues = [...issues];
+        [movedIssue] = columnIssues.splice(index, 1);
+        updatedIssuesByStatus[status as IssueStatusType] = columnIssues;
       }
     });
 
     if (movedIssue) {
-      movedIssue.status = newStatus;
-      updatedIssuesByStatus[newStatus] = [...updatedIssuesByStatus[newStatus], movedIssue];
+      const updatedIssue: Issue = {
+        ...movedIssue,
+        status: newStatus,
+      };
+
+      const targetIssues = [...(updatedIssuesByStatus[newStatus] ?? [])];
+      updatedIssuesByStatus[newStatus] = [...targetIssues, updatedIssue];
+
       setIssuesByStatus(updatedIssuesByStatus);
     }
   };
@@ -222,8 +228,8 @@ export default function BoardPageClient({ projectId, projectRole }: BoardPageCli
 
     if (!destination) return;
 
-    const sourceStatus = source.droppableId as IssueStatus;
-    const destStatus = destination.droppableId as IssueStatus;
+    const sourceStatus = source.droppableId as IssueStatusType;
+    const destStatus = destination.droppableId as IssueStatusType;
 
     if (sourceStatus === destStatus) return;
 
