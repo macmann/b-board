@@ -58,11 +58,23 @@ async function ensureResearchAccess(
   } as const;
 }
 
+type ResearchItemParams =
+  | { researchItemId?: string }
+  | Promise<{ researchItemId?: string }>;
+
+function getResearchItemId(params: ResearchItemParams) {
+  return Promise.resolve(params).then((resolved) => resolved?.researchItemId);
+}
+
 export async function GET(
   request: NextRequest,
-  context: { params: Promise<{ researchItemId: string }> }
+  context: { params: ResearchItemParams }
 ) {
-  const { researchItemId } = await context.params;
+  const researchItemId = await getResearchItemId(context.params);
+
+  if (!researchItemId) {
+    return NextResponse.json({ message: "Missing researchItemId" }, { status: 400 });
+  }
 
   try {
     const user = await getUserFromRequest(request);
@@ -114,9 +126,13 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  context: { params: Promise<{ researchItemId: string }> }
+  context: { params: ResearchItemParams }
 ) {
-  const { researchItemId } = await context.params;
+  const researchItemId = await getResearchItemId(context.params);
+
+  if (!researchItemId) {
+    return NextResponse.json({ message: "Missing researchItemId" }, { status: 400 });
+  }
 
   try {
     const user = await getUserFromRequest(request);
@@ -234,9 +250,13 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  context: { params: Promise<{ researchItemId: string }> }
+  context: { params: ResearchItemParams }
 ) {
-  const { researchItemId } = await context.params;
+  const researchItemId = await getResearchItemId(context.params);
+
+  if (!researchItemId) {
+    return NextResponse.json({ message: "Missing researchItemId" }, { status: 400 });
+  }
 
   try {
     const user = await getUserFromRequest(request);

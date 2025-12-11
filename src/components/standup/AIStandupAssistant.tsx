@@ -63,18 +63,20 @@ export default function AIStandupAssistant({
     const trimmed = input.trim();
     const isLastStep = currentStep === questionFlow.length - 1;
     const updatedAnswers = { ...answers, [currentQuestion.key]: trimmed } as StandupDraft;
+    const nextPrompt = questionFlow[currentStep + 1]?.prompt ?? "";
 
-    setMessages((prev) => {
-      const nextMessages = [...prev, { role: "user", content: trimmed }];
+    setMessages((prev: ChatMessage[]) => {
+      const nextMessages: ChatMessage[] = [
+        ...prev,
+        { role: "user", content: trimmed },
+      ];
+      const assistantPrompt: ChatMessage = {
+        role: "assistant",
+        content: nextPrompt,
+      };
 
       if (!isLastStep) {
-        return [
-          ...nextMessages,
-          {
-            role: "assistant",
-            content: questionFlow[currentStep + 1].prompt,
-          },
-        ];
+        return [...nextMessages, assistantPrompt];
       }
 
       return nextMessages;
