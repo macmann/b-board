@@ -75,8 +75,18 @@ export default function BacklogPageClient({
     const options: Option[] = [];
 
     allIssues.forEach((issue) => {
-      if (issue.assignee && !options.find((option) => option.id === issue.assignee.id)) {
-        options.push({ id: issue.assignee.id, label: issue.assignee.name });
+      const assignee = issue.assignee;
+      if (!assignee) {
+        return;
+      }
+
+      const alreadyExists = options.some((option) => option.id === assignee.id);
+      if (!alreadyExists) {
+        options.push({
+          id: assignee.id,
+          // if assignee.name can be null/undefined, fall back to a safe label
+          label: assignee.name ?? "Unassigned",
+        });
       }
     });
 
