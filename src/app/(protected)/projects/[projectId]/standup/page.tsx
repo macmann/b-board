@@ -63,6 +63,7 @@ export default async function ProjectStandupPage(props: Props) {
       <StandupPageClient
         projectId={projectId}
         projectRole={projectRole}
+        currentUserId={user.id}
         currentUserName={user.name ?? ""}
         currentUserEmail={user.email ?? ""}
         projectName={project.name}
