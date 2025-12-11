@@ -97,8 +97,18 @@ export default function BacklogPageClient({
     const options: Option[] = [];
 
     allIssues.forEach((issue) => {
-      if (issue.epic && !options.find((option) => option.id === issue.epic.id)) {
-        options.push({ id: issue.epic.id, label: issue.epic.title });
+      const epic = issue.epic;
+      if (!epic) {
+        return;
+      }
+
+      const alreadyExists = options.some((option) => option.id === epic.id);
+      if (!alreadyExists) {
+        options.push({
+          id: epic.id,
+          // if epic.title can be null/undefined, add a fallback label
+          label: epic.title ?? "Untitled epic",
+        });
       }
     });
 
