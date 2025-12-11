@@ -21,6 +21,11 @@ function RegisterPageContent() {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    if (!searchParams) {
+      setInviteToken("");
+      return;
+    }
+
     const tokenFromUrl = searchParams.get("token") ?? "";
     setInviteToken(tokenFromUrl);
   }, [searchParams]);
