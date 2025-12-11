@@ -323,7 +323,7 @@ model ResearchItem {
   issueLinks   ResearchItemIssueLink[]
   standupLinks StandupEntryResearchLink[]
 
-  @@unique([projectId, key])
+  // @@unique([projectId, key]) // removed for now
   @@index([projectId])
 }
 
