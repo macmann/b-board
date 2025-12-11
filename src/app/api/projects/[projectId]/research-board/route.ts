@@ -78,6 +78,7 @@ export async function GET(
     return NextResponse.json({
       items: items.map((item) => ({
         id: item.id,
+        key: item.key,
         title: item.title,
         status: item.status,
         position: item.position,

@@ -178,7 +178,12 @@ export function ResearchBoard({
       onClick={() => onOpenDetails(item.id)}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">{item.title}</p>
+        <div className="space-y-1">
+          <p className="text-xs font-mono font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            {item.key}
+          </p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">{item.title}</p>
+        </div>
       </div>
       <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-300">
         <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">

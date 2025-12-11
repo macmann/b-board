@@ -2,6 +2,7 @@ import { ResearchStatus } from "@/lib/prismaEnums";
 
 export type ResearchTableItem = {
   id: string;
+  key: string;
   title: string;
   status: ResearchStatus;
   assignee?: { id: string; name: string } | null;
@@ -53,6 +54,7 @@ export default function ResearchTable({ items, onRowClick }: ResearchTableProps)
       <table className="min-w-full">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50/80 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-400">
+            <th className="px-6 py-3">Key</th>
             <th className="px-6 py-3">Title</th>
             <th className="px-6 py-3">Status</th>
             <th className="px-6 py-3">Assignee</th>
@@ -69,6 +71,9 @@ export default function ResearchTable({ items, onRowClick }: ResearchTableProps)
               className={`border-b last:border-b-0 border-slate-100 text-sm text-slate-700 transition hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800/60 ${onRowClick ? "cursor-pointer" : ""}`}
               onClick={() => onRowClick?.(item.id)}
             >
+              <td className="px-6 py-3 font-mono text-sm font-semibold text-slate-900 dark:text-slate-100">
+                {item.key}
+              </td>
               <td className="px-6 py-3 font-medium text-slate-900 dark:text-slate-100">{item.title}</td>
               <td className="px-6 py-3">
                 <span

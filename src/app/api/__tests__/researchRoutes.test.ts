@@ -16,12 +16,18 @@ const { ResearchObservationType } = await import("@prisma/client");
 
 const mockGetUserFromRequest = vi.fn();
 const mockEnsureProjectRole = vi.fn();
+const mockGetNextResearchKey = vi.fn();
 
 const mockPrisma = {
   project: { findUnique: vi.fn() },
   projectMember: { findFirst: vi.fn(), findUnique: vi.fn() },
   user: { findUnique: vi.fn() },
-  researchItem: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+  researchItem: {
+    create: vi.fn(),
+    findUnique: vi.fn(),
+    update: vi.fn(),
+    aggregate: vi.fn(),
+  },
   researchObservation: { findMany: vi.fn(), create: vi.fn() },
   researchItemIssueLink: { findMany: vi.fn(), create: vi.fn(), deleteMany: vi.fn() },
   issue: { findUnique: vi.fn() },
@@ -50,6 +56,11 @@ vi.mock("../../../lib/db", () => ({
   prisma: mockPrisma,
 }));
 
+vi.mock("../../../lib/researchKey", () => ({
+  __esModule: true,
+  getNextResearchKey: mockGetNextResearchKey,
+}));
+
 type RequestInit = {
   body?: unknown;
   search?: string;
@@ -64,6 +75,8 @@ function createRequest({ body, search }: RequestInit = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockGetNextResearchKey.mockResolvedValue("DR-1");
+  mockPrisma.researchItem.aggregate.mockResolvedValue({ _max: { position: null } });
 });
 
 describe("research item routes", () => {
@@ -74,7 +87,7 @@ describe("research item routes", () => {
       enableResearchBoard: true,
     });
     mockPrisma.projectMember.findFirst.mockResolvedValue({ id: "member1" });
-    const createdItem = { id: "r1", title: "New idea" };
+    const createdItem = { id: "r1", key: "DR-1", title: "New idea" };
     mockPrisma.researchItem.create.mockResolvedValue(createdItem);
 
     const { POST } = await import("../projects/[projectId]/research-items/route");
@@ -90,12 +103,14 @@ describe("research item routes", () => {
     expect(mockPrisma.researchItem.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
+          key: "DR-1",
           title: "New idea",
           description: "Details",
           dueDate: new Date("2024-01-01"),
         }),
       })
     );
+    expect(mockGetNextResearchKey).toHaveBeenCalledWith(mockPrisma, "project1");
     expect(mockEnsureProjectRole).toHaveBeenCalled();
   });
 
@@ -145,6 +160,38 @@ describe("research item routes", () => {
     expect(mockPrisma.researchItem.update).toHaveBeenCalledWith({
       where: { id: "r1" },
       data: expect.objectContaining({ status: ResearchStatus.COMPLETED }),
+    });
+  });
+
+  it("returns detailed data including the key", async () => {
+    mockGetUserFromRequest.mockResolvedValue({ id: "user1" });
+    const mockDetail = {
+      id: "r1",
+      key: "DR-7",
+      title: "Existing research",
+      projectId: "project1",
+      description: null,
+      assigneeId: null,
+      assignee: null,
+      dueDate: null,
+      status: ResearchStatus.BACKLOG,
+      priority: "LOW",
+      decision: "PENDING",
+      tags: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      project: { id: "project1", enableResearchBoard: true },
+    };
+    mockPrisma.researchItem.findUnique.mockResolvedValue(mockDetail);
+
+    const { GET } = await import("../research-items/[researchItemId]/route");
+    const response = await GET(createRequest(), { params: { researchItemId: "r1" } });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      id: "r1",
+      key: "DR-7",
+      title: "Existing research",
     });
   });
 

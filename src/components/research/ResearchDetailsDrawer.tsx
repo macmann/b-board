@@ -30,6 +30,7 @@ type ResearchIssueLink = {
 type ResearchDetail = {
   id: string;
   projectId: string;
+  key: string;
   title: string;
   description: string | null;
   assigneeId: string | null;
@@ -294,6 +295,11 @@ export default function ResearchDetailsDrawer({
               <Dialog.Title className="text-2xl font-semibold text-slate-900">
                 {detail?.title ?? "Research Details"}
               </Dialog.Title>
+              {detail?.key && (
+                <p className="mt-1 font-mono text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  {detail.key}
+                </p>
+              )}
               {detail?.status && (
                 <div className="mt-2 inline-flex items-center gap-2 text-sm text-slate-600">
                   <span
