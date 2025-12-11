@@ -3,6 +3,10 @@ import { NextResponse } from "next/server";
 import prisma from "../../../../lib/db";
 import { parseDateOnly, parseTimeOnDate } from "../../../../lib/standupWindow";
 import { PROJECT_CONTRIBUTOR_ROLES, type ProjectRole } from "../../../../lib/roles";
+import {
+  emailStandupSummaryToStakeholders,
+  saveProjectStandupSummary,
+} from "../../../../lib/standupSummary";
 
 export async function POST() {
   const today = parseDateOnly(new Date());
@@ -82,6 +86,13 @@ export async function POST() {
     if (upserts.length) {
       await prisma.$transaction(upserts);
       updatedAttendances += upserts.length;
+    }
+
+    try {
+      await saveProjectStandupSummary(project.id, today);
+      await emailStandupSummaryToStakeholders(project.id, today);
+    } catch (error) {
+      console.error("Failed to generate or send stand-up summary", error);
     }
   }
 
