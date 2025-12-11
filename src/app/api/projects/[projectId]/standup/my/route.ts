@@ -13,6 +13,9 @@ const standupInclude = {
   issues: {
     include: { issue: true },
   },
+  research: {
+    include: { researchItem: true },
+  },
 };
 
 const parseDate = (value: string | null): Date | null => {
@@ -21,13 +24,23 @@ const parseDate = (value: string | null): Date | null => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
-const computeCompletion = (summaryToday?: string | null, issueIds?: string[]) => {
-  return Boolean(summaryToday && summaryToday.trim()) && Boolean(issueIds?.length);
+const computeCompletion = (
+  summaryToday?: string | null,
+  linkedWorkIds?: (string | undefined)[]
+) => {
+  return Boolean(summaryToday && summaryToday.trim()) && Boolean(linkedWorkIds?.length);
 };
 
 const normalizeIssueIds = (issueIds: unknown): string[] => {
   if (!Array.isArray(issueIds)) return [];
   return Array.from(new Set(issueIds.filter((id): id is string => typeof id === "string")));
+};
+
+const normalizeResearchIds = (researchIds: unknown): string[] => {
+  if (!Array.isArray(researchIds)) return [];
+  return Array.from(
+    new Set(researchIds.filter((id): id is string => typeof id === "string"))
+  );
 };
 
 export async function GET(
@@ -127,6 +140,7 @@ const upsertEntry = async (
     dependencies,
     notes,
     issueIds: issueIdsInput,
+    researchIds: researchIdsInput,
   } = body ?? {};
 
   const date = parseDate(dateInput ?? null);
@@ -136,6 +150,7 @@ const upsertEntry = async (
   }
 
   const issueIds = normalizeIssueIds(issueIdsInput);
+  const researchIds = normalizeResearchIds(researchIdsInput);
 
   const validIssues = issueIds.length
     ? await prisma.issue.findMany({
@@ -144,8 +159,16 @@ const upsertEntry = async (
       })
     : [];
 
+  const validResearchItems = researchIds.length
+    ? await prisma.researchItem.findMany({
+        where: { id: { in: researchIds }, projectId },
+        select: { id: true },
+      })
+    : [];
+
   const validIssueIds = validIssues.map((issue) => issue.id);
-  const isComplete = computeCompletion(summaryToday, validIssueIds);
+  const validResearchIds = validResearchItems.map((researchItem) => researchItem.id);
+  const isComplete = computeCompletion(summaryToday, [...validIssueIds, ...validResearchIds]);
 
   const entry = await prisma.$transaction(async (tx) => {
     const upserted = await tx.dailyStandupEntry.upsert({
@@ -190,11 +213,34 @@ const upsertEntry = async (
       });
     }
 
+    if (validResearchIds.length) {
+      await tx.standupEntryResearchLink.deleteMany({
+        where: {
+          standupEntryId: upserted.id,
+          researchItemId: { notIn: validResearchIds },
+        },
+      });
+    } else {
+      await tx.standupEntryResearchLink.deleteMany({
+        where: { standupEntryId: upserted.id },
+      });
+    }
+
     if (validIssueIds.length) {
       await tx.standupEntryIssueLink.createMany({
         data: validIssueIds.map((issueId) => ({
           standupEntryId: upserted.id,
           issueId,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    if (validResearchIds.length) {
+      await tx.standupEntryResearchLink.createMany({
+        data: validResearchIds.map((researchItemId) => ({
+          standupEntryId: upserted.id,
+          researchItemId,
         })),
         skipDuplicates: true,
       });

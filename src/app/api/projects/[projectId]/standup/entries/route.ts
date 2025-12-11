@@ -67,6 +67,7 @@ export async function GET(
     include: {
       user: true,
       issues: { include: { issue: true } },
+      research: { include: { researchItem: true } },
     },
     orderBy: { date: "desc" },
   });

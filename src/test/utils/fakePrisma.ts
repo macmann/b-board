@@ -1,4 +1,10 @@
-import { type DailyStandupEntry, type Issue, type ProjectMember, type User } from "@prisma/client";
+import {
+  type DailyStandupEntry,
+  type Issue,
+  type ProjectMember,
+  type ResearchItem,
+  type User,
+} from "@prisma/client";
 import { vi } from "vitest";
 
 type StandupIssueLink = {
@@ -7,7 +13,13 @@ type StandupIssueLink = {
   issue: Issue;
 };
 
-type StandupRecord = DailyStandupEntry & { issues: StandupIssueLink[] };
+type StandupResearchLink = {
+  standupEntryId: string;
+  researchItemId: string;
+  researchItem: ResearchItem;
+};
+
+type StandupRecord = DailyStandupEntry & { issues: StandupIssueLink[]; research: StandupResearchLink[] };
 
 const toKey = (projectId: string, userId: string, date: Date) => {
   return `${projectId}|${userId}|${date.toISOString()}`;
@@ -16,6 +28,7 @@ const toKey = (projectId: string, userId: string, date: Date) => {
 export class FakePrismaClient {
   standupEntries = new Map<string, StandupRecord>();
   issues = new Map<string, Issue>();
+  researchItems = new Map<string, ResearchItem>();
   users = new Map<string, User>();
   projectMembers: ProjectMember[] = [];
 
@@ -35,13 +48,14 @@ export class FakePrismaClient {
         return updated;
       }
 
-      const created: StandupRecord = {
-        ...create,
-        id: create.id ?? `standup-${this.standupEntries.size + 1}`,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        issues: [],
-      };
+        const created: StandupRecord = {
+          ...create,
+          id: create.id ?? `standup-${this.standupEntries.size + 1}`,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          issues: [],
+          research: [],
+        };
       this.standupEntries.set(key, created);
       return created;
     }),
@@ -50,7 +64,7 @@ export class FakePrismaClient {
       if (where.id) {
         for (const record of this.standupEntries.values()) {
           if (record.id === where.id) {
-            return this.includeIssues(record, include);
+            return this.includeLinkedWork(record, include);
           }
         }
         return null;
@@ -59,7 +73,7 @@ export class FakePrismaClient {
       const { projectId, userId, date } = where.projectId_userId_date;
       const key = toKey(projectId, userId, new Date(date));
       const record = this.standupEntries.get(key);
-      return record ? this.includeIssues(record, include) : null;
+      return record ? this.includeLinkedWork(record, include) : null;
     }),
 
     findMany: vi.fn(async ({ where, orderBy, include }: any): Promise<StandupRecord[]> => {
@@ -79,7 +93,7 @@ export class FakePrismaClient {
           }
         }
 
-        matches.push(this.includeIssues(record, include));
+        matches.push(this.includeLinkedWork(record, include));
       }
 
       if (orderBy?.updatedAt === "desc") {
@@ -136,6 +150,52 @@ export class FakePrismaClient {
     }),
   };
 
+  standupEntryResearchLink = {
+    deleteMany: vi.fn(async ({ where }: any) => {
+      let removed = 0;
+      for (const record of this.standupEntries.values()) {
+        if (where.standupEntryId && record.id !== where.standupEntryId) continue;
+
+        if (where.researchItemId?.notIn) {
+          const initialLength = record.research.length;
+          record.research = record.research.filter((link) => where.researchItemId.notIn.includes(link.researchItemId));
+          removed += initialLength - record.research.length;
+        } else if (where.researchItemId) {
+          const initialLength = record.research.length;
+          record.research = record.research.filter((link) => link.researchItemId !== where.researchItemId);
+          removed += initialLength - record.research.length;
+        } else {
+          removed += record.research.length;
+          record.research = [];
+        }
+      }
+      return { count: removed };
+    }),
+
+    createMany: vi.fn(async ({ data, skipDuplicates }: any) => {
+      let created = 0;
+      for (const item of data) {
+        const entry = this.findEntryById(item.standupEntryId);
+        if (!entry) continue;
+
+        const exists = entry.research.some((link) => link.researchItemId === item.researchItemId);
+        if (exists && skipDuplicates) continue;
+
+        const researchItem = this.researchItems.get(item.researchItemId);
+        if (!researchItem) continue;
+
+        entry.research.push({
+          standupEntryId: entry.id,
+          researchItemId: researchItem.id,
+          researchItem,
+        });
+        created++;
+      }
+
+      return { count: created };
+    }),
+  };
+
   issue = {
     findMany: vi.fn(async ({ where: { id, projectId } }: any) => {
       const ids = (id?.in as string[]) ?? [];
@@ -144,6 +204,20 @@ export class FakePrismaClient {
         const issue = this.issues.get(target);
         if (issue && issue.projectId === projectId) {
           matches.push(issue);
+        }
+      }
+      return matches;
+    }),
+  };
+
+  researchItem = {
+    findMany: vi.fn(async ({ where: { id, projectId } }: any) => {
+      const ids = (id?.in as string[]) ?? [];
+      const matches: ResearchItem[] = [];
+      for (const target of ids) {
+        const researchItem = this.researchItems.get(target);
+        if (researchItem && researchItem.projectId === projectId) {
+          matches.push(researchItem);
         }
       }
       return matches;
@@ -193,7 +267,7 @@ export class FakePrismaClient {
   addEntry(entry: StandupRecord) {
     this.standupEntries.set(
       toKey(entry.projectId, entry.userId, entry.date),
-      { ...entry, issues: entry.issues ?? [] }
+      { ...entry, issues: entry.issues ?? [], research: entry.research ?? [] }
     );
   }
 
@@ -204,9 +278,19 @@ export class FakePrismaClient {
     return undefined;
   }
 
-  private includeIssues(record: StandupRecord, include?: any): StandupRecord {
-    if (!include?.issues) return record;
-    const issues = record.issues ?? [];
-    return { ...record, issues: issues.map((link) => ({ ...link, issue: link.issue })) };
+  private includeLinkedWork(record: StandupRecord, include?: any): StandupRecord {
+    const next: StandupRecord = { ...record } as StandupRecord;
+
+    if (include?.issues) {
+      const issues = record.issues ?? [];
+      next.issues = issues.map((link) => ({ ...link, issue: link.issue }));
+    }
+
+    if (include?.research) {
+      const research = record.research ?? [];
+      next.research = research.map((link) => ({ ...link, researchItem: link.researchItem }));
+    }
+
+    return next;
   }
 }

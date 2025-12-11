@@ -14,6 +14,14 @@ type StandupIssue = {
   status?: string | null;
 };
 
+type StandupResearch = {
+  id: string;
+  key?: string | null;
+  title: string;
+  assignee?: { id: string; name: string | null } | null;
+  status?: string | null;
+};
+
 type StandupEntry = {
   id: string;
   date: string;
@@ -24,6 +32,7 @@ type StandupEntry = {
   notes: string | null;
   isComplete: boolean;
   issues: { issue: StandupIssue }[];
+  research: { researchItem: StandupResearch }[];
 };
 
 type StandupEntryWithUser = StandupEntry & {
@@ -39,6 +48,7 @@ type StandupSummaryMember = {
   entryId: string | null;
   date: string | null;
   issues: StandupIssue[];
+  research: StandupResearch[];
 };
 
 type StandupSummaryResponse = {
@@ -141,6 +151,22 @@ const searchIssuesInProject = async (projectId: string, query: string) => {
   return (await response.json()) as StandupIssue[];
 };
 
+const searchResearchInProject = async (projectId: string, query: string) => {
+  const params = new URLSearchParams();
+  if (query) params.set("query", query);
+
+  const response = await fetch(
+    `/api/projects/${projectId}/standup/search-research?${params.toString()}`
+  );
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.message ?? "Unable to search research items");
+  }
+
+  return (await response.json()) as StandupResearch[];
+};
+
 const getStandupSummaryForProjectAndDate = async (
   projectId: string,
   options: { date?: string; startDate?: string; endDate?: string }
@@ -217,7 +243,12 @@ export default function StandupPageClient({
   const [issueQuery, setIssueQuery] = useState("");
   const [issueOptions, setIssueOptions] = useState<StandupIssue[]>([]);
   const [issueSearchError, setIssueSearchError] = useState("");
-  const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+  const issueSearchTimeout = useRef<NodeJS.Timeout | null>(null);
+  const [selectedResearch, setSelectedResearch] = useState<StandupResearch[]>([]);
+  const [researchQuery, setResearchQuery] = useState("");
+  const [researchOptions, setResearchOptions] = useState<StandupResearch[]>([]);
+  const [researchSearchError, setResearchSearchError] = useState("");
+  const researchSearchTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const [isLoadingEntry, setIsLoadingEntry] = useState(false);
   const [isSavingEntry, setIsSavingEntry] = useState(false);
@@ -262,6 +293,7 @@ export default function StandupPageClient({
           notes: entry?.notes ?? "",
         });
         setSelectedIssues(entry?.issues.map((link) => link.issue) ?? []);
+        setSelectedResearch(entry?.research.map((link) => link.researchItem) ?? []);
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Failed to load standup";
@@ -277,11 +309,11 @@ export default function StandupPageClient({
   useEffect(() => {
     if (!projectId) return;
 
-    if (searchTimeout.current) {
-      clearTimeout(searchTimeout.current);
+    if (issueSearchTimeout.current) {
+      clearTimeout(issueSearchTimeout.current);
     }
 
-    searchTimeout.current = setTimeout(async () => {
+    issueSearchTimeout.current = setTimeout(async () => {
       if (!issueQuery.trim()) {
         setIssueOptions([]);
         return;
@@ -299,9 +331,38 @@ export default function StandupPageClient({
     }, 250);
 
     return () => {
-      if (searchTimeout.current) clearTimeout(searchTimeout.current);
+      if (issueSearchTimeout.current) clearTimeout(issueSearchTimeout.current);
     };
   }, [issueQuery, projectId]);
+
+  useEffect(() => {
+    if (!projectId) return;
+
+    if (researchSearchTimeout.current) {
+      clearTimeout(researchSearchTimeout.current);
+    }
+
+    researchSearchTimeout.current = setTimeout(async () => {
+      if (!researchQuery.trim()) {
+        setResearchOptions([]);
+        return;
+      }
+
+      try {
+        const results = await searchResearchInProject(projectId, researchQuery.trim());
+        setResearchOptions(results);
+        setResearchSearchError("");
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Unable to search research items";
+        setResearchSearchError(message);
+      }
+    }, 250);
+
+    return () => {
+      if (researchSearchTimeout.current) clearTimeout(researchSearchTimeout.current);
+    };
+  }, [projectId, researchQuery]);
 
   const handleIssueAdd = (issue: StandupIssue) => {
     setSelectedIssues((prev) => {
@@ -316,16 +377,30 @@ export default function StandupPageClient({
     setSelectedIssues((prev) => prev.filter((item) => item.id !== issueId));
   };
 
+  const handleResearchAdd = (researchItem: StandupResearch) => {
+    setSelectedResearch((prev) => {
+      if (prev.find((item) => item.id === researchItem.id)) return prev;
+      return [...prev, researchItem];
+    });
+    setResearchQuery("");
+    setResearchOptions([]);
+  };
+
+  const handleResearchRemove = (researchItemId: string) => {
+    setSelectedResearch((prev) => prev.filter((item) => item.id !== researchItemId));
+  };
+
   const computedCompletion = useMemo(() => {
-    return Boolean(formState.summaryToday.trim()) && selectedIssues.length > 0;
-  }, [formState.summaryToday, selectedIssues]);
+    const hasLinkedWork = selectedIssues.length + selectedResearch.length > 0;
+    return Boolean(formState.summaryToday.trim()) && hasLinkedWork;
+  }, [formState.summaryToday, selectedIssues.length, selectedResearch.length]);
 
   const handleSaveEntry = async () => {
     if (!projectId || !selectedDate) return;
 
     if (!computedCompletion) {
       const proceed = window.confirm(
-        "Your entry is marked incomplete (need today's plan and at least one linked issue). Save anyway?"
+        "Your entry is marked incomplete (need today's plan and at least one linked issue or research item). Save anyway?"
       );
       if (!proceed) return;
     }
@@ -342,17 +417,20 @@ export default function StandupPageClient({
         dependencies: formState.dependencies.trim() || null,
         notes: formState.notes.trim() || null,
         issueIds: selectedIssues.map((issue) => issue.id),
+        researchIds: selectedResearch.map((item) => item.id),
       };
 
       const saved = await upsertMyStandupEntry(projectId, payload);
       setCurrentEntry(saved);
       setSelectedIssues(saved.issues.map((link) => link.issue));
+      setSelectedResearch(saved.research.map((link) => link.researchItem));
       addToast({ type: "success", message: "Standup entry saved." });
 
       if (!saved.isComplete) {
         addToast({
           type: "warning",
-          message: "Entry saved but still incomplete. Add today's plan and linked issues to complete it.",
+          message:
+            "Entry saved but still incomplete. Add today's plan and link at least one issue or research item to complete it.",
         });
       }
     } catch (error) {
@@ -679,7 +757,73 @@ export default function StandupPageClient({
                   </div>
                 ) : (
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Link at least one issue to complete your standup.
+                    Link at least one issue or research item to complete your standup.
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+                    Linked research
+                  </label>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    Requires research board access
+                  </span>
+                </div>
+
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={researchQuery}
+                    onChange={(event) => setResearchQuery(event.target.value)}
+                    placeholder="Search research by key or title"
+                    className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
+                  />
+                  {researchQuery && researchOptions.length > 0 && (
+                    <div className="absolute z-10 mt-2 w-full rounded-md border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
+                      {researchOptions.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-700"
+                          onClick={() => handleResearchAdd(item)}
+                        >
+                          <span className="min-w-[70px] text-xs font-semibold text-slate-500 dark:text-slate-300">
+                            {item.key ?? "RESEARCH"}
+                          </span>
+                          <span>{item.title}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {researchSearchError && (
+                    <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">{researchSearchError}</p>
+                  )}
+                </div>
+
+                {selectedResearch.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedResearch.map((item) => (
+                      <span
+                        key={item.id}
+                        className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200"
+                      >
+                        <span>{item.key ? `${item.key}: ${item.title}` : item.title}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleResearchRemove(item.id)}
+                          className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                          aria-label="Remove research item"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Link research to capture ongoing discovery alongside delivery work.
                   </p>
                 )}
               </div>
@@ -698,6 +842,7 @@ export default function StandupPageClient({
                   notes: "",
                 });
                 setSelectedIssues([]);
+                setSelectedResearch([]);
               }}
             >
               Clear
@@ -822,7 +967,7 @@ export default function StandupPageClient({
                       Status
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                      Issues
+                      Work items
                     </th>
                   </tr>
                 </thead>
@@ -872,7 +1017,7 @@ export default function StandupPageClient({
                             </span>
                           </td>
                           <td className="px-4 py-3">
-                            {member.issues.length ? (
+                            {member.issues.length + member.research.length ? (
                               <div className="flex flex-wrap gap-2 text-xs">
                                 {member.issues.map((issue) => (
                                   <Link
@@ -886,10 +1031,21 @@ export default function StandupPageClient({
                                     </span>
                                   </Link>
                                 ))}
+                                {member.research.map((item) => (
+                                  <span
+                                    key={item.id}
+                                    className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200"
+                                  >
+                                    {item.key ?? "RESEARCH"}
+                                    <span className="text-slate-500 dark:text-slate-300">
+                                      · {item.title}
+                                    </span>
+                                  </span>
+                                ))}
                               </div>
                             ) : (
                               <span className="text-xs text-slate-500 dark:text-slate-400">
-                                0 linked issues
+                                0 linked items
                               </span>
                             )}
                           </td>
@@ -1003,22 +1159,35 @@ export default function StandupPageClient({
                           </div>
 
                           <div className="flex flex-wrap gap-2 text-xs">
-                            {entry.issues.length ? (
-                              entry.issues.map((link) => (
-                                <Link
-                                  key={link.issue.id}
-                                  href={`/issues/${link.issue.id}`}
-                                  className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 font-semibold text-blue-700 hover:underline dark:bg-blue-900/30 dark:text-blue-200"
-                                >
-                                  {link.issue.key ?? "ISSUE"}
-                                  <span className="text-slate-500 dark:text-slate-300">
-                                    · {link.issue.title}
+                            {entry.issues.length + entry.research.length ? (
+                              <>
+                                {entry.issues.map((link) => (
+                                  <Link
+                                    key={link.issue.id}
+                                    href={`/issues/${link.issue.id}`}
+                                    className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 font-semibold text-blue-700 hover:underline dark:bg-blue-900/30 dark:text-blue-200"
+                                  >
+                                    {link.issue.key ?? "ISSUE"}
+                                    <span className="text-slate-500 dark:text-slate-300">
+                                      · {link.issue.title}
+                                    </span>
+                                  </Link>
+                                ))}
+                                {entry.research.map((link) => (
+                                  <span
+                                    key={link.researchItem.id}
+                                    className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200"
+                                  >
+                                    {link.researchItem.key ?? "RESEARCH"}
+                                    <span className="text-slate-500 dark:text-slate-300">
+                                      · {link.researchItem.title}
+                                    </span>
                                   </span>
-                                </Link>
-                              ))
+                                ))}
+                              </>
                             ) : (
                               <span className="text-slate-500 dark:text-slate-400">
-                                No linked issues
+                                No linked work items
                               </span>
                             )}
                           </div>

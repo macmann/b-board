@@ -5,6 +5,7 @@ import type { FakePrismaClient } from "../../../../../../test/utils/fakePrisma";
 import {
   buildIssue,
   buildProjectMember,
+  buildResearchItem,
   buildStandupEntry,
   buildUser,
 } from "../../../../../../test/factories/standup";
@@ -50,11 +51,13 @@ describe("standup summary route", () => {
   const developer = buildUser({ id: "dev-user", role: Role.DEV });
   const qa = buildUser({ id: "qa-user", role: Role.QA });
   const issue = buildIssue({ id: "issue-1", projectId });
+  const research = buildResearchItem({ id: "research-1", projectId });
 
   beforeEach(() => {
     const fakePrisma = getPrisma();
     fakePrisma.standupEntries.clear();
     fakePrisma.issues.clear();
+    fakePrisma.researchItems.clear();
     fakePrisma.users.clear();
     fakePrisma.projectMembers = [];
 
@@ -69,6 +72,7 @@ describe("standup summary route", () => {
     );
 
     fakePrisma.issues.set(issue.id, issue);
+    fakePrisma.researchItems.set(research.id, research);
     ensureProjectRole.mockResolvedValue(undefined);
     getUserFromRequest.mockResolvedValue(admin);
   });
@@ -86,6 +90,13 @@ describe("standup summary route", () => {
           standupEntryId: "entry-complete",
           issueId: issue.id,
           issue,
+        },
+      ] as any,
+      research: [
+        {
+          standupEntryId: "entry-complete",
+          researchItemId: research.id,
+          researchItem: research,
         },
       ] as any,
     });
@@ -121,6 +132,7 @@ describe("standup summary route", () => {
     const [adminSummary, devSummary, qaSummary] = body.members;
     expect(adminSummary.status).toBe("submitted");
     expect(adminSummary.isComplete).toBe(true);
+    expect(adminSummary.research).toHaveLength(1);
 
     expect(devSummary.status).toBe("submitted");
     expect(devSummary.isComplete).toBe(false);
