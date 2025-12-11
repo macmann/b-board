@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import ProjectTeamSettings from "@/components/projects/ProjectTeamSettings";
+import ProjectStandupSettings from "@/components/projects/ProjectStandupSettings";
 import { Role } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
 
@@ -253,6 +254,8 @@ export default function ProjectSettingsPageClient({
           </p>
         )}
       </section>
+
+      <ProjectStandupSettings projectId={project.id} projectRole={projectRole} />
 
       <section
         id="team"
