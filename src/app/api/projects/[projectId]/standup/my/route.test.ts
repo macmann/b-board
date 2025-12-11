@@ -55,6 +55,7 @@ describe("standup/my route", () => {
   beforeEach(() => {
     const fakePrisma = getPrisma();
     fakePrisma.standupEntries.clear();
+    fakePrisma.standupAttendances.clear();
     fakePrisma.issues.clear();
     fakePrisma.researchItems.clear();
     fakePrisma.users.clear();

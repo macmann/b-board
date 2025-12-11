@@ -8,6 +8,7 @@ import {
   PROJECT_VIEWER_ROLES,
 } from "../../../../../../lib/permissions";
 import { resolveProjectId, type ProjectParams } from "../../../../../../lib/params";
+import { parseDateOnly, parseTimeOnDate } from "../../../../../../lib/standupWindow";
 
 const standupInclude = {
   issues: {
@@ -16,12 +17,6 @@ const standupInclude = {
   research: {
     include: { researchItem: true },
   },
-};
-
-const parseDate = (value: string | null): Date | null => {
-  if (!value) return null;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
 const computeCompletion = (
@@ -70,7 +65,7 @@ export async function GET(
   }
 
   const dateParam = request.nextUrl.searchParams.get("date");
-  const date = parseDate(dateParam);
+  const date = parseDateOnly(dateParam ?? new Date());
 
   if (!date) {
     return NextResponse.json({ message: "date is required" }, { status: 400 });
@@ -134,19 +129,50 @@ const upsertEntry = async (
 
   const {
     date: dateInput,
+    yesterdayWork,
+    todayPlan,
     summaryToday,
     progressSinceYesterday,
-    blockers,
+    blockers: blockersInput,
     dependencies,
     notes,
     issueIds: issueIdsInput,
     researchIds: researchIdsInput,
   } = body ?? {};
 
-  const date = parseDate(dateInput ?? null);
+  const date = parseDateOnly(dateInput ?? new Date());
 
   if (!date) {
     return NextResponse.json({ message: "date is required" }, { status: 400 });
+  }
+
+  const settings = prisma.projectSettings
+    ? await prisma.projectSettings.findUnique({
+        where: { projectId },
+      })
+    : null;
+
+  if (settings?.standupWindowStart && settings?.standupWindowEnd) {
+    const now = new Date();
+    const windowStart = parseTimeOnDate(date, settings.standupWindowStart);
+    const windowEnd = parseTimeOnDate(date, settings.standupWindowEnd);
+
+    if (!windowStart || !windowEnd) {
+      return NextResponse.json(
+        { message: "Invalid stand-up window configuration" },
+        { status: 500 }
+      );
+    }
+
+    // TODO: align stand-up window comparison with project timezones when available.
+    if (now < windowStart || now > windowEnd) {
+      return NextResponse.json(
+        {
+          message: `Stand-up window is from ${settings.standupWindowStart} to ${settings.standupWindowEnd}. Your update is outside this window.`,
+        },
+        { status: 400 }
+      );
+    }
   }
 
   const issueIds = normalizeIssueIds(issueIdsInput);
@@ -168,7 +194,13 @@ const upsertEntry = async (
 
   const validIssueIds = validIssues.map((issue) => issue.id);
   const validResearchIds = validResearchItems.map((researchItem) => researchItem.id);
-  const isComplete = computeCompletion(summaryToday, [...validIssueIds, ...validResearchIds]);
+  const normalizedSummaryToday = todayPlan ?? summaryToday;
+  const normalizedProgress = yesterdayWork ?? progressSinceYesterday;
+  const normalizedBlockers = blockersInput ?? null;
+  const isComplete = computeCompletion(normalizedSummaryToday, [
+    ...validIssueIds,
+    ...validResearchIds,
+  ]);
 
   const entry = await prisma.$transaction(async (tx) => {
     const upserted = await tx.dailyStandupEntry.upsert({
@@ -180,9 +212,9 @@ const upsertEntry = async (
         },
       },
       update: {
-        summaryToday: summaryToday ?? null,
-        progressSinceYesterday: progressSinceYesterday ?? null,
-        blockers: blockers ?? null,
+        summaryToday: normalizedSummaryToday ?? null,
+        progressSinceYesterday: normalizedProgress ?? null,
+        blockers: normalizedBlockers ?? null,
         dependencies: dependencies ?? null,
         notes: notes ?? null,
         isComplete,
@@ -191,12 +223,29 @@ const upsertEntry = async (
         projectId,
         userId: user.id,
         date,
-        summaryToday: summaryToday ?? null,
-        progressSinceYesterday: progressSinceYesterday ?? null,
-        blockers: blockers ?? null,
+        summaryToday: normalizedSummaryToday ?? null,
+        progressSinceYesterday: normalizedProgress ?? null,
+        blockers: normalizedBlockers ?? null,
         dependencies: dependencies ?? null,
         notes: notes ?? null,
         isComplete,
+      },
+    });
+
+    await tx.standupAttendance.upsert({
+      where: {
+        projectId_userId_date: {
+          projectId,
+          userId: user.id,
+          date,
+        },
+      },
+      update: { status: "PRESENT" },
+      create: {
+        projectId,
+        userId: user.id,
+        date,
+        status: "PRESENT",
       },
     });
 

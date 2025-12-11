@@ -20,6 +20,15 @@ type StandupResearchLink = {
 };
 
 type StandupRecord = DailyStandupEntry & { issues: StandupIssueLink[]; research: StandupResearchLink[] };
+type StandupAttendanceRecord = {
+  id: string;
+  projectId: string;
+  userId: string;
+  date: Date;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
 
 const toKey = (projectId: string, userId: string, date: Date) => {
   return `${projectId}|${userId}|${date.toISOString()}`;
@@ -27,6 +36,7 @@ const toKey = (projectId: string, userId: string, date: Date) => {
 
 export class FakePrismaClient {
   standupEntries = new Map<string, StandupRecord>();
+  standupAttendances = new Map<string, StandupAttendanceRecord>();
   issues = new Map<string, Issue>();
   researchItems = new Map<string, ResearchItem>();
   users = new Map<string, User>();
@@ -193,6 +203,55 @@ export class FakePrismaClient {
       }
 
       return { count: created };
+    }),
+  };
+
+  standupAttendance = {
+    upsert: vi.fn(async ({ where, create, update }: any) => {
+      const { projectId, userId, date } = where.projectId_userId_date;
+      const key = toKey(projectId, userId, new Date(date));
+      const existing = this.standupAttendances.get(key);
+
+      if (existing) {
+        const next = { ...existing, ...update, updatedAt: new Date() };
+        this.standupAttendances.set(key, next);
+        return next;
+      }
+
+      const created = {
+        ...create,
+        id: create.id ?? `attendance-${this.standupAttendances.size + 1}`,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      this.standupAttendances.set(key, created);
+      return created;
+    }),
+
+    findMany: vi.fn(async ({ where, select }: any) => {
+      const matches: any[] = [];
+
+      for (const record of this.standupAttendances.values()) {
+        if (where.projectId && record.projectId !== where.projectId) continue;
+        if (where.userId && record.userId !== where.userId) continue;
+
+        if (where.date) {
+          const targetDate = new Date(where.date);
+          if (record.date.toDateString() !== targetDate.toDateString()) continue;
+        }
+
+        if (select) {
+          const selected: any = {};
+          if (select.userId) selected.userId = record.userId;
+          if (select.status) selected.status = record.status;
+          matches.push(selected);
+        } else {
+          matches.push(record);
+        }
+      }
+
+      return matches;
     }),
   };
 
