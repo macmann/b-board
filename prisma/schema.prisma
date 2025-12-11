@@ -112,6 +112,7 @@ model User {
   historyEntries        IssueHistory[]
   assignedResearchItems ResearchItem[]      @relation("ResearchItemAssignee")
   standupEntries        DailyStandupEntry[]
+  standupAttendances    StandupAttendance[]
 }
 
 model Workspace {
@@ -151,17 +152,29 @@ model Project {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  workspace      Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  members        ProjectMember[]
-  invitations    Invitation[]
-  inviteTokens   InviteToken[]
-  sprints        Sprint[]
-  epics          Epic[]
-  issues         Issue[]
-  researchItems  ResearchItem[]
-  standupEntries DailyStandupEntry[]
+  workspace          Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  members            ProjectMember[]
+  invitations        Invitation[]
+  inviteTokens       InviteToken[]
+  sprints            Sprint[]
+  epics              Epic[]
+  issues             Issue[]
+  researchItems      ResearchItem[]
+  standupEntries     DailyStandupEntry[]
+  settings           ProjectSettings?
+  standupSummaries   StandupSummary[]
+  standupAttendances StandupAttendance[]
 
   @@unique([workspaceId, key])
+}
+
+model ProjectSettings {
+  id                 String  @id @default(cuid())
+  projectId          String  @unique
+  standupWindowStart String?
+  standupWindowEnd   String?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
 model Invitation {
@@ -304,14 +317,14 @@ model ResearchItem {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  project      Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  assignee     User?                   @relation("ResearchItemAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  project      Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee     User?                      @relation("ResearchItemAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   observations ResearchObservation[]
   issueLinks   ResearchItemIssueLink[]
   standupLinks StandupEntryResearchLink[]
 
-  @@index([projectId])
   @@unique([projectId, key])
+  @@index([projectId])
 }
 
 model ResearchObservation {
@@ -351,9 +364,9 @@ model DailyStandupEntry {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
-  project Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user    User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  issues  StandupEntryIssueLink[]
+  project  Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user     User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  issues   StandupEntryIssueLink[]
   research StandupEntryResearchLink[]
 
   @@unique([projectId, userId, date])
@@ -385,6 +398,38 @@ model StandupEntryResearchLink {
 
   @@unique([standupEntryId, researchItemId])
   @@index([researchItemId])
+}
+
+model StandupSummary {
+  id         String   @id @default(cuid())
+  projectId  String
+  date       DateTime
+  summary    String   @db.Text
+  highlights String?  @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, date])
+  @@index([projectId])
+}
+
+model StandupAttendance {
+  id        String   @id @default(cuid())
+  projectId String
+  userId    String
+  date      DateTime
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId, date])
+  @@index([projectId])
+  @@index([userId])
 }
 
 model InviteToken {
