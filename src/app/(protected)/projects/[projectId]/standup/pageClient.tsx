@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import AIStandupAssistant from "@/components/standup/AIStandupAssistant";
 import Button from "@/components/ui/Button";
+import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import { ProjectRole } from "@/lib/roles";
 
 type StandupIssue = {
@@ -851,11 +852,18 @@ export default function StandupPageClient({
                 <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">
                   AI Summary for {formatDisplayDate(summaryDate)}
                 </h3>
-                <p className="text-sm text-slate-600 dark:text-slate-300">
-                  {isLoadingSummary
-                    ? "Generating summary..."
-                    : summary?.summary ?? "No summary available yet for this date."}
-                </p>
+                <div className="text-sm text-slate-600 dark:text-slate-300">
+                  {isLoadingSummary ? (
+                    <p>Generating summary...</p>
+                  ) : summary?.summary ? (
+                    <MarkdownRenderer
+                      content={summary.summary ?? ""}
+                      className="prose prose-sm max-w-none text-slate-700 dark:prose-invert"
+                    />
+                  ) : (
+                    <p>No summary available yet for this date.</p>
+                  )}
+                </div>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button
