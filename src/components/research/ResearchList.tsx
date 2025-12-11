@@ -9,6 +9,7 @@ type ResearchListProps = {
 export default function ResearchList({ items, onOpenDetails }: ResearchListProps) {
   const tableItems: ResearchTableItem[] = items.map((item) => ({
     id: item.id,
+    key: item.key,
     title: item.title,
     status: item.status,
     researchType: item.researchType ?? null,

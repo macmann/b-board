@@ -15,6 +15,7 @@ import {
 } from "../../../../../lib/permissions";
 import { resolveProjectId, type ProjectParams } from "../../../../../lib/params";
 import { ResearchStatus } from "../../../../../lib/prismaEnums";
+import { getNextResearchKey } from "../../../../../lib/researchKey";
 import { getNextResearchPosition } from "../../../../../lib/researchPosition";
 
 const RESEARCH_STATUS_SET = new Set(Object.values(ResearchStatus));
@@ -128,6 +129,7 @@ export async function GET(
     const response = NextResponse.json(
       items.map((item) => ({
         id: item.id,
+        key: item.key,
         title: item.title,
         status: item.status,
         researchType: item.tags[0] ?? null,
@@ -266,6 +268,7 @@ export async function POST(
 
   const data: Prisma.ResearchItemCreateInput = {
     project: { connect: { id: projectId } },
+    key: await getNextResearchKey(prisma, projectId),
     title,
     description: description ?? null,
     status: validStatus,

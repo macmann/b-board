@@ -88,6 +88,7 @@ export async function GET(
     return NextResponse.json({
       id: result.researchItem.id,
       projectId: result.researchItem.projectId,
+      key: result.researchItem.key,
       title: result.researchItem.title,
       description: result.researchItem.description,
       assigneeId: result.researchItem.assigneeId,

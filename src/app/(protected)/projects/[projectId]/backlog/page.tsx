@@ -89,6 +89,7 @@ export default async function ProjectBacklogPage(props: Props) {
         })
       ).map((item) => ({
         id: item.id,
+        key: item.key,
         title: item.title,
         status: item.status,
         position: item.position,
