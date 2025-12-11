@@ -59,37 +59,34 @@ export async function GET(
     0
   );
 
-  const completionDates: { id: string; points: number; completion?: Date }[] =
-    issues.map((issue) => {
-      const doneChange = issue.history.find(
-        (entry) => entry.newValue === IssueStatus.DONE
-      );
+  const completionDates: {
+    id: string;
+    points: number;
+    completion: Date | null;
+  }[] = issues.map((issue) => {
+    const doneChange = issue.history.find(
+      (entry) => entry.newValue === IssueStatus.DONE
+    );
 
-      if (doneChange) {
-        return {
-          id: issue.id,
-          points: issue.storyPoints ?? 0,
-          completion: doneChange.createdAt,
-        };
-      }
+    const points = issue.storyPoints ?? 0;
 
-      if (issue.status === IssueStatus.DONE) {
-        return {
-          id: issue.id,
-          points: issue.storyPoints ?? 0,
-          completion: sprint.endDate,
-        };
-      }
-
-      return { id: issue.id, points: issue.storyPoints ?? 0 };
-    });
+    return {
+      id: issue.id,
+      points,
+      completion: doneChange
+        ? (doneChange.createdAt as Date | null)
+        : issue.status === IssueStatus.DONE
+          ? sprint.endDate
+          : null,
+    };
+  });
 
   const burndown: { date: string; remainingPoints: number }[] = [];
 
   const currentDate = new Date(sprint.startDate);
   while (currentDate <= sprint.endDate) {
     const completedByDay = completionDates.reduce((sum, issue) => {
-      if (issue.completion && issue.completion <= currentDate) {
+      if (issue.completion !== null && issue.completion <= currentDate) {
         return sum + issue.points;
       }
       return sum;
