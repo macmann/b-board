@@ -304,7 +304,7 @@ model IssueHistory {
 model ResearchItem {
   id          String           @id @default(cuid())
   projectId   String
-  key         String
+  key         String           @default("")
   assigneeId  String?
   title       String
   description String?
