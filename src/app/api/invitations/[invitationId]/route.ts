@@ -29,8 +29,17 @@ export async function DELETE(
     return NextResponse.json({ message: "Invitation not found" }, { status: 404 });
   }
 
+  if (!invitation.projectId) {
+    return NextResponse.json(
+      { message: "Invitation is not associated with a project" },
+      { status: 400 }
+    );
+  }
+
+  const projectId = invitation.projectId;
+
   try {
-    await requireProjectRole(user.id, invitation.projectId, [Role.ADMIN, Role.PO]);
+    await requireProjectRole(user.id, projectId, [Role.ADMIN, Role.PO]);
   } catch (error) {
     if (error instanceof AuthorizationError) {
       return NextResponse.json(
