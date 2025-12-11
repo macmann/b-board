@@ -1,4 +1,9 @@
-import type { DailyStandupEntry, User } from "@prisma/client";
+import type {
+  DailyStandupEntry,
+  Issue,
+  ResearchItem,
+  User,
+} from "@prisma/client";
 import { StandupSummary } from "@prisma/client";
 
 import openai from "@/lib/openai";
@@ -7,8 +12,12 @@ import { sendEmail } from "./email";
 import { PROJECT_ADMIN_ROLES } from "./roles";
 import { parseDateOnly } from "./standupWindow";
 
-type StandupSummaryResult = { summary: string; highlights: string | null };
-type StandupEntryWithUser = DailyStandupEntry & { user: User };
+type StandupSummaryResult = { summary: string };
+type StandupEntryWithUser = DailyStandupEntry & {
+  user: User;
+  issues: { issue: Issue }[];
+  research: { researchItem: ResearchItem }[];
+};
 
 const formatDateOnly = (date: Date) => date.toISOString().slice(0, 10);
 
@@ -17,39 +26,49 @@ const buildPrompt = (
   date: Date,
   entries: StandupEntryWithUser[]
 ) => {
-  const lines = [
-    `Project: ${projectName}`,
-    `Date: ${formatDateOnly(date)}`,
-    "Stand-up entries:",
-  ];
+  const promptEntries = entries.map((entry) => ({
+    member: entry.user?.name || entry.user?.email || entry.userId,
+    progressSinceYesterday: entry.progressSinceYesterday ?? "",
+    today: entry.summaryToday ?? "",
+    blockers: entry.blockers ?? "",
+    dependencies: entry.dependencies ?? "",
+    notes: entry.notes ?? "",
+    isComplete: entry.isComplete,
+    issues: entry.issues.map(({ issue }) => ({
+      id: issue.id,
+      key: issue.key,
+      title: issue.title,
+      assigneeId: issue.assigneeId,
+      status: issue.status,
+    })),
+    research: entry.research.map(({ researchItem }) => ({
+      id: researchItem.id,
+      key: researchItem.key,
+      title: researchItem.title,
+      assigneeId: researchItem.assigneeId,
+      status: researchItem.status,
+    })),
+  }));
 
-  for (const entry of entries) {
-    const memberName = entry.user?.name ?? entry.user?.email ?? "Unknown";
-    lines.push(
-      [
-        `Member: ${memberName}`,
-        `Progress since yesterday: ${entry.progressSinceYesterday || "(not provided)"}`,
-        `Today's plan: ${entry.summaryToday || "(not provided)"}`,
-        `Blockers or dependencies: ${entry.blockers || entry.dependencies || "(none reported)"}`,
-      ].join("\n")
-    );
-  }
+  return `You are summarizing engineering stand-up updates.
 
-  lines.push(
-    [
-      "You are an agile assistant generating a short digest for Product Owners and Admins.",
-      "Provide a concise summary of overall progress.",
-      "Explicitly list blockers, risks, and items that need PO/Admin attention as concise highlights.",
-      'Respond in JSON with keys "summary" (string) and "highlights" (string or null).',
-    ].join("\n")
-  );
+Summarize:
+• Overall project progress
+• Key achievements
+• Blockers and risks
+• Dependencies requiring PO involvement
+• Task owners and assignment gaps (e.g., “These developers have no assigned tasks…”)
 
-  return lines.join("\n\n");
+Project: ${projectName}
+Date: ${formatDateOnly(date)}
+Entries:
+${JSON.stringify(promptEntries, null, 2)}`;
 };
 
 export const generateProjectStandupSummary = async (
   projectId: string,
-  date: Date
+  date: Date,
+  entriesOverride?: StandupEntryWithUser[]
 ): Promise<StandupSummaryResult> => {
   const targetDate = parseDateOnly(date);
 
@@ -59,11 +78,17 @@ export const generateProjectStandupSummary = async (
 
   const [project, standupEntries] = await Promise.all([
     prisma.project.findUnique({ where: { id: projectId }, select: { name: true } }),
-    prisma.dailyStandupEntry.findMany({
-      where: { projectId, date: targetDate },
-      include: { user: true },
-      orderBy: { updatedAt: "desc" },
-    }),
+    entriesOverride
+      ? Promise.resolve(entriesOverride)
+      : prisma.dailyStandupEntry.findMany({
+          where: { projectId, date: targetDate },
+          include: {
+            user: true,
+            issues: { include: { issue: true } },
+            research: { include: { researchItem: true } },
+          },
+          orderBy: { updatedAt: "desc" },
+        }),
   ]);
 
   if (!project) {
@@ -73,7 +98,6 @@ export const generateProjectStandupSummary = async (
   if (!standupEntries.length) {
     return {
       summary: `No stand-up entries were submitted for ${project.name} on ${formatDateOnly(targetDate)}.`,
-      highlights: null,
     };
   }
 
@@ -90,34 +114,27 @@ export const generateProjectStandupSummary = async (
       { role: "user", content: prompt },
     ],
     temperature: 0.4,
-    response_format: { type: "json_object" },
   });
 
   const content = completion.choices[0]?.message?.content?.trim();
 
   let summary = "";
-  let highlights: string | null = null;
 
   if (content) {
-    try {
-      const parsed = JSON.parse(content) as StandupSummaryResult;
-      summary = parsed.summary;
-      highlights = parsed.highlights;
-    } catch {
-      summary = content;
-    }
+    summary = content;
   }
 
   if (!summary) {
     summary = `Stand-up summary for ${project.name} on ${formatDateOnly(targetDate)} is unavailable.`;
   }
 
-  return { summary, highlights };
+  return { summary };
 };
 
 export const saveProjectStandupSummary = async (
   projectId: string,
-  date: Date
+  date: Date,
+  entriesOverride?: StandupEntryWithUser[]
 ): Promise<StandupSummary> => {
   const targetDate = parseDateOnly(date);
 
@@ -125,12 +142,16 @@ export const saveProjectStandupSummary = async (
     throw new Error("Invalid date provided for stand-up summary persistence");
   }
 
-  const { summary, highlights } = await generateProjectStandupSummary(projectId, targetDate);
+  const { summary } = await generateProjectStandupSummary(
+    projectId,
+    targetDate,
+    entriesOverride
+  );
 
   return prisma.standupSummary.upsert({
     where: { projectId_date: { projectId, date: targetDate } },
-    update: { summary, highlights },
-    create: { projectId, date: targetDate, summary, highlights },
+    update: { summary },
+    create: { projectId, date: targetDate, summary },
   });
 };
 
@@ -155,7 +176,8 @@ export const emailStandupSummaryToStakeholders = async (
     throw new Error(`Project ${projectId} not found`);
   }
 
-  const standupSummary = summaryRecord ?? (await saveProjectStandupSummary(projectId, targetDate));
+  const standupSummary =
+    summaryRecord ?? (await saveProjectStandupSummary(projectId, targetDate));
 
   const stakeholders = await prisma.projectMember.findMany({
     where: { projectId, role: { in: PROJECT_ADMIN_ROLES } },
@@ -164,11 +186,6 @@ export const emailStandupSummaryToStakeholders = async (
 
   const subject = `[B Board] Daily Stand-up Summary - ${project.name} - ${formatDateOnly(targetDate)}`;
 
-  const highlightSection =
-    standupSummary.highlights && standupSummary.highlights.trim()
-      ? `<h3>Highlights, blockers & risks</h3><p>${standupSummary.highlights}</p>`
-      : "<p>No explicit blockers or risks were highlighted.</p>";
-
   const html = `
     <p>Hello,</p>
     <p>Here is the daily stand-up summary for <strong>${project.name}</strong> on <strong>${formatDateOnly(
@@ -176,7 +193,6 @@ export const emailStandupSummaryToStakeholders = async (
   )}</strong>.</p>
     <h3>Summary</h3>
     <p>${standupSummary.summary}</p>
-    ${highlightSection}
   `;
 
   const emailPromises = stakeholders
