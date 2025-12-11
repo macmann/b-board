@@ -1,4 +1,13 @@
-import { Role, type DailyStandupEntry, type Issue, type ProjectMember, type StandupEntryIssueLink, type User } from "@prisma/client";
+import {
+  Role,
+  type DailyStandupEntry,
+  type Issue,
+  type ProjectMember,
+  type ResearchItem,
+  type StandupEntryIssueLink,
+  type StandupEntryResearchLink,
+  type User,
+} from "@prisma/client";
 
 let idCounter = 0;
 const nextId = (prefix: string) => `${prefix}-${++idCounter}`;
@@ -44,9 +53,32 @@ export const buildIssue = (overrides: Partial<Issue> = {}): Issue => ({
   updatedAt: overrides.updatedAt ?? new Date(),
 });
 
+export const buildResearchItem = (overrides: Partial<ResearchItem> = {}): ResearchItem => ({
+  id: overrides.id ?? nextId("research"),
+  projectId: overrides.projectId ?? nextId("project"),
+  key: overrides.key ?? `RES-${nextId("research")}`,
+  title: overrides.title ?? "Research item",
+  description: overrides.description ?? "",
+  status: overrides.status ?? "BACKLOG",
+  priority: overrides.priority ?? "MEDIUM",
+  decision: overrides.decision ?? "PENDING",
+  tags: overrides.tags ?? [],
+  assigneeId: overrides.assigneeId ?? null,
+  dueDate: overrides.dueDate ?? null,
+  position: overrides.position ?? 0,
+  createdAt: overrides.createdAt ?? new Date(),
+  updatedAt: overrides.updatedAt ?? new Date(),
+});
+
 export const buildStandupEntry = (
-  overrides: Partial<DailyStandupEntry> = {}
-): DailyStandupEntry => ({
+  overrides: Partial<DailyStandupEntry> & {
+    issues?: StandupEntryIssueLink[];
+    research?: StandupEntryResearchLink[];
+  } = {}
+): DailyStandupEntry & {
+  issues?: StandupEntryIssueLink[];
+  research?: StandupEntryResearchLink[];
+} => ({
   id: overrides.id ?? nextId("standup"),
   projectId: overrides.projectId ?? nextId("project"),
   userId: overrides.userId ?? nextId("user"),
@@ -59,6 +91,8 @@ export const buildStandupEntry = (
   isComplete: overrides.isComplete ?? false,
   createdAt: overrides.createdAt ?? new Date(),
   updatedAt: overrides.updatedAt ?? new Date(),
+  ...(overrides.issues ? { issues: overrides.issues } : {}),
+  ...(overrides.research ? { research: overrides.research } : {}),
 });
 
 export const buildStandupIssueLink = (
@@ -67,5 +101,14 @@ export const buildStandupIssueLink = (
   id: overrides.id ?? nextId("standup-link"),
   standupEntryId: overrides.standupEntryId ?? nextId("standup"),
   issueId: overrides.issueId ?? nextId("issue"),
+  createdAt: overrides.createdAt ?? new Date(),
+});
+
+export const buildStandupResearchLink = (
+  overrides: Partial<StandupEntryResearchLink> = {}
+): StandupEntryResearchLink => ({
+  id: overrides.id ?? nextId("standup-research-link"),
+  standupEntryId: overrides.standupEntryId ?? nextId("standup"),
+  researchItemId: overrides.researchItemId ?? nextId("research"),
   createdAt: overrides.createdAt ?? new Date(),
 });

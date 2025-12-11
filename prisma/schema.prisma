@@ -308,6 +308,7 @@ model ResearchItem {
   assignee     User?                   @relation("ResearchItemAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   observations ResearchObservation[]
   issueLinks   ResearchItemIssueLink[]
+  standupLinks StandupEntryResearchLink[]
 
   @@index([projectId])
   @@unique([projectId, key])
@@ -353,6 +354,7 @@ model DailyStandupEntry {
   project Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user    User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   issues  StandupEntryIssueLink[]
+  research StandupEntryResearchLink[]
 
   @@unique([projectId, userId, date])
   @@index([projectId])
@@ -370,6 +372,19 @@ model StandupEntryIssueLink {
 
   @@unique([standupEntryId, issueId])
   @@index([issueId])
+}
+
+model StandupEntryResearchLink {
+  id             String   @id @default(cuid())
+  standupEntryId String
+  researchItemId String
+  createdAt      DateTime @default(now())
+
+  standupEntry DailyStandupEntry @relation(fields: [standupEntryId], references: [id], onDelete: Cascade)
+  researchItem ResearchItem      @relation(fields: [researchItemId], references: [id], onDelete: Cascade)
+
+  @@unique([standupEntryId, researchItemId])
+  @@index([researchItemId])
 }
 
 model InviteToken {

@@ -67,6 +67,7 @@ export async function GET(
     },
     include: {
       issues: { include: { issue: true } },
+      research: { include: { researchItem: true } },
       user: true,
     },
     orderBy: { updatedAt: "desc" },
@@ -92,6 +93,7 @@ export async function GET(
       createdAt: latestEntry?.createdAt ?? null,
       updatedAt: latestEntry?.updatedAt ?? null,
       issues: latestEntry?.issues.map((issue) => issue.issue) ?? [],
+      research: latestEntry?.research.map((item) => item.researchItem) ?? [],
     };
   });
 

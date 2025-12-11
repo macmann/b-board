@@ -2,7 +2,12 @@ import { Role } from "@prisma/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { FakePrismaClient } from "../../../../../../test/utils/fakePrisma";
-import { buildIssue, buildProjectMember, buildUser } from "../../../../../../test/factories/standup";
+import {
+  buildIssue,
+  buildProjectMember,
+  buildResearchItem,
+  buildUser,
+} from "../../../../../../test/factories/standup";
 
 const prismaHolder = vi.hoisted(() => ({ value: undefined as FakePrismaClient | undefined }));
 
@@ -45,14 +50,17 @@ describe("standup/my route", () => {
   const projectId = "project-1";
   const user = buildUser({ id: "user-1", role: Role.DEV });
   const issue = buildIssue({ id: "issue-1", projectId });
+  const researchItem = buildResearchItem({ id: "research-1", projectId });
 
   beforeEach(() => {
     const fakePrisma = getPrisma();
     fakePrisma.standupEntries.clear();
     fakePrisma.issues.clear();
+    fakePrisma.researchItems.clear();
     fakePrisma.users.clear();
     fakePrisma.projectMembers = [];
     fakePrisma.issues.set(issue.id, issue);
+    fakePrisma.researchItems.set(researchItem.id, researchItem);
     fakePrisma.users.set(user.id, user);
     fakePrisma.projectMembers.push(buildProjectMember({ projectId, userId: user.id, role: Role.DEV }));
     ensureProjectRole.mockResolvedValue(undefined);
@@ -110,6 +118,22 @@ describe("standup/my route", () => {
     const complete = await completeResponse.json();
 
     expect(complete.isComplete).toBe(true);
+  });
+
+  it("links research items and treats them as eligible work", async () => {
+    const request = createRequest({
+      date: "2024-01-04",
+      summaryToday: "Finishing a research spike",
+      issueIds: [],
+      researchIds: [researchItem.id],
+    });
+
+    const response = await POST(request, { params: { projectId } });
+    const body = await response.json();
+
+    expect(body.research).toHaveLength(1);
+    expect(body.research[0].researchItem.id).toBe(researchItem.id);
+    expect(body.isComplete).toBe(true);
   });
 
   it("rejects non-members from modifying entries", async () => {

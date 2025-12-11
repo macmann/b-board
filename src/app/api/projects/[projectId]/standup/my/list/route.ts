@@ -13,6 +13,9 @@ const standupInclude = {
   issues: {
     include: { issue: true },
   },
+  research: {
+    include: { researchItem: true },
+  },
 };
 
 const parseDate = (value: string | null): Date | null => {
