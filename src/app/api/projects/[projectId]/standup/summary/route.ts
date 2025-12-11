@@ -8,12 +8,10 @@ import {
   PROJECT_ADMIN_ROLES,
 } from "../../../../../../lib/permissions";
 import { resolveProjectId, type ProjectParams } from "../../../../../../lib/params";
+import { saveProjectStandupSummary } from "../../../../../../lib/standupSummary";
+import { parseDateOnly } from "../../../../../../lib/standupWindow";
 
-const parseDate = (value: string | null): Date | null => {
-  if (!value) return null;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-};
+const formatDateOnly = (date: Date) => date.toISOString().slice(0, 10);
 
 export async function GET(
   request: NextRequest,
@@ -42,66 +40,44 @@ export async function GET(
   }
 
   const searchParams = request.nextUrl.searchParams;
-  const date = parseDate(searchParams.get("date"));
-  const startDate = parseDate(searchParams.get("startDate"));
-  const endDate = parseDate(searchParams.get("endDate"));
+  const dateParam = searchParams.get("date");
+  const forceRefresh = searchParams.get("forceRefresh") === "true";
+  const date = parseDateOnly(dateParam);
 
-  if (!date && !startDate && !endDate) {
-    return NextResponse.json(
-      { message: "date or date range is required" },
-      { status: 400 }
-    );
+  if (!date || !dateParam) {
+    return NextResponse.json({ message: "date is required" }, { status: 400 });
   }
 
-  const dateFilter = date
-    ? date
-    : {
-        ...(startDate ? { gte: startDate } : {}),
-        ...(endDate ? { lte: endDate } : {}),
-      };
+  try {
+    const entries = await prisma.dailyStandupEntry.findMany({
+      where: { projectId, date },
+      include: {
+        user: true,
+        issues: { include: { issue: true } },
+        research: { include: { researchItem: true } },
+      },
+      orderBy: { updatedAt: "desc" },
+    });
 
-  const entries = await prisma.dailyStandupEntry.findMany({
-    where: {
-      projectId,
-      date: dateFilter,
-    },
-    include: {
-      issues: { include: { issue: true } },
-      research: { include: { researchItem: true } },
-      user: true,
-    },
-    orderBy: { updatedAt: "desc" },
-  });
+    const existingSummary = await prisma.standupSummary.findUnique({
+      where: { projectId_date: { projectId, date } },
+    });
 
-  const members = await prisma.projectMember.findMany({
-    where: { projectId },
-    include: { user: true },
-  });
+    const summaryRecord =
+      existingSummary && !forceRefresh
+        ? existingSummary
+        : await saveProjectStandupSummary(projectId, date, entries);
 
-  const summary = members.map((member) => {
-    const entriesForUser = entries.filter((entry) => entry.userId === member.userId);
-    const latestEntry = entriesForUser[0] ?? null;
-
-    return {
-      userId: member.userId,
-      name: member.user.name,
-      role: member.role,
-      status: latestEntry ? "submitted" : "missing",
-      isComplete: latestEntry?.isComplete ?? false,
-      entryId: latestEntry?.id ?? null,
-      date: latestEntry?.date ?? null,
-      createdAt: latestEntry?.createdAt ?? null,
-      updatedAt: latestEntry?.updatedAt ?? null,
-      issues: latestEntry?.issues.map((issue) => issue.issue) ?? [],
-      research: latestEntry?.research.map((item) => item.researchItem) ?? [],
-    };
-  });
-
-  return NextResponse.json({
-    date,
-    startDate,
-    endDate,
-    members: summary,
-    totalEntries: entries.length,
-  });
+    return NextResponse.json({
+      date: formatDateOnly(date),
+      summary: summaryRecord.summary,
+      entries,
+    });
+  } catch (error) {
+    console.error("Failed to generate stand-up summary", error);
+    return NextResponse.json(
+      { message: "Unable to generate stand-up summary" },
+      { status: 500 }
+    );
+  }
 }

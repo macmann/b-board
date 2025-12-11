@@ -40,24 +40,10 @@ type StandupEntryWithUser = StandupEntry & {
   user: { id: string; name: string; email: string | null };
 };
 
-type StandupSummaryMember = {
-  userId: string;
-  name: string;
-  role: string;
-  status: "submitted" | "missing";
-  isComplete: boolean;
-  entryId: string | null;
-  date: string | null;
-  issues: StandupIssue[];
-  research: StandupResearch[];
-};
-
 type StandupSummaryResponse = {
-  date: string | null;
-  startDate: string | null;
-  endDate: string | null;
-  members: StandupSummaryMember[];
-  totalEntries: number;
+  date: string;
+  summary: string;
+  entries: StandupEntryWithUser[];
 };
 
 type StandupFormState = {
@@ -75,20 +61,6 @@ type ToastMessage = {
 };
 
 const toDateInput = (date: Date) => date.toISOString().split("T")[0];
-
-const startOfWeek = (date: Date) => {
-  const next = new Date(date);
-  const day = next.getDay();
-  const diff = next.getDate() - day + (day === 0 ? -6 : 1);
-  next.setDate(diff);
-  return next;
-};
-
-const addDays = (date: Date, days: number) => {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-};
 
 const formatDisplayDate = (value: string) =>
   new Date(value).toLocaleDateString(undefined, {
@@ -170,12 +142,11 @@ const searchResearchInProject = async (projectId: string, query: string) => {
 
 const getStandupSummaryForProjectAndDate = async (
   projectId: string,
-  options: { date?: string; startDate?: string; endDate?: string }
+  options: { date: string; forceRefresh?: boolean }
 ) => {
   const params = new URLSearchParams();
-  if (options.date) params.set("date", options.date);
-  if (options.startDate) params.set("startDate", options.startDate);
-  if (options.endDate) params.set("endDate", options.endDate);
+  params.set("date", options.date);
+  if (options.forceRefresh) params.set("forceRefresh", "true");
 
   const response = await fetch(
     `/api/projects/${projectId}/standup/summary?${params.toString()}`
@@ -187,28 +158,6 @@ const getStandupSummaryForProjectAndDate = async (
   }
 
   return (await response.json()) as StandupSummaryResponse;
-};
-
-const listStandupEntriesByProjectAndDate = async (
-  projectId: string,
-  options: { date?: string; startDate?: string; endDate?: string; userId?: string }
-) => {
-  const params = new URLSearchParams();
-  if (options.date) params.set("date", options.date);
-  if (options.startDate) params.set("startDate", options.startDate);
-  if (options.endDate) params.set("endDate", options.endDate);
-  if (options.userId) params.set("userId", options.userId);
-
-  const response = await fetch(
-    `/api/projects/${projectId}/standup/entries?${params.toString()}`
-  );
-
-  if (!response.ok) {
-    const data = await response.json().catch(() => null);
-    throw new Error(data?.message ?? "Unable to load standup entries");
-  }
-
-  return (await response.json()) as StandupEntryWithUser[];
 };
 
 type StandupPageClientProps = {
@@ -228,10 +177,6 @@ export default function StandupPageClient({
 }: StandupPageClientProps) {
   const [activeTab, setActiveTab] = useState<"my" | "dashboard">("my");
   const [selectedDate, setSelectedDate] = useState(() => toDateInput(new Date()));
-  const [weekStart, setWeekStart] = useState(() =>
-    toDateInput(startOfWeek(new Date()))
-  );
-  const [dateMode, setDateMode] = useState<"day" | "week">("day");
   const [standupMode, setStandupMode] = useState<"manual" | "ai">("manual");
 
   const [formState, setFormState] = useState<StandupFormState>({
@@ -257,13 +202,10 @@ export default function StandupPageClient({
   const [entryError, setEntryError] = useState("");
   const [currentEntry, setCurrentEntry] = useState<StandupEntry | null>(null);
 
+  const [summaryDate, setSummaryDate] = useState(() => toDateInput(new Date()));
   const [summary, setSummary] = useState<StandupSummaryResponse | null>(null);
-  const [entries, setEntries] = useState<StandupEntryWithUser[]>([]);
-  const [dashboardError, setDashboardError] = useState("");
-  const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
-  const [memberFilter, setMemberFilter] = useState("all");
-  const [showMissing, setShowMissing] = useState(true);
-  const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
+  const [summaryError, setSummaryError] = useState("");
+  const [isLoadingSummary, setIsLoadingSummary] = useState(false);
 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
@@ -459,80 +401,48 @@ export default function StandupPageClient({
     }
   };
 
-  const activeDateRange = useMemo(() => {
-    if (dateMode === "day") {
-      return { date: selectedDate, startDate: null, endDate: null };
-    }
+  const loadSummary = useCallback(
+    async (forceRefresh = false) => {
+      if (!projectId || !canViewDashboard || !summaryDate) return;
 
-    const start = weekStart;
-    const end = toDateInput(addDays(new Date(weekStart), 6));
-
-    return { date: null, startDate: start, endDate: end };
-  }, [dateMode, selectedDate, weekStart]);
-
-  useEffect(() => {
-    if (!projectId) return;
-    if (!canViewDashboard) return;
-
-    const loadDashboard = async () => {
-      setIsLoadingDashboard(true);
-      setDashboardError("");
+      setIsLoadingSummary(true);
+      setSummaryError("");
 
       try {
         const summaryResult = await getStandupSummaryForProjectAndDate(projectId, {
-          date: activeDateRange.date ?? undefined,
-          startDate: activeDateRange.startDate ?? undefined,
-          endDate: activeDateRange.endDate ?? undefined,
+          date: summaryDate,
+          forceRefresh,
         });
         setSummary(summaryResult);
-
-        const entriesResult = await listStandupEntriesByProjectAndDate(projectId, {
-          date: activeDateRange.date ?? undefined,
-          startDate: activeDateRange.startDate ?? undefined,
-          endDate: activeDateRange.endDate ?? undefined,
-          userId: memberFilter !== "all" ? memberFilter : undefined,
-        });
-
-        setEntries(entriesResult);
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : "Unable to load dashboard";
-        setDashboardError(message);
+          error instanceof Error
+            ? error.message
+            : "Unable to load AI standup summary";
+        setSummaryError(message);
       } finally {
-        setIsLoadingDashboard(false);
+        setIsLoadingSummary(false);
       }
-    };
+    },
+    [canViewDashboard, projectId, summaryDate]
+  );
 
-    loadDashboard();
-  }, [activeDateRange, canViewDashboard, memberFilter, projectId]);
+  useEffect(() => {
+    if (activeTab !== "dashboard") return;
+    loadSummary();
+  }, [activeTab, loadSummary]);
 
-  const filteredMembers = useMemo(() => {
-    if (!summary) return [];
+  const handleCopySummary = async () => {
+    if (!summary?.summary) return;
 
-    return summary.members.filter((member) => {
-      if (!showMissing && member.status === "missing") return false;
-      if (showIncompleteOnly && member.isComplete) return false;
-      if (memberFilter !== "all" && member.userId !== memberFilter) return false;
-      return true;
-    });
-  }, [memberFilter, showIncompleteOnly, showMissing, summary]);
-
-  const groupedEntries = useMemo(() => {
-    const map = new Map<string, StandupEntryWithUser[]>();
-    entries.forEach((entry) => {
-      if (showIncompleteOnly && entry.isComplete) return;
-      const key = activeDateRange.date ? "single" : entry.date;
-      map.set(key, [...(map.get(key) ?? []), entry]);
-    });
-    return map;
-  }, [activeDateRange.date, entries, showIncompleteOnly]);
-
-  const statusChipClasses = (status: "missing" | "incomplete" | "complete") => {
-    if (status === "complete")
-      return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200";
-    if (status === "incomplete")
-      return "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200";
-    return "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200";
+    try {
+      await navigator.clipboard.writeText(summary.summary);
+      addToast({ type: "success", message: "Summary copied to clipboard." });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to copy summary.";
+      addToast({ type: "error", message });
+    }
   };
 
   return (
@@ -907,106 +817,78 @@ export default function StandupPageClient({
 
       {activeTab === "dashboard" && canViewDashboard && (
         <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="space-y-1">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
-                Team standup dashboard
+                Team AI standup summary
               </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Choose a day or week to review submissions and statuses. Missing entries and incomplete updates are highlighted.
+                Product Owners and Admins can review an AI-generated digest and the raw entries for the selected date.
               </p>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1 text-xs font-medium shadow-inner dark:border-slate-800 dark:bg-slate-800/70">
-                <button
-                  className={`rounded-full px-3 py-1 transition ${
-                    dateMode === "day"
-                      ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700"
-                      : "text-slate-500 hover:text-slate-800 dark:text-slate-400"
-                  }`}
-                  onClick={() => setDateMode("day")}
-                >
-                  Day
-                </button>
-                <button
-                  className={`rounded-full px-3 py-1 transition ${
-                    dateMode === "week"
-                      ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700"
-                      : "text-slate-500 hover:text-slate-800 dark:text-slate-400"
-                  }`}
-                  onClick={() => setDateMode("week")}
-                >
-                  Week
-                </button>
-              </div>
-              {dateMode === "day" ? (
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(event) => setSelectedDate(event.target.value)}
-                  className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
-                />
-              ) : (
-                <div className="flex items-center gap-2">
-                  <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                    Week starting
-                  </label>
-                  <input
-                    type="date"
-                    value={weekStart}
-                    onChange={(event) => setWeekStart(event.target.value)}
-                    className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
-                  />
-                </div>
-              )}
+            <div className="flex flex-col items-start gap-2 md:items-end">
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                Date
+              </label>
+              <input
+                type="date"
+                value={summaryDate}
+                onChange={(event) => setSummaryDate(event.target.value)}
+                className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
+              />
             </div>
           </div>
 
-          <div className="grid gap-3 rounded-md bg-slate-50 p-4 dark:bg-slate-800/50 md:grid-cols-3">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Member
-              </p>
-              <select
-                value={memberFilter}
-                onChange={(event) => setMemberFilter(event.target.value)}
-                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
-              >
-                <option value="all">All members</option>
-                {summary?.members.map((member) => (
-                  <option key={member.userId} value={member.userId}>
-                    {member.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-              <input
-                type="checkbox"
-                checked={showMissing}
-                onChange={(event) => setShowMissing(event.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-800"
-              />
-              Show missing
-            </label>
-            <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-              <input
-                type="checkbox"
-                checked={showIncompleteOnly}
-                onChange={(event) => setShowIncompleteOnly(event.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-800"
-              />
-              Only incomplete
-            </label>
-          </div>
-
-          {dashboardError && (
+          {summaryError && (
             <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-100">
-              {dashboardError}
+              {summaryError}
             </div>
           )}
 
+          <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">
+                  AI Summary for {formatDisplayDate(summaryDate)}
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-300">
+                  {isLoadingSummary
+                    ? "Generating summary..."
+                    : summary?.summary ?? "No summary available yet for this date."}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => loadSummary(true)}
+                  disabled={isLoadingSummary}
+                >
+                  {isLoadingSummary ? "Generating..." : "Regenerate Summary"}
+                </Button>
+                <Button
+                  onClick={handleCopySummary}
+                  disabled={!summary?.summary || isLoadingSummary}
+                >
+                  Copy
+                </Button>
+              </div>
+            </div>
+          </div>
+
           <div className="overflow-hidden rounded-lg border border-slate-200 shadow-sm dark:border-slate-800">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/70">
+              <div>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Stand-up entries</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Raw submissions for {formatDisplayDate(summaryDate)}.
+                </p>
+              </div>
+              {summary?.entries && (
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                  {summary.entries.length} entr{summary.entries.length === 1 ? "y" : "ies"}
+                </span>
+              )}
+            </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800">
                 <thead className="bg-slate-50 dark:bg-slate-800/70">
@@ -1015,240 +897,115 @@ export default function StandupPageClient({
                       Member
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                      Status
+                      Progress & Plan
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-                      Work items
+                      Blockers & Dependencies
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                      Linked work
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 bg-white text-sm dark:divide-slate-800 dark:bg-slate-900">
-                  {isLoadingDashboard && (
+                  {isLoadingSummary && (
                     <tr>
-                      <td colSpan={3} className="px-4 py-4 text-center text-slate-500 dark:text-slate-400">
-                        Loading summary...
+                      <td colSpan={4} className="px-4 py-4 text-center text-slate-500 dark:text-slate-400">
+                        Generating summary and loading entries...
                       </td>
                     </tr>
                   )}
-                  {!isLoadingDashboard && filteredMembers.length === 0 && (
+                  {!isLoadingSummary && (!summary?.entries || summary.entries.length === 0) && (
                     <tr>
-                      <td colSpan={3} className="px-4 py-4 text-center text-slate-500 dark:text-slate-400">
-                        No matching members for this view.
+                      <td colSpan={4} className="px-4 py-4 text-center text-slate-500 dark:text-slate-400">
+                        No stand-up entries for this date.
                       </td>
                     </tr>
                   )}
-                  {!isLoadingDashboard &&
-                    filteredMembers.map((member) => {
-                      const status: "missing" | "incomplete" | "complete" =
-                        member.status === "missing"
-                          ? "missing"
-                          : member.isComplete
-                            ? "complete"
-                            : "incomplete";
-
-                      return (
-                        <tr key={member.userId} className="hover:bg-slate-50 dark:hover:bg-slate-800/60">
-                          <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">
-                            <div className="flex flex-col">
-                              <span>{member.name}</span>
-                              <span className="text-xs text-slate-500 dark:text-slate-400">
-                                {member.role}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`inline-flex items-center rounded-full px-2 py-1 text-[11px] font-semibold ${statusChipClasses(status)}`}
-                            >
-                              {status === "missing"
-                                ? "Missing"
-                                : status === "complete"
-                                  ? "Complete"
-                                  : "Incomplete"}
+                  {!isLoadingSummary &&
+                    summary?.entries?.map((entry) => (
+                      <tr key={entry.id} className="align-top hover:bg-slate-50 dark:hover:bg-slate-800/60">
+                        <td className="px-4 py-3">
+                          <div className="space-y-1">
+                            <p className="font-semibold text-slate-900 dark:text-slate-50">{entry.user.name}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{entry.user.email}</p>
+                            <span className={`inline-flex w-fit items-center rounded-full px-2 py-1 text-[11px] font-semibold ${
+                              entry.isComplete
+                                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
+                                : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                            }`}>
+                              {entry.isComplete ? "Complete" : "Incomplete"}
                             </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            {member.issues.length + member.research.length ? (
-                              <div className="flex flex-wrap gap-2 text-xs">
-                                {member.issues.map((issue) => (
-                                  <Link
-                                    key={issue.id}
-                                    href={`/issues/${issue.id}`}
-                                    className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 font-semibold text-blue-700 hover:underline dark:bg-blue-900/30 dark:text-blue-200"
-                                  >
-                                    {issue.key ?? "ISSUE"}
-                                    <span className="text-slate-500 dark:text-slate-300">
-                                      · {issue.title}
-                                    </span>
-                                  </Link>
-                                ))}
-                                {member.research.map((item) => (
-                                  <span
-                                    key={item.id}
-                                    className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200"
-                                  >
-                                    {item.key ?? "RESEARCH"}
-                                    <span className="text-slate-500 dark:text-slate-300">
-                                      · {item.title}
-                                    </span>
-                                  </span>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className="text-xs text-slate-500 dark:text-slate-400">
-                                0 linked items
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 space-y-3 text-slate-800 dark:text-slate-200">
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              Progress
+                            </p>
+                            <p className="mt-1 whitespace-pre-line rounded-md border border-slate-200 bg-slate-50 p-3 text-sm leading-relaxed dark:border-slate-700 dark:bg-slate-800">
+                              {entry.progressSinceYesterday ?? "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              Today
+                            </p>
+                            <p className="mt-1 whitespace-pre-line rounded-md border border-slate-200 bg-slate-50 p-3 text-sm leading-relaxed dark:border-slate-700 dark:bg-slate-800">
+                              {entry.summaryToday ?? "—"}
+                            </p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 space-y-3 text-slate-800 dark:text-slate-200">
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              Blockers
+                            </p>
+                            <p className="mt-1 whitespace-pre-line rounded-md border border-slate-200 bg-slate-50 p-3 text-sm leading-relaxed dark:border-slate-700 dark:bg-slate-800">
+                              {entry.blockers ?? "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              Dependencies
+                            </p>
+                            <p className="mt-1 whitespace-pre-line rounded-md border border-slate-200 bg-slate-50 p-3 text-sm leading-relaxed dark:border-slate-700 dark:bg-slate-800">
+                              {entry.dependencies ?? "—"}
+                            </p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-slate-800 dark:text-slate-200">
+                          {entry.issues.length + entry.research.length ? (
+                            <div className="flex flex-wrap gap-2 text-xs">
+                              {entry.issues.map((link) => (
+                                <Link
+                                  key={link.issue.id}
+                                  href={`/issues/${link.issue.id}`}
+                                  className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 font-semibold text-blue-700 hover:underline dark:bg-blue-900/30 dark:text-blue-200"
+                                >
+                                  {link.issue.key ?? "ISSUE"}
+                                  <span className="text-slate-500 dark:text-slate-300">· {link.issue.title}</span>
+                                </Link>
+                              ))}
+                              {entry.research.map((link) => (
+                                <span
+                                  key={link.researchItem.id}
+                                  className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200"
+                                >
+                                  {link.researchItem.key ?? "RESEARCH"}
+                                  <span className="text-slate-500 dark:text-slate-300">· {link.researchItem.title}</span>
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-500 dark:text-slate-400">No linked work</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>
-          </div>
-
-          <div className="space-y-3">
-            {!isLoadingDashboard && groupedEntries.size === 0 && (
-              <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300">
-                No standup entries for the selected filters yet.
-              </div>
-            )}
-            {[...groupedEntries.entries()].map(([dateKey, list]) => {
-              const showHeading = dateMode === "week" || !activeDateRange.date;
-              return (
-                <div key={dateKey} className="space-y-2">
-                  {showHeading && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                        {dateKey === "single"
-                          ? formatDisplayDate(selectedDate)
-                          : formatDisplayDate(dateKey)}
-                      </span>
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                        {list.length} entr{list.length === 1 ? "y" : "ies"}
-                      </span>
-                    </div>
-                  )}
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {list.map((entry) => {
-                      const status: "missing" | "incomplete" | "complete" = entry.isComplete
-                        ? "complete"
-                        : "incomplete";
-                      return (
-                        <div
-                          key={entry.id}
-                          className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-                                {entry.user.name}
-                              </p>
-                              <p className="text-xs text-slate-500 dark:text-slate-400">
-                                {entry.user.email}
-                              </p>
-                            </div>
-                            <span
-                              className={`inline-flex items-center rounded-full px-2 py-1 text-[11px] font-semibold ${statusChipClasses(status)}`}
-                            >
-                              {status === "complete" ? "Complete" : "Incomplete"}
-                            </span>
-                          </div>
-
-                          <div className="grid gap-3 text-sm text-slate-800 dark:text-slate-100">
-                            {entry.progressSinceYesterday && (
-                              <div className="space-y-1">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                                  Progress
-                                </p>
-                                <p className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
-                                  {entry.progressSinceYesterday}
-                                </p>
-                              </div>
-                            )}
-                            {entry.summaryToday && (
-                              <div className="space-y-1">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                                  Today
-                                </p>
-                                <p className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
-                                  {entry.summaryToday}
-                                </p>
-                              </div>
-                            )}
-                            {entry.blockers && (
-                              <div className="space-y-1">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                                  Blockers
-                                </p>
-                                <p className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
-                                  {entry.blockers}
-                                </p>
-                              </div>
-                            )}
-                            {entry.dependencies && (
-                              <div className="space-y-1">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                                  Dependencies
-                                </p>
-                                <p className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
-                                  {entry.dependencies}
-                                </p>
-                              </div>
-                            )}
-                            {entry.notes && (
-                              <div className="space-y-1">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                                  Notes
-                                </p>
-                                <p className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
-                                  {entry.notes}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="flex flex-wrap gap-2 text-xs">
-                            {entry.issues.length + entry.research.length ? (
-                              <>
-                                {entry.issues.map((link) => (
-                                  <Link
-                                    key={link.issue.id}
-                                    href={`/issues/${link.issue.id}`}
-                                    className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 font-semibold text-blue-700 hover:underline dark:bg-blue-900/30 dark:text-blue-200"
-                                  >
-                                    {link.issue.key ?? "ISSUE"}
-                                    <span className="text-slate-500 dark:text-slate-300">
-                                      · {link.issue.title}
-                                    </span>
-                                  </Link>
-                                ))}
-                                {entry.research.map((link) => (
-                                  <span
-                                    key={link.researchItem.id}
-                                    className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200"
-                                  >
-                                    {link.researchItem.key ?? "RESEARCH"}
-                                    <span className="text-slate-500 dark:text-slate-300">
-                                      · {link.researchItem.title}
-                                    </span>
-                                  </span>
-                                ))}
-                              </>
-                            ) : (
-                              <span className="text-slate-500 dark:text-slate-400">
-                                No linked work items
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
           </div>
         </div>
       )}

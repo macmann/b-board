@@ -401,13 +401,11 @@ model StandupEntryResearchLink {
 }
 
 model StandupSummary {
-  id         String   @id @default(cuid())
-  projectId  String
-  date       DateTime
-  summary    String   @db.Text
-  highlights String?  @db.Text
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(cuid())
+  projectId String
+  date      DateTime @db.Date
+  summary   String
+  createdAt DateTime @default(now()) @db.Date
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
