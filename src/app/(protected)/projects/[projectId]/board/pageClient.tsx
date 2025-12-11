@@ -4,13 +4,13 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
-import type { Issue as IssueModel, IssueStatus as IssueStatusType } from "@prisma/client";
+import type { Issue as PrismaIssue, IssueStatus } from "@prisma/client";
 
 import Button from "@/components/ui/Button";
 import IssueTypeIcon from "@/components/issues/IssueTypeIcon";
 import {
   IssuePriority,
-  IssueStatus,
+  IssueStatus as IssueStatusEnum,
   IssueType,
   SprintStatus,
 } from "../../../../../lib/prismaEnums";
@@ -18,15 +18,15 @@ import {
 import { ProjectRole } from "../../../../../lib/roles";
 
 type StatusOption = {
-  value: IssueStatusType;
+  value: IssueStatus;
   label: string;
 };
 
 const STATUS_OPTIONS: StatusOption[] = [
-  { value: IssueStatus.TODO, label: "To Do" },
-  { value: IssueStatus.IN_PROGRESS, label: "In Progress" },
-  { value: IssueStatus.IN_REVIEW, label: "In Review" },
-  { value: IssueStatus.DONE, label: "Done" },
+  { value: IssueStatusEnum.TODO, label: "To Do" },
+  { value: IssueStatusEnum.IN_PROGRESS, label: "In Progress" },
+  { value: IssueStatusEnum.IN_REVIEW, label: "In Review" },
+  { value: IssueStatusEnum.DONE, label: "Done" },
 ];
 
 type Sprint = {
@@ -36,17 +36,17 @@ type Sprint = {
   status: SprintStatus;
 };
 
-type Issue = IssueModel & {
+type Issue = PrismaIssue & {
   assignee: { id: string; name: string; avatarUrl: string | null } | null;
 };
 
-type IssuesByStatus = Record<IssueStatusType, Issue[]>;
+type IssuesByStatus = Record<IssueStatus, Issue[]>;
 
 const createEmptyIssuesByStatus = (): IssuesByStatus => ({
-  [IssueStatus.TODO]: [],
-  [IssueStatus.IN_PROGRESS]: [],
-  [IssueStatus.IN_REVIEW]: [],
-  [IssueStatus.DONE]: [],
+  [IssueStatusEnum.TODO]: [],
+  [IssueStatusEnum.IN_PROGRESS]: [],
+  [IssueStatusEnum.IN_REVIEW]: [],
+  [IssueStatusEnum.DONE]: [],
 });
 
 const groupIssuesByStatus = (issueList: Issue[]): IssuesByStatus => {
@@ -69,7 +69,7 @@ export default function BoardPageClient({ projectId, projectRole }: BoardPageCli
   const sprintIdFromQuery = searchParams?.get("sprintId") || "";
 
   const [sprint, setSprint] = useState<Sprint | null>(null);
-  const [issuesByStatus, setIssuesByStatus] = useState<Record<IssueStatusType, Issue[]>>(
+  const [issuesByStatus, setIssuesByStatus] = useState<Record<IssueStatus, Issue[]>>(
     () => createEmptyIssuesByStatus()
   );
   const [isLoading, setIsLoading] = useState(true);
@@ -175,7 +175,12 @@ export default function BoardPageClient({ projectId, projectRole }: BoardPageCli
 
   const formatLabel = (value: string) => value.replace(/_/g, " ");
 
-  const handleIssueStatusChange = async (issueId: string, newStatus: IssueStatusType) => {
+  const handleIssueStatusChange = async (
+    issueId: string,
+    newStatus: IssueStatus,
+    sourceStatus: IssueStatus,
+    sourceIndex: number
+  ) => {
     if (!sprint) return;
 
     setStatusUpdating((prev) => ({ ...prev, [issueId]: true }));
@@ -194,27 +199,22 @@ export default function BoardPageClient({ projectId, projectRole }: BoardPageCli
       return;
     }
 
-    const updatedIssuesByStatus: Record<IssueStatusType, Issue[]> = {
+    const updatedIssuesByStatus: Record<IssueStatus, Issue[]> = {
       ...issuesByStatus,
     };
-    let movedIssue: Issue | null = null;
 
-    Object.entries(updatedIssuesByStatus).forEach(([status, issues]) => {
-      const index = issues.findIndex((issue) => issue.id === issueId);
-      if (index !== -1) {
-        const columnIssues = [...issues];
-        [movedIssue] = columnIssues.splice(index, 1);
-        updatedIssuesByStatus[status as IssueStatusType] = columnIssues;
-      }
-    });
+    const sourceIssues: Issue[] = [...(updatedIssuesByStatus[sourceStatus] ?? [])];
+    const movedIssue = sourceIssues.splice(sourceIndex, 1)[0] as Issue | undefined;
+
+    updatedIssuesByStatus[sourceStatus] = sourceIssues;
 
     if (movedIssue) {
       const updatedIssue: Issue = {
-        ...movedIssue,
+        ...(movedIssue as Issue),
         status: newStatus,
       };
 
-      const targetIssues = [...(updatedIssuesByStatus[newStatus] ?? [])];
+      const targetIssues: Issue[] = [...(updatedIssuesByStatus[newStatus] ?? [])];
       updatedIssuesByStatus[newStatus] = [...targetIssues, updatedIssue];
 
       setIssuesByStatus(updatedIssuesByStatus);
@@ -228,12 +228,12 @@ export default function BoardPageClient({ projectId, projectRole }: BoardPageCli
 
     if (!destination) return;
 
-    const sourceStatus = source.droppableId as IssueStatusType;
-    const destStatus = destination.droppableId as IssueStatusType;
+    const sourceStatus = source.droppableId as IssueStatus;
+    const destStatus = destination.droppableId as IssueStatus;
 
     if (sourceStatus === destStatus) return;
 
-    handleIssueStatusChange(draggableId, destStatus);
+    handleIssueStatusChange(draggableId, destStatus, sourceStatus, source.index);
   };
 
   if (!hasAccess) {
