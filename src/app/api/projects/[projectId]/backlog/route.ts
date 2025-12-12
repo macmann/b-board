@@ -94,8 +94,8 @@ export async function GET(
       orderBy: { createdAt: "asc" },
     });
 
-    const canEdit = members.some((member) =>
-      [Role.ADMIN, Role.PO].includes(member.role)
+    const canEdit = members.some(
+      (member) => member.role === Role.ADMIN || member.role === Role.PO
     );
 
     return NextResponse.json({
