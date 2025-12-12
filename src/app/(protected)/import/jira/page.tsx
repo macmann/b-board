@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 type ProjectOption = {
   id: string;
@@ -15,6 +16,7 @@ type ImportSummary = {
 };
 
 export default function JiraImportPage() {
+  const searchParams = useSearchParams();
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [file, setFile] = useState<File | null>(null);
@@ -28,6 +30,8 @@ export default function JiraImportPage() {
       setIsLoading(true);
       setError("");
 
+      const projectIdFromQuery = searchParams?.get("projectId") ?? "";
+
       try {
         const response = await fetch("/api/projects");
 
@@ -38,7 +42,11 @@ export default function JiraImportPage() {
 
         const data: ProjectOption[] = await response.json();
         setProjects(data);
-        setSelectedProjectId((current) => current || data[0]?.id || "");
+        setSelectedProjectId((current) => {
+          if (current) return current;
+          if (projectIdFromQuery) return projectIdFromQuery;
+          return data[0]?.id || "";
+        });
       } catch (err) {
         setError("Failed to fetch projects. Please try again.");
       } finally {
@@ -47,7 +55,7 @@ export default function JiraImportPage() {
     };
 
     fetchProjects();
-  }, []);
+  }, [searchParams]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

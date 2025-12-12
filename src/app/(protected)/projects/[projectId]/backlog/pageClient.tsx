@@ -32,6 +32,7 @@ type BacklogPageClientProps = {
   backlogGroups: BacklogGroup[];
   enableResearchBoard: boolean;
   researchItems: ResearchBacklogItem[];
+  initialSegment?: "product" | "research";
 };
 
 export default function BacklogPageClient({
@@ -41,6 +42,7 @@ export default function BacklogPageClient({
   backlogGroups: initialBacklogGroups,
   enableResearchBoard,
   researchItems: initialResearchItems,
+  initialSegment = "product",
 }: BacklogPageClientProps) {
   const router = useRouter();
 
@@ -51,7 +53,7 @@ export default function BacklogPageClient({
   const [error, setError] = useState("");
   const [hasAccess, setHasAccess] = useState(true);
   const [activeSegment, setActiveSegment] = useState<"product" | "research">(
-    "product"
+    initialSegment
   );
   const [researchItems, setResearchItems] = useState<ResearchBacklogItem[]>(
     initialResearchItems
@@ -116,6 +118,19 @@ export default function BacklogPageClient({
   }, [allIssues]);
 
   const projectIssues = useMemo(() => allIssues, [allIssues]);
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    if (activeSegment === "research") {
+      searchParams.set("view", "research");
+    } else {
+      searchParams.delete("view");
+    }
+
+    const queryString = searchParams.toString();
+    const nextUrl = queryString ? `${window.location.pathname}?${queryString}` : window.location.pathname;
+    router.replace(nextUrl);
+  }, [activeSegment, router]);
 
   const fetchBacklogGroups = useCallback(async () => {
     setIsLoading(true);

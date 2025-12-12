@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import ProjectTeamSettings from "@/components/projects/ProjectTeamSettings";
 import ProjectStandupSettings from "@/components/projects/ProjectStandupSettings";
+import Button from "@/components/ui/Button";
 import { Role } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
 
@@ -108,7 +110,7 @@ export default function ProjectSettingsPageClient({
       return;
     }
 
-    router.push("/projects");
+    router.push("/my-projects");
   };
 
   return (
@@ -255,6 +257,30 @@ export default function ProjectSettingsPageClient({
         )}
       </section>
 
+      {isAdmin && (
+        <section
+          id="integrations"
+          className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900"
+        >
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+                Integrations
+              </h2>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Import issues from Jira to jump-start this project.
+              </p>
+            </div>
+            <Button asChild>
+              <Link href={`/import/jira?projectId=${project.id}`}>Import from Jira</Link>
+            </Button>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Available to workspace admins and product owners.
+          </p>
+        </section>
+      )}
+
       <ProjectStandupSettings projectId={project.id} projectRole={projectRole} />
 
       <section
@@ -281,7 +307,10 @@ export default function ProjectSettingsPageClient({
       </section>
 
       {isAdmin && (
-        <section className="rounded-xl border border-red-200 bg-red-50/60 p-6 shadow-sm dark:border-red-900/60 dark:bg-red-950/40">
+        <section
+          id="danger-zone"
+          className="rounded-xl border border-red-200 bg-red-50/60 p-6 shadow-sm dark:border-red-900/60 dark:bg-red-950/40"
+        >
           <h2 className="text-sm font-semibold text-red-800 dark:text-red-200">
             Danger zone
           </h2>
