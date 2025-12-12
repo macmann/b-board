@@ -4,6 +4,18 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+
 import BacklogTable, { type BacklogTableIssue } from "@/components/issues/BacklogTable";
 import CreateIssueDrawer from "@/components/issues/CreateIssueDrawer";
 import ResearchBacklogContainer from "@/components/research/ResearchBacklogContainer";
@@ -23,13 +35,25 @@ export type BacklogGroup = {
   issues: BacklogIssue[];
 };
 
+const containerIdForGroup = (group: BacklogGroup) =>
+  group.type === "sprint" ? `sprint:${group.id}` : "backlog";
+
 type Option = { id: string; label: string };
+
+type BacklogResponse = {
+  groups: BacklogGroup[];
+  members: { id: string; name?: string | null }[];
+  epics: { id: string; title: string | null }[];
+  canEdit?: boolean;
+};
 
 type BacklogPageClientProps = {
   projectId: string;
   projectRole: ProjectRole | null;
   manageTeamLink: React.ReactNode;
   backlogGroups: BacklogGroup[];
+  assigneeOptions: Option[];
+  epicOptions: Option[];
   enableResearchBoard: boolean;
   researchItems: ResearchBacklogItem[];
   initialSegment?: "product" | "research";
@@ -40,6 +64,8 @@ export default function BacklogPageClient({
   projectRole,
   manageTeamLink,
   backlogGroups: initialBacklogGroups,
+  assigneeOptions: initialAssigneeOptions,
+  epicOptions: initialEpicOptions,
   enableResearchBoard,
   researchItems: initialResearchItems,
   initialSegment = "product",
@@ -49,6 +75,10 @@ export default function BacklogPageClient({
   const [backlogGroups, setBacklogGroups] = useState<BacklogGroup[]>(
     initialBacklogGroups
   );
+  const [assigneeOptions, setAssigneeOptions] = useState<Option[]>(
+    initialAssigneeOptions
+  );
+  const [epicOptions, setEpicOptions] = useState<Option[]>(initialEpicOptions);
   const [isLoading, setIsLoading] = useState(initialBacklogGroups.length === 0);
   const [error, setError] = useState("");
   const [hasAccess, setHasAccess] = useState(true);
@@ -65,57 +95,48 @@ export default function BacklogPageClient({
   const [hasLoadedResearch, setHasLoadedResearch] = useState(
     initialResearchItems.length > 0
   );
+  const [toastMessage, setToastMessage] = useState<string>("");
 
   const isReadOnly = projectRole === "VIEWER";
+  const canReorder = projectRole === "ADMIN" || projectRole === "PO";
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 6 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const allIssues = useMemo(
     () => backlogGroups.flatMap((group) => group.issues),
     [backlogGroups]
   );
 
-  const assigneeOptions = useMemo<Option[]>(() => {
-    const options: Option[] = [];
+  const assigneeSelectOptions = useMemo(
+    () => assigneeOptions.map((option) => ({ value: option.id, label: option.label })),
+    [assigneeOptions]
+  );
 
-    allIssues.forEach((issue) => {
-      const assignee = issue.assignee;
-      if (!assignee) {
-        return;
-      }
+  const epicSelectOptions = useMemo(
+    () => epicOptions.map((option) => ({ value: option.id, label: option.label })),
+    [epicOptions]
+  );
 
-      const alreadyExists = options.some((option) => option.id === assignee.id);
-      if (!alreadyExists) {
-        options.push({
-          id: assignee.id,
-          // if assignee.name can be null/undefined, fall back to a safe label
-          label: assignee.name ?? "Unassigned",
-        });
-      }
-    });
+  const findGroupContainingIssue = useCallback(
+    (issueId: string) =>
+      backlogGroups.find((group) =>
+        group.issues.some((issue) => issue.id === issueId)
+      ),
+    [backlogGroups]
+  );
 
-    return options;
-  }, [allIssues]);
-
-  const epicOptions = useMemo<Option[]>(() => {
-    const options: Option[] = [];
-
-    allIssues.forEach((issue) => {
-      const epic = issue.epic;
-      if (!epic) {
-        return;
-      }
-
-      const alreadyExists = options.some((option) => option.id === epic.id);
-      if (!alreadyExists) {
-        options.push({
-          id: epic.id,
-          // if epic.title can be null/undefined, add a fallback label
-          label: epic.title ?? "Untitled epic",
-        });
-      }
-    });
-
-    return options;
-  }, [allIssues]);
+  const findGroupByContainer = useCallback(
+    (containerId: string) =>
+      backlogGroups.find((group) => containerIdForGroup(group) === containerId),
+    [backlogGroups]
+  );
 
   const projectIssues = useMemo(() => allIssues, [allIssues]);
 
@@ -131,6 +152,13 @@ export default function BacklogPageClient({
     const nextUrl = queryString ? `${window.location.pathname}?${queryString}` : window.location.pathname;
     router.replace(nextUrl);
   }, [activeSegment, router]);
+
+  useEffect(() => {
+    if (!toastMessage) return;
+
+    const timeout = setTimeout(() => setToastMessage(""), 4000);
+    return () => clearTimeout(timeout);
+  }, [toastMessage]);
 
   const fetchBacklogGroups = useCallback(async () => {
     setIsLoading(true);
@@ -151,8 +179,20 @@ export default function BacklogPageClient({
         return;
       }
 
-      const data: BacklogGroup[] = await response.json();
-      setBacklogGroups(data);
+      const data: BacklogResponse = await response.json();
+      setBacklogGroups(data.groups ?? []);
+      setAssigneeOptions(
+        data.members?.map((member) => ({
+          id: member.id,
+          label: member.name ?? "Unassigned",
+        })) ?? []
+      );
+      setEpicOptions(
+        data.epics?.map((epic) => ({
+          id: epic.id,
+          label: epic.title ?? "Untitled epic",
+        })) ?? []
+      );
     } catch (err) {
       setError("An unexpected error occurred while loading the backlog.");
     } finally {
@@ -204,8 +244,187 @@ export default function BacklogPageClient({
     fetchResearchItems();
   }, [activeSegment, enableResearchBoard, fetchResearchItems, hasLoadedResearch]);
 
+  const handleIssueUpdate = useCallback(
+    async (
+      issueId: string,
+      updates: {
+        type?: BacklogIssue["type"];
+        status?: BacklogIssue["status"];
+        priority?: BacklogIssue["priority"];
+        storyPoints?: number | null;
+        assigneeId?: string | null;
+        epicId?: string | null;
+      }
+    ) => {
+      const previousState = backlogGroups;
+      setToastMessage("");
+
+      setBacklogGroups((groups) =>
+        groups.map((group) => ({
+          ...group,
+          issues: group.issues.map((issue) =>
+            issue.id === issueId ? { ...issue, ...updates } : issue
+          ),
+        }))
+      );
+
+      try {
+        const response = await fetch(`/api/issues/${issueId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updates),
+        });
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => null);
+          setBacklogGroups(previousState);
+          setToastMessage(data?.message ?? "Failed to update issue.");
+          return false;
+        }
+
+        const updatedIssue = await response.json();
+
+        setBacklogGroups((groups) =>
+          groups.map((group) => ({
+            ...group,
+            issues: group.issues.map((issue) =>
+              issue.id === issueId ? { ...issue, ...updatedIssue } : issue
+            ),
+          }))
+        );
+
+        return true;
+      } catch (err) {
+        setBacklogGroups(previousState);
+        setToastMessage("An unexpected error occurred while updating the issue.");
+        return false;
+      }
+    },
+    [backlogGroups]
+  );
+
   const handleRowClick = (issueId: string) => {
     router.push(`/issues/${issueId}`);
+  };
+
+  const handleDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      if (!canReorder) return;
+
+      const { active, over } = event;
+      if (!over) return;
+
+      const activeId = String(active.id);
+      const overId = String(over.id);
+
+      const sourceGroup = findGroupContainingIssue(activeId);
+      const targetGroup =
+        findGroupContainingIssue(overId) ?? findGroupByContainer(overId);
+
+      if (!sourceGroup || !targetGroup) return;
+
+      const movingIssue = sourceGroup.issues.find(
+        (issue) => issue.id === activeId
+      );
+
+      if (!movingIssue) return;
+
+      const updatedIssue = {
+        ...movingIssue,
+        sprintId: targetGroup.type === "sprint" ? targetGroup.id : null,
+      };
+
+      const filteredSourceIssues = sourceGroup.issues.filter(
+        (issue) => issue.id !== activeId
+      );
+
+      const filteredTargetIssues =
+        sourceGroup.id === targetGroup.id
+          ? [...filteredSourceIssues]
+          : targetGroup.issues.filter((issue) => issue.id !== activeId);
+
+      const overIndex = filteredTargetIssues.findIndex(
+        (issue) => issue.id === overId
+      );
+      const insertIndex = overIndex >= 0 ? overIndex : filteredTargetIssues.length;
+      filteredTargetIssues.splice(insertIndex, 0, updatedIssue);
+
+      const previousGroups = backlogGroups;
+
+      const newGroups = backlogGroups.map((group) => {
+        if (group.id === sourceGroup.id && group.id === targetGroup.id) {
+          return { ...group, issues: filteredTargetIssues };
+        }
+
+        if (group.id === sourceGroup.id) {
+          return { ...group, issues: filteredSourceIssues };
+        }
+
+        if (group.id === targetGroup.id) {
+          return { ...group, issues: filteredTargetIssues };
+        }
+
+        return group;
+      });
+
+      setBacklogGroups(newGroups);
+
+      const payload = {
+        toSprintId: targetGroup.type === "sprint" ? targetGroup.id : null,
+        toContainer: targetGroup.type === "sprint" ? "sprint" : "backlog",
+        newIndex: insertIndex,
+        orderedIdsInTargetContainer: filteredTargetIssues.map((issue) => issue.id),
+      };
+
+      const response = await fetch(`/api/issues/${activeId}/move`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        setBacklogGroups(previousGroups);
+        const data = await response.json().catch(() => null);
+        setToastMessage(data?.message ?? "Unable to move issue.");
+      }
+    },
+    [backlogGroups, canReorder, findGroupByContainer, findGroupContainingIssue]
+  );
+
+  const BacklogGroupSection = ({ group }: { group: BacklogGroup }) => {
+    const isSprint = group.type === "sprint";
+    const containerId = containerIdForGroup(group);
+    const { setNodeRef, isOver } = useDroppable({ id: containerId });
+
+    return (
+      <section
+        ref={setNodeRef}
+        className={`space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 ${
+          isOver ? "ring-2 ring-blue-400" : ""
+        }`}
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+            {isSprint ? `Sprint: ${group.name}` : "Product Backlog"}
+          </h2>
+          {isSprint && group.status && (
+            <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              {group.status}
+            </span>
+          )}
+        </div>
+
+        <BacklogTable
+          issues={group.issues}
+          onIssueClick={handleRowClick}
+          onIssueUpdate={handleIssueUpdate}
+          assigneeOptions={assigneeSelectOptions}
+          epicOptions={epicSelectOptions}
+          isReadOnly={isReadOnly}
+          disableDrag={!canReorder}
+        />
+      </section>
+    );
   };
 
   if (!hasAccess) {
@@ -280,6 +499,12 @@ export default function BacklogPageClient({
         </div>
       )}
 
+      {activeSegment === "product" && toastMessage && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+          {toastMessage}
+        </div>
+      )}
+
       {activeSegment === "research" && researchError && !isResearchLoading && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
           {researchError}
@@ -292,39 +517,17 @@ export default function BacklogPageClient({
             Loading backlog...
           </div>
         ) : (
-          <div className="space-y-6">
-            {backlogGroups.map((group) => {
-              const isSprint = group.type === "sprint";
-
-              return (
-                <section
-                  key={group.id}
-                  className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
-                >
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-                      {isSprint ? `Sprint: ${group.name}` : "Product Backlog"}
-                    </h2>
-                    {isSprint && group.status && (
-                      <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                        {group.status}
-                      </span>
-                    )}
-                  </div>
-
-                  {group.issues.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-6 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
-                      {isSprint
-                        ? "No issues assigned to this sprint yet."
-                        : "No issues in the product backlog yet."}
-                    </div>
-                  ) : (
-                    <BacklogTable issues={group.issues} onIssueClick={handleRowClick} />
-                  )}
-                </section>
-              );
-            })}
-          </div>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="space-y-6">
+              {backlogGroups.map((group) => {
+                return <BacklogGroupSection key={group.id} group={group} />;
+              })}
+            </div>
+          </DndContext>
         )
       ) : (
         <ResearchBacklogContainer
