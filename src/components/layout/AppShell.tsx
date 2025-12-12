@@ -12,12 +12,6 @@ type AppShellProps = {
   currentPath?: string | null;
 };
 
-const navLinks = [
-  { href: "/my-projects", label: "My Projects" },
-  { href: "/import/jira", label: "Import from Jira" },
-  { href: "/reports", label: "Reports" },
-];
-
 const classNames = (...classes: Array<string | null | false | undefined>) =>
   classes.filter(Boolean).join(" ");
 
@@ -29,6 +23,35 @@ export default function AppShell({
   currentPath,
 }: AppShellProps) {
   const projectLabel = currentProjectName && currentProjectName.length > 0 ? currentProjectName : "Select a project";
+  const normalizedPath = currentPath?.split("?")[0] ?? "";
+  const projectMatch = normalizedPath.match(/^\/projects\/([^/]+)/);
+  const currentProjectId = projectMatch?.[1];
+
+  const workspaceLinks = [
+    { href: "/my-projects", label: "My Projects" },
+    { href: "/reports", label: "Reports" },
+  ];
+
+  const projectLinks = currentProjectId
+    ? [
+        {
+          href: `/projects/${currentProjectId}/backlog`,
+          label: "Backlog",
+          match: (path: string, fullPath: string) =>
+            path.startsWith(`/projects/${currentProjectId}/backlog`) && !fullPath.includes("view=research"),
+        },
+        {
+          href: `/projects/${currentProjectId}/backlog?view=research`,
+          label: "Research",
+          match: (_path: string, fullPath: string) =>
+            fullPath.startsWith(`/projects/${currentProjectId}/backlog`) && fullPath.includes("view=research"),
+        },
+        { href: `/projects/${currentProjectId}/board`, label: "Board" },
+        { href: `/projects/${currentProjectId}/standup`, label: "Standup" },
+        { href: `/projects/${currentProjectId}/reports`, label: "Reports" },
+        { href: `/projects/${currentProjectId}/settings`, label: "Settings" },
+      ]
+    : [];
 
   return (
     <div className="flex min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-50">
@@ -44,8 +67,8 @@ export default function AppShell({
         </div>
 
         <nav className="mt-4 space-y-1 px-3">
-          {navLinks.map((link) => {
-            const isActive = currentPath?.startsWith(link.href);
+          {workspaceLinks.map((link) => {
+            const isActive = normalizedPath.startsWith(link.href);
             return (
               <Link
                 key={link.href}
@@ -59,10 +82,40 @@ export default function AppShell({
               >
                 {link.label}
               </Link>
-          );
-        })}
-      </nav>
-    </aside>
+            );
+          })}
+        </nav>
+
+        {projectLinks.length > 0 && (
+          <div className="mt-6 border-t border-slate-200 pt-4 dark:border-slate-800">
+            <p className="px-5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Project
+            </p>
+            <nav className="mt-2 space-y-1 px-3">
+              {projectLinks.map((link) => {
+                const isActive = link.match
+                  ? link.match(normalizedPath, currentPath ?? "")
+                  : normalizedPath.startsWith(link.href);
+
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={classNames(
+                      "group flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition",
+                      isActive
+                        ? "-ml-1 border-l-2 border-primary bg-slate-100 pl-4 text-slate-900 dark:border-primary/80 dark:bg-slate-900 dark:text-slate-50"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-slate-50"
+                    )}
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+        )}
+      </aside>
 
       <div className="flex flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-slate-200 bg-white/80 px-8 py-4 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">

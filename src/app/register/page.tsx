@@ -51,7 +51,7 @@ function RegisterPageContent() {
       });
 
       if (response.ok) {
-        router.push("/projects");
+        router.push("/my-projects");
         return;
       }
 

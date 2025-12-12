@@ -32,7 +32,7 @@ export default function LoginPage() {
       });
 
       if (response.ok) {
-        router.push("/projects");
+        router.push("/my-projects");
         return;
       }
 

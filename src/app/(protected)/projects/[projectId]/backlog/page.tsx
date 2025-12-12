@@ -29,6 +29,7 @@ type Props = {
 export default async function ProjectBacklogPage(props: Props) {
   const params = await props.params;
   const projectId = await resolveProjectId(params);
+  const activeSegment = props.searchParams?.view === "research" ? "research" : "product";
 
   console.log("[ProjectBacklogPage] resolved projectId:", projectId);
 
@@ -158,6 +159,7 @@ export default async function ProjectBacklogPage(props: Props) {
         backlogGroups={backlogGroups}
         enableResearchBoard={project.enableResearchBoard}
         researchItems={researchItems}
+        initialSegment={activeSegment}
       />
     </div>
   );
