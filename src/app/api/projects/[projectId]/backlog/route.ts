@@ -1,4 +1,4 @@
-import { IssueType } from "../../../../../lib/prismaEnums";
+import { IssueType, Role } from "../../../../../lib/prismaEnums";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getUserFromRequest } from "../../../../../lib/auth";
@@ -56,7 +56,10 @@ export async function GET(
         epic: true,
         assignee: true,
       },
-      orderBy: { createdAt: "asc" },
+      orderBy: [
+        { position: "asc" },
+        { createdAt: "asc" },
+      ],
     });
 
     const sprints = await prisma.sprint.findMany({
@@ -79,7 +82,31 @@ export async function GET(
       issues: issues.filter((issue) => issue.sprintId === null),
     };
 
-    return NextResponse.json([...sprintGroups, backlogGroup]);
+    const members = await prisma.projectMember.findMany({
+      where: { projectId },
+      include: { user: { select: { id: true, name: true } } },
+      orderBy: { createdAt: "asc" },
+    });
+
+    const epics = await prisma.epic.findMany({
+      where: { projectId },
+      select: { id: true, title: true },
+      orderBy: { createdAt: "asc" },
+    });
+
+    const canEdit = members.some((member) =>
+      [Role.ADMIN, Role.PO].includes(member.role)
+    );
+
+    return NextResponse.json({
+      groups: [...sprintGroups, backlogGroup],
+      members: members
+        .map((member) => member.user)
+        .filter(Boolean)
+        .map((user) => ({ id: user!.id, name: user!.name ?? "Unknown" })),
+      epics,
+      canEdit,
+    });
   } catch (error) {
     if (error instanceof ForbiddenError) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });

@@ -1,16 +1,14 @@
-import { IssueHistoryField, IssueStatus } from "../../../../../lib/prismaEnums";
 import { NextRequest } from "next/server";
 
 import { jsonError, jsonOk } from "../../../../../lib/apiResponse";
 import { getUserFromRequest } from "../../../../../lib/auth";
 import prisma from "../../../../../lib/db";
-import { recalculatePositions } from "../../../../../lib/issuePosition";
 import { logError } from "../../../../../lib/logger";
 import {
   AuthorizationError,
-  PROJECT_CONTRIBUTOR_ROLES,
   requireProjectRole,
 } from "../../../../../lib/permissions";
+import { PROJECT_ADMIN_ROLES } from "../../../../../lib/roles";
 
 export async function PATCH(
   request: NextRequest,
@@ -27,6 +25,7 @@ export async function PATCH(
 
     const issue = await prisma.issue.findUnique({
       where: { id: issueId },
+      select: { id: true, projectId: true },
     });
 
     if (!issue) {
@@ -34,43 +33,36 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { sprintId, status, newIndex } = body as {
-      sprintId?: string;
-      status?: IssueStatus;
+    const { toSprintId, toContainer, newIndex, orderedIdsInTargetContainer } = body as {
+      toSprintId?: string | null;
+      toContainer?: "backlog" | "sprint";
       newIndex?: number;
+      orderedIdsInTargetContainer?: string[];
     };
 
-    if (!sprintId) {
-      return jsonError("sprintId is required", 400);
+    if (!toContainer || !["backlog", "sprint"].includes(toContainer)) {
+      return jsonError("Invalid target container", 400);
     }
 
-    const sprint = await prisma.sprint.findUnique({
-      where: { id: sprintId },
-      select: { id: true, projectId: true },
-    });
+    const targetSprintId = toContainer === "sprint" ? toSprintId ?? null : null;
 
-    if (!sprint || sprint.projectId !== issue.projectId) {
-      return jsonError("Sprint not found for this project", 404);
+    if (toContainer === "sprint" && !targetSprintId) {
+      return jsonError("toSprintId is required when moving to a sprint", 400);
     }
 
-    if (issue.sprintId !== sprintId) {
-      return jsonError("Issue does not belong to this sprint", 400);
-    }
+    if (toContainer === "sprint") {
+      const sprint = await prisma.sprint.findUnique({
+        where: { id: targetSprintId! },
+        select: { projectId: true },
+      });
 
-    const targetStatus = Object.values(IssueStatus).includes(status as IssueStatus)
-      ? (status as IssueStatus)
-      : null;
-
-    if (!targetStatus) {
-      return jsonError("Invalid status", 400);
-    }
-
-    if (typeof newIndex !== "number" || Number.isNaN(newIndex)) {
-      return jsonError("newIndex must be a number", 400);
+      if (!sprint || sprint.projectId !== issue.projectId) {
+        return jsonError("Sprint not found for this project", 404);
+      }
     }
 
     try {
-      await requireProjectRole(user.id, sprint.projectId, PROJECT_CONTRIBUTOR_ROLES);
+      await requireProjectRole(user.id, issue.projectId, PROJECT_ADMIN_ROLES);
     } catch (error) {
       if (error instanceof AuthorizationError) {
         return jsonError(error.message, error.status);
@@ -79,31 +71,51 @@ export async function PATCH(
       throw error;
     }
 
-    const issuesInTargetStatus = await prisma.issue.findMany({
-      where: { sprintId, status: targetStatus },
-      orderBy: { position: "asc" },
+    const targetIssues = await prisma.issue.findMany({
+      where: { projectId: issue.projectId, sprintId: targetSprintId },
       select: { id: true },
+      orderBy: { position: "asc" },
     });
 
-    const filteredIssues = issuesInTargetStatus.filter(
-      (item) => item.id !== issue.id
+    const providedOrder = Array.isArray(orderedIdsInTargetContainer)
+      ? orderedIdsInTargetContainer.filter((id): id is string => Boolean(id))
+      : [];
+
+    let finalOrder = providedOrder.filter(
+      (id) => id === issueId || targetIssues.some((target) => target.id === id)
     );
+
     const insertionIndex = Math.max(
       0,
-      Math.min(filteredIssues.length, Math.floor(newIndex))
+      Math.min(
+        typeof newIndex === "number" && !Number.isNaN(newIndex)
+          ? Math.floor(newIndex)
+          : finalOrder.length,
+        finalOrder.length
+      )
     );
-    filteredIssues.splice(insertionIndex, 0, { id: issue.id });
 
-    const updatedPositions = recalculatePositions(filteredIssues);
-    const statusChanged = issue.status !== targetStatus;
+    if (!finalOrder.includes(issueId)) {
+      finalOrder.splice(insertionIndex, 0, issueId);
+    }
 
-    const { updatedIssue } = await prisma.$transaction(async (tx) => {
+    const missingTargetIssues = targetIssues
+      .map((target) => target.id)
+      .filter((id) => !finalOrder.includes(id) && id !== issueId);
+
+    finalOrder = [...finalOrder, ...missingTargetIssues];
+
+    const updatedPositions = finalOrder.map((id, index) => ({
+      id,
+      position: (index + 1) * 1000,
+    }));
+
+    const updatedIssue = await prisma.$transaction(async (tx) => {
       for (const { id, position } of updatedPositions) {
         const data: Record<string, any> = { position };
 
-        if (id === issue.id) {
-          data.status = targetStatus;
-          data.sprintId = sprintId;
+        if (id === issueId) {
+          data.sprintId = targetSprintId;
         }
 
         await tx.issue.update({
@@ -112,20 +124,8 @@ export async function PATCH(
         });
       }
 
-      if (statusChanged) {
-        await tx.issueHistory.create({
-          data: {
-            issueId: issue.id,
-            changedById: user.id,
-            field: IssueHistoryField.STATUS,
-            oldValue: issue.status,
-            newValue: targetStatus,
-          },
-        });
-      }
-
-      const refreshedIssue = await tx.issue.findUnique({
-        where: { id: issue.id },
+      return tx.issue.findUnique({
+        where: { id: issueId },
         include: {
           project: true,
           sprint: true,
@@ -134,11 +134,12 @@ export async function PATCH(
           reporter: true,
         },
       });
-
-      return { updatedIssue: refreshedIssue! };
     });
 
-    return jsonOk({ issue: updatedIssue, positions: updatedPositions });
+    return jsonOk({
+      issue: updatedIssue,
+      positions: updatedPositions,
+    });
   } catch (error) {
     logError("Failed to move issue", error);
     return jsonError("Something went wrong", 500);

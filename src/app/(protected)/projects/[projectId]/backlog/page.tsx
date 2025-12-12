@@ -51,22 +51,37 @@ export default async function ProjectBacklogPage(props: Props) {
 
   const roleLabel = projectRole ?? "Member";
 
-  const backlogProject = await prisma.project.findUnique({
-    where: { id: projectId },
-    include: {
-      sprints: {
-        orderBy: { createdAt: "asc" },
-      },
-      issues: {
-        orderBy: { createdAt: "asc" },
-        include: {
-          sprint: true,
-          assignee: true,
-          epic: true,
+  const [backlogProject, projectMembers, epics] = await Promise.all([
+    prisma.project.findUnique({
+      where: { id: projectId },
+      include: {
+        sprints: {
+          orderBy: { createdAt: "asc" },
+        },
+        issues: {
+          orderBy: [
+            { position: "asc" },
+            { createdAt: "asc" },
+          ],
+          include: {
+            sprint: true,
+            assignee: true,
+            epic: true,
+          },
         },
       },
-    },
-  });
+    }),
+    prisma.projectMember.findMany({
+      where: { projectId },
+      include: { user: { select: { id: true, name: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.epic.findMany({
+      where: { projectId },
+      select: { id: true, title: true },
+      orderBy: { createdAt: "asc" },
+    }),
+  ]);
 
   const researchItems: ResearchBacklogItem[] = project.enableResearchBoard
     ? (
@@ -126,6 +141,13 @@ export default async function ProjectBacklogPage(props: Props) {
       ]
     : [];
 
+  const assigneeOptions = projectMembers
+    .map((member) => member.user)
+    .filter(Boolean)
+    .map((user) => ({ id: user!.id, label: user!.name ?? "Unassigned" }));
+
+  const epicOptions = epics.map((epic) => ({ id: epic.id, label: epic.title }));
+
   const manageTeamLink = (
     <div className="mt-4 flex items-center justify-between">
       <p className="text-sm text-gray-600">
@@ -157,6 +179,8 @@ export default async function ProjectBacklogPage(props: Props) {
         projectRole={projectRole}
         manageTeamLink={manageTeamLink}
         backlogGroups={backlogGroups}
+        assigneeOptions={assigneeOptions}
+        epicOptions={epicOptions}
         enableResearchBoard={project.enableResearchBoard}
         researchItems={researchItems}
         initialSegment={activeSegment}

@@ -2,6 +2,7 @@ import {
   IssueHistoryField,
   IssuePriority,
   IssueStatus,
+  IssueType,
   Role,
   UserRole,
 } from "../../../../lib/prismaEnums";
@@ -103,6 +104,7 @@ export async function PATCH(
       assigneeId,
       epicId,
       sprintId,
+      type,
     } = body;
 
     const data: Record<string, any> = {};
@@ -114,6 +116,12 @@ export async function PATCH(
       data.status = Object.values(IssueStatus).includes(status as IssueStatus)
         ? (status as IssueStatus)
         : existingIssue.status;
+    }
+
+    if (type !== undefined) {
+      data.type = Object.values(IssueType).includes(type as IssueType)
+        ? (type as IssueType)
+        : existingIssue.type;
     }
 
     if (priority !== undefined) {
@@ -180,6 +188,11 @@ export async function PATCH(
       IssueHistoryField.SPRINT,
       existingIssue.sprintId ?? null,
       data.sprintId ?? existingIssue.sprintId ?? null
+    );
+    trackChange(
+      IssueHistoryField.TYPE,
+      existingIssue.type,
+      data.type ?? existingIssue.type
     );
 
     const updatedIssue = await prisma.$transaction(async (tx) => {
