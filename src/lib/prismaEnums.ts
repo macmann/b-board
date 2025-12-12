@@ -66,6 +66,9 @@ export const IssueHistoryField = {
   ASSIGNEE: "ASSIGNEE",
   STORY_POINTS: "STORY_POINTS",
   SPRINT: "SPRINT",
+  TYPE: "TYPE",
+  PRIORITY: "PRIORITY",
+  EPIC: "EPIC",
 } as const;
 
 export type IssueHistoryField =

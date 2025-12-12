@@ -12,6 +12,10 @@ import { getUserFromRequest } from "../../../../lib/auth";
 import { jsonError, jsonOk } from "../../../../lib/apiResponse";
 import prisma from "../../../../lib/db";
 import { logError } from "../../../../lib/logger";
+import {
+  EDITABLE_FIELD_TO_HISTORY_FIELD,
+  type EditableIssuePatchField,
+} from "../../../../lib/issueHistory";
 
 export async function GET(
   request: NextRequest,
@@ -169,30 +173,50 @@ export async function PATCH(
       });
     };
 
-    trackChange(
-      IssueHistoryField.STATUS,
-      existingIssue.status,
-      data.status ?? existingIssue.status
-    );
-    trackChange(
-      IssueHistoryField.ASSIGNEE,
-      existingIssue.assigneeId ?? null,
-      data.assigneeId ?? existingIssue.assigneeId ?? null
-    );
-    trackChange(
-      IssueHistoryField.STORY_POINTS,
-      existingIssue.storyPoints ?? null,
-      data.storyPoints ?? existingIssue.storyPoints ?? null
-    );
+    const editableFieldValues: Record<
+      EditableIssuePatchField,
+      { oldValue: string | number | null; newValue: string | number | null }
+    > = {
+      type: {
+        oldValue: existingIssue.type,
+        newValue: data.type ?? existingIssue.type,
+      },
+      status: {
+        oldValue: existingIssue.status,
+        newValue: data.status ?? existingIssue.status,
+      },
+      priority: {
+        oldValue: existingIssue.priority,
+        newValue: data.priority ?? existingIssue.priority,
+      },
+      storyPoints: {
+        oldValue: existingIssue.storyPoints ?? null,
+        newValue: data.storyPoints ?? existingIssue.storyPoints ?? null,
+      },
+      assigneeId: {
+        oldValue: existingIssue.assigneeId ?? null,
+        newValue: data.assigneeId ?? existingIssue.assigneeId ?? null,
+      },
+      epicId: {
+        oldValue: existingIssue.epicId ?? null,
+        newValue: data.epicId ?? existingIssue.epicId ?? null,
+      },
+    };
+
+    (Object.entries(editableFieldValues) as Array<
+      [EditableIssuePatchField, { oldValue: string | number | null; newValue: string | number | null }]
+    >).forEach(([editableField, values]) => {
+      trackChange(
+        EDITABLE_FIELD_TO_HISTORY_FIELD[editableField],
+        values.oldValue,
+        values.newValue
+      );
+    });
+
     trackChange(
       IssueHistoryField.SPRINT,
       existingIssue.sprintId ?? null,
       data.sprintId ?? existingIssue.sprintId ?? null
-    );
-    trackChange(
-      IssueHistoryField.TYPE,
-      existingIssue.type,
-      data.type ?? existingIssue.type
     );
 
     const updatedIssue = await prisma.$transaction(async (tx) => {

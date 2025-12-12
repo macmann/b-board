@@ -91,6 +91,9 @@ enum IssueHistoryField {
   ASSIGNEE
   STORY_POINTS
   SPRINT
+  TYPE
+  PRIORITY
+  EPIC
 }
 
 model User {
