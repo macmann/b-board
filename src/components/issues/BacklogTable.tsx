@@ -53,6 +53,18 @@ type BacklogTableProps = {
   disableDrag?: boolean;
 };
 
+const columnWidths = [
+  "w-10",
+  "w-20",
+  "w-[38%] min-w-[260px]",
+  "w-24",
+  "w-32",
+  "w-28",
+  "w-20",
+  "w-40",
+  "w-40",
+];
+
 const statusStyles: Record<IssueStatus, string> = {
   TODO: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200",
   IN_PROGRESS:
@@ -164,6 +176,16 @@ function SortableRow({
     []
   );
 
+  const assigneeLabel =
+    assigneeOptions.find((option) => option.value === issue.assignee?.id)?.label ??
+    issue.assignee?.name ??
+    "Unassigned";
+
+  const epicLabel =
+    epicOptions.find((option) => option.value === issue.epic?.id)?.label ??
+    issue.epic?.title ??
+    "None";
+
   return (
     <tr
       ref={setNodeRef}
@@ -172,20 +194,21 @@ function SortableRow({
       className={rowClasses}
       onClick={() => onIssueClick?.(issue.id)}
     >
-      <td className={`${cellBaseClasses} w-10`}> 
+      <td className={`${cellBaseClasses} ${columnWidths[0]} text-center`}>
         <DragHandle listeners={listeners} disabled={disableDrag} />
       </td>
       <td
-        className={`${cellBaseClasses} font-medium text-slate-900 dark:text-slate-100`}
+        className={`${cellBaseClasses} ${columnWidths[1]} whitespace-nowrap font-medium text-slate-900 dark:text-slate-100`}
       >
         {issue.key ?? "—"}
       </td>
       <td
-        className={`${cellBaseClasses} font-medium text-slate-900 dark:text-slate-100`}
+        className={`${cellBaseClasses} ${columnWidths[2]} truncate font-medium text-slate-900 dark:text-slate-100`}
+        title={issue.title}
       >
         {issue.title}
       </td>
-      <td className={cellBaseClasses}>
+      <td className={`${cellBaseClasses} ${columnWidths[3]} whitespace-nowrap`}>
         <InlineSelectCell
           value={issue.type}
           labelRenderer={(value) => (
@@ -201,15 +224,17 @@ function SortableRow({
           disabled={isReadOnly}
         />
       </td>
-      <td className={cellBaseClasses}>
+      <td className={`${cellBaseClasses} ${columnWidths[4]}`}>
         <InlineSelectCell
           value={issue.status}
           labelRenderer={(value) => (
-            <span
-              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[value]}`}
-            >
-              {formatLabel(value)}
-            </span>
+            <div className="flex justify-center">
+              <span
+                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[value]}`}
+              >
+                {formatLabel(value)}
+              </span>
+            </div>
           )}
           options={statusOptions}
           onSave={(next) =>
@@ -218,15 +243,17 @@ function SortableRow({
           disabled={isReadOnly}
         />
       </td>
-      <td className={cellBaseClasses}>
+      <td className={`${cellBaseClasses} ${columnWidths[5]}`}>
         <InlineSelectCell
           value={issue.priority}
           labelRenderer={(value) => (
-            <span
-              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${priorityStyles[value]}`}
-            >
-              {formatLabel(value)}
-            </span>
+            <div className="flex justify-center">
+              <span
+                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${priorityStyles[value]}`}
+              >
+                {formatLabel(value)}
+              </span>
+            </div>
           )}
           options={priorityOptions}
           onSave={(next) =>
@@ -235,7 +262,7 @@ function SortableRow({
           disabled={isReadOnly}
         />
       </td>
-      <td className={cellBaseClasses}>
+      <td className={`${cellBaseClasses} ${columnWidths[6]} whitespace-nowrap text-center`}>
         <InlineNumberCell
           value={issue.storyPoints ?? null}
           placeholder="—"
@@ -247,7 +274,7 @@ function SortableRow({
           disabled={isReadOnly}
         />
       </td>
-      <td className={cellBaseClasses}>
+      <td className={`${cellBaseClasses} ${columnWidths[7]} truncate`} title={assigneeLabel}>
         <InlineUserSelectCell
           value={issue.assignee?.id ?? null}
           labelRenderer={(value) =>
@@ -264,7 +291,7 @@ function SortableRow({
           disabled={isReadOnly}
         />
       </td>
-      <td className={cellBaseClasses}>
+      <td className={`${cellBaseClasses} ${columnWidths[8]} truncate`} title={epicLabel}>
         <InlineSelectCell
           value={issue.epic?.id ?? null}
           placeholder="None"
@@ -313,32 +340,53 @@ export default function BacklogTable({
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-      <table className="min-w-full">
+      <table className="table-fixed w-full">
+        <colgroup>
+          {columnWidths.map((width) => (
+            <col key={width} className={width} />
+          ))}
+        </colgroup>
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-900/70">
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400" />
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 ${columnWidths[0]}`} />
+            <th
+              className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 ${columnWidths[1]} whitespace-nowrap`}
+            >
               Key
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <th
+              className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 ${columnWidths[2]}`}
+            >
               Title
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <th
+              className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 ${columnWidths[3]} whitespace-nowrap`}
+            >
               Type
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <th
+              className={`px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 ${columnWidths[4]}`}
+            >
               Status
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <th
+              className={`px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 ${columnWidths[5]}`}
+            >
               Priority
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <th
+              className={`px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 ${columnWidths[6]} whitespace-nowrap`}
+            >
               Story Points
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <th
+              className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 ${columnWidths[7]}`}
+            >
               Assignee
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <th
+              className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 ${columnWidths[8]}`}
+            >
               Epic
             </th>
           </tr>
