@@ -289,7 +289,10 @@ export async function DELETE(
         select: { role: true },
       });
 
-      if (membership?.role !== Role.ADMIN) {
+      const isProjectAdminOrPo =
+        membership?.role === Role.ADMIN || membership?.role === Role.PO;
+
+      if (!isProjectAdminOrPo) {
         return jsonError("Forbidden", 403);
       }
     }
