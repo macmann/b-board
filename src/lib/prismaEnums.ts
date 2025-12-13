@@ -90,6 +90,8 @@ export type ResearchStatus = (typeof ResearchStatus)[keyof typeof ResearchStatus
 export const EmailProviderType = {
   SMTP: "SMTP",
   API: "API",
+  MS365: "MS365",
+  GOOGLE_MAIL: "GOOGLE_MAIL",
 } as const;
 
 export type EmailProviderType =

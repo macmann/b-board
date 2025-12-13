@@ -36,7 +36,12 @@ const validateSettings = (settings: EmailSettings) => {
     throw new Error("A from email address is required to send messages.");
   }
 
-  if (settings.providerType === "SMTP") {
+  const isSmtpProvider =
+    settings.providerType === "SMTP" ||
+    settings.providerType === "MS365" ||
+    settings.providerType === "GOOGLE_MAIL";
+
+  if (isSmtpProvider) {
     if (!settings.smtpHost || !settings.smtpPort) {
       throw new Error("SMTP host and port are required for SMTP email.");
     }
@@ -57,7 +62,12 @@ export const sendEmail = async (
 
   const from = buildFromField(settings.fromName, settings.fromEmail);
 
-  if (settings.providerType === "SMTP") {
+  const isSmtpProvider =
+    settings.providerType === "SMTP" ||
+    settings.providerType === "MS365" ||
+    settings.providerType === "GOOGLE_MAIL";
+
+  if (isSmtpProvider) {
     const transporter = nodemailer.createTransport({
       host: settings.smtpHost ?? undefined,
       port: settings.smtpPort ?? 587,

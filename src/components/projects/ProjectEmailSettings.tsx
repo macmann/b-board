@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import Button from "@/components/ui/Button";
 import { ProjectRole } from "@/lib/roles";
+import { EmailProviderType } from "@/lib/prismaEnums";
 
 const inputClasses =
   "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50";
@@ -12,8 +13,30 @@ const labelClasses = "text-sm font-medium text-slate-700 dark:text-slate-200";
 
 const EMAIL_REGEX = /.+@.+\..+/i;
 
+const SMTP_PRESETS: Partial<
+  Record<ProviderType, { label: string; smtpHost: string; smtpPort: number }>
+> = {
+  [EmailProviderType.MS365]: {
+    label: "Microsoft 365 (SMTP)",
+    smtpHost: "smtp.office365.com",
+    smtpPort: 587,
+  },
+  [EmailProviderType.GOOGLE_MAIL]: {
+    label: "Google Mail (SMTP)",
+    smtpHost: "smtp.gmail.com",
+    smtpPort: 465,
+  },
+};
+
+const isSmtpProvider = (providerType: ProviderType | null) =>
+  providerType === EmailProviderType.SMTP ||
+  providerType === EmailProviderType.MS365 ||
+  providerType === EmailProviderType.GOOGLE_MAIL;
+
+type ProviderType = keyof typeof EmailProviderType;
+
 type EmailSettingsResponse = {
-  providerType: "SMTP" | "API" | null;
+  providerType: ProviderType | null;
   fromName: string;
   fromEmail: string;
   smtpHost: string;
@@ -98,6 +121,21 @@ export default function ProjectEmailSettings({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, canManage]);
 
+  const handleProviderChange = (value: string) => {
+    const providerType = (value as ProviderType | "") || null;
+
+    setSettings((prev) => {
+      const preset = providerType ? SMTP_PRESETS[providerType] : null;
+
+      return {
+        ...prev,
+        providerType,
+        smtpHost: preset?.smtpHost ?? prev.smtpHost,
+        smtpPort: preset?.smtpPort ?? prev.smtpPort,
+      };
+    });
+  };
+
   const validateSettings = (): string | null => {
     if (!settings.providerType) return null;
 
@@ -109,7 +147,7 @@ export default function ProjectEmailSettings({
       return "Enter a valid from email address.";
     }
 
-    if (settings.providerType === "SMTP") {
+    if (isSmtpProvider(settings.providerType)) {
       if (!settings.smtpHost) return "SMTP host is required for SMTP.";
       if (!settings.smtpPort || Number.isNaN(settings.smtpPort)) {
         return "SMTP port must be provided.";
@@ -119,7 +157,7 @@ export default function ProjectEmailSettings({
       }
     }
 
-    if (settings.providerType === "API") {
+    if (settings.providerType === EmailProviderType.API) {
       if (!settings.apiUrl) return "API URL is required for API email.";
     }
 
@@ -255,18 +293,19 @@ export default function ProjectEmailSettings({
             <select
               id="providerType"
               value={settings.providerType ?? ""}
-              onChange={(e) =>
-                setSettings((prev) => ({
-                  ...prev,
-                  providerType: e.target.value ? (e.target.value as "SMTP" | "API") : null,
-                }))
-              }
+              onChange={(e) => handleProviderChange(e.target.value)}
               disabled={disabled}
               className={inputClasses}
             >
               <option value="">Disabled</option>
-              <option value="SMTP">SMTP</option>
-              <option value="API">API</option>
+              <option value={EmailProviderType.SMTP}>Custom SMTP</option>
+              <option value={EmailProviderType.MS365}>
+                {SMTP_PRESETS[EmailProviderType.MS365]?.label ?? "Microsoft 365 (SMTP)"}
+              </option>
+              <option value={EmailProviderType.GOOGLE_MAIL}>
+                {SMTP_PRESETS[EmailProviderType.GOOGLE_MAIL]?.label ?? "Google Mail (SMTP)"}
+              </option>
+              <option value={EmailProviderType.API}>Custom API</option>
             </select>
           </div>
 
@@ -304,7 +343,7 @@ export default function ProjectEmailSettings({
             />
           </div>
 
-          {settings.providerType === "SMTP" && (
+          {isSmtpProvider(settings.providerType) && (
             <div className="space-y-1">
               <label className={labelClasses} htmlFor="smtpHost">
                 SMTP host
@@ -323,7 +362,7 @@ export default function ProjectEmailSettings({
             </div>
           )}
 
-          {settings.providerType === "SMTP" && (
+          {isSmtpProvider(settings.providerType) && (
             <div className="space-y-1">
               <label className={labelClasses} htmlFor="smtpPort">
                 SMTP port
@@ -346,7 +385,7 @@ export default function ProjectEmailSettings({
             </div>
           )}
 
-          {settings.providerType === "SMTP" && (
+          {isSmtpProvider(settings.providerType) && (
             <div className="space-y-1">
               <label className={labelClasses} htmlFor="smtpUsername">
                 SMTP username
@@ -365,7 +404,7 @@ export default function ProjectEmailSettings({
             </div>
           )}
 
-          {settings.providerType === "SMTP" && (
+          {isSmtpProvider(settings.providerType) && (
             <div className="space-y-1">
               <label className={labelClasses} htmlFor="smtpPassword">
                 SMTP password
@@ -387,7 +426,7 @@ export default function ProjectEmailSettings({
             </div>
           )}
 
-          {settings.providerType === "API" && (
+          {settings.providerType === EmailProviderType.API && (
             <div className="space-y-1">
               <label className={labelClasses} htmlFor="apiUrl">
                 API endpoint URL
@@ -406,7 +445,7 @@ export default function ProjectEmailSettings({
             </div>
           )}
 
-          {settings.providerType === "API" && (
+          {settings.providerType === EmailProviderType.API && (
             <div className="space-y-1">
               <label className={labelClasses} htmlFor="apiKey">
                 API key
