@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getUserFromRequest } from "../../../../../../lib/auth";
-import prisma from "../../../../../../lib/db";
+import { getUserFromRequest } from "@/lib/auth";
+import prisma from "@/lib/db";
 import {
   ensureProjectRole,
   ForbiddenError,
   PROJECT_ADMIN_ROLES,
-} from "../../../../../../lib/permissions";
-import { resolveProjectId, type ProjectParams } from "../../../../../../lib/params";
-import { saveProjectStandupSummary } from "../../../../../../lib/standupSummary";
-import { parseDateOnly } from "../../../../../../lib/standupWindow";
+} from "@/lib/permissions";
+import { resolveProjectId, type ProjectParams } from "@/lib/params";
+import { saveProjectStandupSummary } from "@/lib/standupSummary";
+import { parseDateOnly } from "@/lib/standupWindow";
 
 const formatDateOnly = (date: Date) => date.toISOString().slice(0, 10);
 
