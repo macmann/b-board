@@ -6,6 +6,7 @@ import { Role } from "@/lib/prismaEnums";
 import Button from "../ui/Button";
 import ThemeToggle from "../theme/ThemeToggle";
 import Logo from "../branding/Logo";
+import ProjectSwitcher from "./ProjectSwitcher";
 
 type AppShellProps = {
   children: ReactNode;
@@ -29,6 +30,8 @@ export default function AppShell({
   const normalizedPath = currentPath?.split("?")[0] ?? "";
   const projectMatch = normalizedPath.match(/^\/projects\/([^/]+)/);
   const currentProjectId = projectMatch?.[1];
+  const inProjectContext = Boolean(currentProjectId);
+  const showProjectSwitcher = normalizedPath.startsWith("/dashboard") || normalizedPath.startsWith("/reports");
 
   const isLeadership = user?.role === Role.ADMIN || user?.role === Role.PO;
 
@@ -40,21 +43,11 @@ export default function AppShell({
 
   const projectLinks = currentProjectId
     ? [
-        {
-          href: `/projects/${currentProjectId}/backlog`,
-          label: "Backlog",
-          match: (path: string, fullPath: string) =>
-            path.startsWith(`/projects/${currentProjectId}/backlog`) && !fullPath.includes("view=research"),
-        },
-        {
-          href: `/projects/${currentProjectId}/backlog?view=research`,
-          label: "Research",
-          match: (_path: string, fullPath: string) =>
-            fullPath.startsWith(`/projects/${currentProjectId}/backlog`) && fullPath.includes("view=research"),
-        },
+        { href: `/projects/${currentProjectId}/backlog`, label: "Backlog" },
         { href: `/projects/${currentProjectId}/board`, label: "Board" },
-        { href: `/projects/${currentProjectId}/standup`, label: "Standup" },
+        { href: `/projects/${currentProjectId}/sprints`, label: "Sprints" },
         { href: `/projects/${currentProjectId}/reports`, label: "Reports" },
+        { href: `/projects/${currentProjectId}/standup`, label: "Standup" },
         { href: `/projects/${currentProjectId}/settings`, label: "Settings" },
       ]
     : [];
@@ -71,27 +64,30 @@ export default function AppShell({
           />
         </div>
 
-        <nav className="mt-4 space-y-1 px-3">
-          {workspaceLinks.map((link) => {
-            const isActive = normalizedPath.startsWith(link.href);
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={classNames(
-                  "group flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition",
-                  isActive
-                    ? "-ml-1 border-l-2 border-primary bg-slate-100 pl-4 text-slate-900 dark:border-primary/80 dark:bg-slate-900 dark:text-slate-50"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-slate-50"
-                )}
-              >
-                {link.label}
-              </Link>
-            );
-          })}
-        </nav>
+        <div className="mt-4 space-y-2">
+          <p className="px-5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Workspace</p>
+          <nav className="space-y-1 px-3">
+            {workspaceLinks.map((link) => {
+              const isActive = normalizedPath.startsWith(link.href);
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={classNames(
+                    "group flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition",
+                    isActive
+                      ? "-ml-1 border-l-2 border-primary bg-slate-100 pl-4 text-slate-900 dark:border-primary/80 dark:bg-slate-900 dark:text-slate-50"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-slate-50"
+                  )}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
 
-        {projectLinks.length > 0 && (
+        {inProjectContext && projectLinks.length > 0 && (
           <div className="mt-6 border-t border-slate-200 pt-4 dark:border-slate-800">
             <p className="px-5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Project
@@ -124,10 +120,16 @@ export default function AppShell({
 
       <div className="flex flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-slate-200 bg-white/80 px-8 py-4 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
-          <div className="flex flex-col">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Current Project</span>
-            <span className="text-lg font-semibold text-slate-900 dark:text-slate-50">{projectLabel}</span>
-          </div>
+          {showProjectSwitcher ? (
+            <ProjectSwitcher currentProjectId={currentProjectId} />
+          ) : (
+            <div className="flex flex-col">
+              <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                {inProjectContext ? "Current Project" : "Workspace"}
+              </span>
+              <span className="text-lg font-semibold text-slate-900 dark:text-slate-50">{projectLabel}</span>
+            </div>
+          )}
           <div className="flex items-center gap-3">
             <ThemeToggle />
             {user && (
