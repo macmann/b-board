@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { MouseEvent, useEffect, useMemo, useState } from "react";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
 
 import { ResearchStatus } from "@/lib/prismaEnums";
@@ -18,6 +18,9 @@ type ResearchBoardProps = {
   items: ResearchBacklogItem[];
   canEdit: boolean;
   onOpenDetails: (id: string) => void;
+  onDelete?: (
+    id: string
+  ) => Promise<{ success: boolean; message?: string } | void>;
   onItemsChange?: (items: ResearchBacklogItem[]) => void;
 };
 
@@ -107,6 +110,7 @@ export function ResearchBoard({
   items,
   canEdit,
   onOpenDetails,
+  onDelete,
   onItemsChange,
 }: ResearchBoardProps) {
   const [columns, setColumns] = useState<ResearchColumns>(() => groupItemsByStatus(items));
@@ -172,34 +176,50 @@ export function ResearchBoard({
     }
   };
 
-  const renderCard = (item: ResearchBacklogItem) => (
-    <div
-      className="cursor-pointer rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition hover:border-primary/70 hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
-      onClick={() => onOpenDetails(item.id)}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="space-y-1">
-          <p className="text-xs font-mono font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            {item.key}
-          </p>
-          <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">{item.title}</p>
+  const renderCard = (item: ResearchBacklogItem) => {
+    const handleCardDelete = async (event: MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      await onDelete?.(item.id);
+    };
+
+    return (
+      <div
+        className="cursor-pointer rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition hover:border-primary/70 hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
+        onClick={() => onOpenDetails(item.id)}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="space-y-1">
+            <p className="text-xs font-mono font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              {item.key}
+            </p>
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">{item.title}</p>
+          </div>
+          {canEdit && onDelete && (
+            <button
+              type="button"
+              onClick={handleCardDelete}
+              className="rounded-md px-2 py-1 text-[11px] font-semibold text-red-500 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30"
+            >
+              Delete
+            </button>
+          )}
+        </div>
+        <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-300">
+          <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+            {item.researchType ?? "General"}
+          </span>
+          {item.assignee && (
+            <span className="inline-flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary dark:bg-primary/20">
+                {formatAssigneeInitials(item.assignee.name)}
+              </span>
+              <span className="text-[12px] text-slate-700 dark:text-slate-200">{item.assignee.name}</span>
+            </span>
+          )}
         </div>
       </div>
-      <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-300">
-        <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-          {item.researchType ?? "General"}
-        </span>
-        {item.assignee && (
-          <span className="inline-flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary dark:bg-primary/20">
-              {formatAssigneeInitials(item.assignee.name)}
-            </span>
-            <span className="text-[12px] text-slate-700 dark:text-slate-200">{item.assignee.name}</span>
-          </span>
-        )}
-      </div>
-    </div>
-  );
+    );
+  };
 
   const boardContent = useMemo(
     () => (
@@ -237,7 +257,7 @@ export function ResearchBoard({
         })}
       </div>
     ),
-    [columns]
+    [columns, onDelete, canEdit]
   );
 
   return (
@@ -294,6 +314,18 @@ export function ResearchBoard({
                               >
                                 <div className="flex items-start justify-between gap-2">
                                   <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">{item.title}</p>
+                                  {canEdit && onDelete && (
+                                    <button
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        void onDelete(item.id);
+                                      }}
+                                      className="rounded-md px-2 py-1 text-[11px] font-semibold text-red-500 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30"
+                                    >
+                                      Delete
+                                    </button>
+                                  )}
                                 </div>
                                 <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-300">
                                   <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">

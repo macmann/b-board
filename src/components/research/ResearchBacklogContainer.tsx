@@ -36,6 +36,7 @@ export default function ResearchBacklogContainer({
   const [view, setView] = useState<"list" | "board">("list");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   const listItems = useMemo(
     () =>
@@ -50,6 +51,49 @@ export default function ResearchBacklogContainer({
   const handleOpenDetails = (id: string) => {
     setSelectedItemId(id);
     setIsDetailOpen(true);
+  };
+
+  const handleDeleteItem = async (
+    id: string
+  ): Promise<{ success: boolean; message?: string }> => {
+    if (isReadOnly) {
+      const message = "You do not have permission to delete research items.";
+      setActionError(message);
+      return { success: false, message };
+    }
+
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this research item? This action cannot be undone."
+    );
+
+    if (!confirmed) return { success: false };
+
+    try {
+      const response = await fetch(`/api/research-items/${id}`, { method: "DELETE" });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.message ?? "Failed to delete research item.");
+      }
+
+      const remainingItems = items.filter((item) => item.id !== id);
+      onItemsChange(remainingItems);
+
+      if (selectedItemId === id) {
+        setSelectedItemId(null);
+        setIsDetailOpen(false);
+      }
+
+      setActionError("");
+      await onRefresh?.();
+
+      return { success: true };
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to delete research item.";
+      setActionError(message);
+      return { success: false, message };
+    }
   };
 
   const canEditBoard = enableResearchBoard && !isReadOnly;
@@ -109,6 +153,12 @@ export default function ResearchBacklogContainer({
         </div>
       )}
 
+      {actionError && !isLoading && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+          {actionError}
+        </div>
+      )}
+
       {isLoading ? (
         <div className="rounded-xl border border-slate-200 bg-white px-6 py-4 text-sm text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
           Loading research...
@@ -119,6 +169,7 @@ export default function ResearchBacklogContainer({
           items={items}
           canEdit={canEditBoard}
           onOpenDetails={handleOpenDetails}
+          onDelete={handleDeleteItem}
           onItemsChange={onItemsChange}
         />
       ) : (
@@ -135,6 +186,7 @@ export default function ResearchBacklogContainer({
           setIsDetailOpen(false);
         }}
         onUpdated={onRefresh}
+        onDelete={handleDeleteItem}
       />
     </div>
   );
