@@ -56,6 +56,9 @@ type ResearchDetailsDrawerProps = {
   open: boolean;
   onClose: () => void;
   onUpdated?: () => Promise<void> | void;
+  onDelete?: (
+    id: string
+  ) => Promise<{ success: boolean; message?: string } | void>;
 };
 
 const statusStyles: Record<ResearchStatus, string> = {
@@ -80,6 +83,7 @@ export default function ResearchDetailsDrawer({
   open,
   onClose,
   onUpdated,
+  onDelete,
 }: ResearchDetailsDrawerProps) {
   const [detail, setDetail] = useState<ResearchDetail | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -94,6 +98,7 @@ export default function ResearchDetailsDrawer({
   const [issueSearch, setIssueSearch] = useState("");
   const [isLinking, setIsLinking] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadDetail = async () => {
     if (!researchItemId) return;
@@ -282,6 +287,28 @@ export default function ResearchDetailsDrawer({
     }
   };
 
+  const handleDelete = async () => {
+    if (!detail || isReadOnly) return;
+
+    setIsDeleting(true);
+    setActionMessage("");
+
+    try {
+      const result = await onDelete?.(detail.id);
+
+      if (result?.success) {
+        onClose();
+        return;
+      }
+
+      if (result?.message) {
+        setActionMessage(result.message);
+      }
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const formatTag = (tag: string) => tag.replace(/_/g, " ");
 
   const availableIssues = useMemo(() => {
@@ -360,6 +387,16 @@ export default function ResearchDetailsDrawer({
                   }}
                   onForbidden={() => setError("Forbidden")}
                 />
+              )}
+              {!isReadOnly && detail && (
+                <Button
+                  variant="secondary"
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-900/60 dark:text-red-200 dark:hover:bg-red-900/40"
+                >
+                  {isDeleting ? "Deleting..." : "Delete"}
+                </Button>
               )}
               <Dialog.Close asChild>
                 <button
