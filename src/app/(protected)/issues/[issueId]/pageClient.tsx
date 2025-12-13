@@ -1,6 +1,13 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  ChangeEvent,
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useRouter } from "next/navigation";
@@ -34,6 +41,8 @@ type IssueDetails = {
   reporter: UserSummary;
   attachments: Attachment[];
 };
+
+type AssigneeOption = { id: string; label: string };
 
 type Comment = {
   id: string;
@@ -81,6 +90,7 @@ export default function IssueDetailsPageClient({
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [sprints, setSprints] = useState<SprintSummary[]>(initialSprints);
+  const [assigneeOptions, setAssigneeOptions] = useState<AssigneeOption[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [commentAttachments, setCommentAttachments] = useState<Attachment[]>([]);
   const [isUploadingIssueFiles, setIsUploadingIssueFiles] = useState(false);
@@ -95,14 +105,6 @@ export default function IssueDetailsPageClient({
   const [sprintId, setSprintId] = useState("");
   const [description, setDescription] = useState("");
   const [commentBody, setCommentBody] = useState("");
-
-  const assigneeOptions = useMemo(() => {
-    const options = [] as Array<{ id: string; label: string }>;
-    if (issue?.assignee) {
-      options.push({ id: issue.assignee.id, label: issue.assignee.name });
-    }
-    return options;
-  }, [issue]);
 
   const epicOptions = useMemo(() => {
     const options = [] as Array<{ id: string; label: string }>;
@@ -176,6 +178,37 @@ export default function IssueDetailsPageClient({
   const issueKey = issue?.key ?? issue?.id ?? issueId;
   const projectKey = issue?.project?.key ?? issue?.project?.name ?? "Project";
 
+  const fetchAssignees = useCallback(
+    async (projectId: string) => {
+      try {
+        const response = await fetch(`/api/projects/${projectId}/members`);
+
+        if (!response.ok) {
+          return;
+        }
+
+        const members = (await response.json()) as Array<{
+          user: { id: string; name: string | null } | null;
+        }>;
+
+        setAssigneeOptions(
+          members
+            .map((member) => member.user)
+            .filter(Boolean)
+            .map((user) => ({ id: user!.id, label: user!.name ?? "Unassigned" }))
+        );
+      } catch (error) {
+        // If we can't load project members, fall back to any existing assignee.
+        if (issue?.assignee) {
+          setAssigneeOptions([
+            { id: issue.assignee.id, label: issue.assignee.name },
+          ]);
+        }
+      }
+    },
+    [issue?.assignee]
+  );
+
   const fetchIssue = async () => {
     setIsLoading(true);
     setError("");
@@ -199,7 +232,10 @@ export default function IssueDetailsPageClient({
       setEpicId(data.epic?.id ?? "");
       setSprintId(data.sprint?.id ?? "");
       setDescription(data.description ?? "");
-        setAttachments(data.attachments ?? []);
+      setAttachments(data.attachments ?? []);
+      if (data.project?.id) {
+        void fetchAssignees(data.project.id);
+      }
 
     } catch (err) {
       setError("An unexpected error occurred while loading the issue.");
@@ -324,6 +360,9 @@ export default function IssueDetailsPageClient({
       setEpicId(data.epic?.id ?? "");
       setSprintId(data.sprint?.id ?? "");
       setDescription(data.description ?? "");
+      if (data.project?.id) {
+        void fetchAssignees(data.project.id);
+      }
     } catch (err) {
       setError("An unexpected error occurred while updating the issue.");
     } finally {
