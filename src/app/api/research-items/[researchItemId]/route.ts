@@ -34,6 +34,7 @@ async function getResearchItemWithProject(researchItemId: string) {
     include: {
       project: { select: { id: true, enableResearchBoard: true } },
       assignee: { select: { id: true, name: true } },
+      attachments: true,
     },
   });
 }
@@ -114,6 +115,7 @@ export async function GET(
       tags: result.researchItem.tags,
       createdAt: result.researchItem.createdAt,
       updatedAt: result.researchItem.updatedAt,
+      attachments: result.researchItem.attachments,
     });
   } catch (error) {
     if (error instanceof ForbiddenError) {
@@ -156,18 +158,28 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { title, description, status, priority, decision, tags, assigneeId, dueDate } =
-      (body ?? {}) as {
-        title?: string;
-        description?: string | null;
-        status?: string;
-        priority?: string;
-        decision?: string;
-        tags?: string[];
-        assigneeId?: string | null;
-        dueDate?: string | null;
-        archive?: boolean;
-      };
+    const {
+      title,
+      description,
+      status,
+      priority,
+      decision,
+      tags,
+      assigneeId,
+      dueDate,
+      attachmentIds,
+    } = (body ?? {}) as {
+      title?: string;
+      description?: string | null;
+      status?: string;
+      priority?: string;
+      decision?: string;
+      tags?: string[];
+      assigneeId?: string | null;
+      dueDate?: string | null;
+      archive?: boolean;
+      attachmentIds?: string[];
+    };
 
     const data: Prisma.ResearchItemUpdateInput = {};
 
@@ -226,17 +238,52 @@ export async function PATCH(
       data.status = status as ResearchStatus;
     }
 
-    if (Object.keys(data).length === 0) {
+    const attachmentIdsToLink = Array.isArray(attachmentIds)
+      ? attachmentIds.filter(Boolean)
+      : [];
+
+    if (Object.keys(data).length === 0 && attachmentIdsToLink.length === 0) {
       return NextResponse.json(
         { message: "No valid fields provided for update" },
         { status: 400 }
       );
     }
 
-    const updated = await prisma.researchItem.update({
-      where: { id: researchItemId },
-      data,
-    });
+    const runUpdate = async (client: typeof prisma) => {
+      const item = await client.researchItem.update({
+        where: { id: researchItemId },
+        data,
+      });
+
+      if (attachmentIdsToLink.length > 0) {
+        await client.attachment.updateMany({
+          where: {
+            id: { in: attachmentIdsToLink },
+            projectId: result.projectId,
+          },
+          data: { researchItemId: item.id },
+        });
+      }
+
+      const full = await client.researchItem.findUnique({
+        where: { id: researchItemId },
+        include: { attachments: true, assignee: { select: { id: true, name: true } } },
+      });
+
+      if (full) {
+        return {
+          ...full,
+          status: (full as any).status ?? (item as any).status,
+        } as typeof full;
+      }
+
+      return { ...item, attachments: [], assignee: null };
+    };
+
+    const updated =
+      typeof prisma.$transaction === "function"
+        ? await prisma.$transaction((tx) => runUpdate(tx as typeof prisma))
+        : await runUpdate(prisma);
 
     return NextResponse.json(updated);
   } catch (error) {

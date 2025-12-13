@@ -273,6 +273,7 @@ model Issue {
   history       IssueHistory[]
   researchLinks ResearchItemIssueLink[]
   standupLinks  StandupEntryIssueLink[]
+  attachments   Attachment[]
 
   @@index([projectId])
   @@index([sprintId])
@@ -289,6 +290,7 @@ model Comment {
 
   issue  Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
   author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  attachments Attachment[]
 }
 
 model IssueHistory {
@@ -325,6 +327,7 @@ model ResearchItem {
   observations ResearchObservation[]
   issueLinks   ResearchItemIssueLink[]
   standupLinks StandupEntryResearchLink[]
+  attachments  Attachment[]
 
   // @@unique([projectId, key]) // removed for now
   @@index([projectId])
@@ -338,6 +341,31 @@ model ResearchObservation {
   createdAt      DateTime                @default(now())
 
   researchItem ResearchItem @relation(fields: [researchItemId], references: [id], onDelete: Cascade)
+}
+
+model Attachment {
+  id             String   @id @default(cuid())
+  projectId      String?
+  issueId        String?
+  commentId      String?
+  researchItemId String?
+  uploadedById   String
+  fileName       String
+  mimeType       String
+  size           Int
+  url            String
+  createdAt      DateTime @default(now())
+
+  project      Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  issue        Issue?        @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  comment      Comment?      @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  researchItem ResearchItem? @relation(fields: [researchItemId], references: [id], onDelete: Cascade)
+  uploadedBy   User          @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([issueId])
+  @@index([commentId])
+  @@index([researchItemId])
 }
 
 model ResearchItemIssueLink {

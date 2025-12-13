@@ -38,6 +38,7 @@ export async function GET(
         epic: true,
         assignee: true,
         reporter: true,
+        attachments: { where: { commentId: null } },
       },
     });
 
@@ -229,6 +230,7 @@ export async function PATCH(
           epic: true,
           assignee: true,
           reporter: true,
+          attachments: { where: { commentId: null } },
         },
       });
 

@@ -199,28 +199,30 @@ export async function POST(
     return researchBoardDisabledResponse();
   }
 
-    const body = await request.json();
-    const {
-      title,
-      description,
-      status,
-      priority,
-      decision,
-      tags,
-      type,
-      assigneeId,
-      dueDate,
-    }: {
-      title?: string;
-      description?: string | null;
-      status?: string;
-      priority?: string;
-      decision?: string;
-      tags?: string[];
-      type?: string | null;
-      assigneeId?: string | null;
-      dueDate?: string | null;
-    } = body ?? {};
+  const body = await request.json();
+  const {
+    title,
+    description,
+    status,
+    priority,
+    decision,
+    tags,
+    type,
+    assigneeId,
+    dueDate,
+    attachmentIds,
+  }: {
+    title?: string;
+    description?: string | null;
+    status?: string;
+    priority?: string;
+    decision?: string;
+    tags?: string[];
+    type?: string | null;
+    assigneeId?: string | null;
+    dueDate?: string | null;
+    attachmentIds?: string[];
+  } = body ?? {};
 
   if (!title) {
     return NextResponse.json({ message: "Title is required" }, { status: 400 });
@@ -280,7 +282,35 @@ export async function POST(
     ...(assigneeId ? { assignee: { connect: { id: assigneeId } } } : {}),
   };
 
-  const researchItem = await prisma.researchItem.create({ data });
+  const attachmentIdsToLink = Array.isArray(attachmentIds)
+    ? attachmentIds.filter(Boolean)
+    : [];
+
+  const runCreate = async (client: typeof prisma) => {
+    const created = await client.researchItem.create({ data });
+
+    if (attachmentIdsToLink.length > 0) {
+      await client.attachment.updateMany({
+        where: { id: { in: attachmentIdsToLink }, projectId },
+        data: { researchItemId: created.id },
+      });
+    }
+
+    const full = await client.researchItem.findUnique({
+      where: { id: created.id },
+      include: { attachments: true },
+    });
+
+    const fallback =
+      attachmentIdsToLink.length > 0 ? { ...created, attachments: [] } : created;
+
+    return full ?? fallback;
+  };
+
+  const researchItem =
+    typeof prisma.$transaction === "function"
+      ? await prisma.$transaction((tx) => runCreate(tx as typeof prisma))
+      : await runCreate(prisma);
 
   return NextResponse.json(researchItem, { status: 201 });
 }

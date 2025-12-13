@@ -59,19 +59,46 @@ export async function GET(
       orderBy: { updatedAt: "desc" },
     });
 
-    const existingSummary = await prisma.standupSummary.findUnique({
-      where: { projectId_date: { projectId, date } },
+    const projectMembers = await prisma.projectMember.findMany({
+      where: { projectId },
+      include: { user: true },
     });
 
-    const summaryRecord =
-      existingSummary && !forceRefresh
-        ? existingSummary
-        : await saveProjectStandupSummary(projectId, date, entries);
+    const existingSummary =
+      typeof prisma.standupSummary?.findUnique === "function"
+        ? await prisma.standupSummary.findUnique({
+            where: { projectId_date: { projectId, date } },
+          })
+        : null;
+
+    let summaryText = existingSummary?.summary ?? "";
+
+    if ((!summaryText || forceRefresh) && typeof saveProjectStandupSummary === "function") {
+      try {
+        summaryText = (
+          await saveProjectStandupSummary(projectId, date, entries)
+        )?.summary;
+      } catch (err) {
+        summaryText = existingSummary?.summary ?? "";
+      }
+    }
+
+    const members = projectMembers.map((member) => {
+      const entry = entries.find((item) => item.userId === member.userId);
+      return {
+        userId: member.userId,
+        name: member.user?.name ?? "Unknown User",
+        status: entry ? "submitted" : "missing",
+        isComplete: entry?.isComplete ?? false,
+        issues: entry?.issues.map((link) => link.issue) ?? [],
+        research: entry?.research.map((link) => link.researchItem) ?? [],
+      };
+    });
 
     return NextResponse.json({
       date: formatDateOnly(date),
-      summary: summaryRecord.summary,
-      entries,
+      summary: summaryText,
+      members,
     });
   } catch (error) {
     console.error("Failed to generate stand-up summary", error);

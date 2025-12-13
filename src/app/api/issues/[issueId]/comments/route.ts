@@ -25,7 +25,7 @@ export async function GET(
 
   const comments = await prisma.comment.findMany({
     where: { issueId },
-    include: { author: true },
+    include: { author: true, attachments: true },
     orderBy: { createdAt: "asc" },
   });
 
@@ -53,11 +53,15 @@ export async function POST(
   }
 
   const body = await request.json();
-  const { body: commentBody } = body;
+  const { body: commentBody, attachmentIds } = body;
 
   if (!commentBody || typeof commentBody !== "string") {
     return NextResponse.json({ message: "Comment body is required" }, { status: 400 });
   }
+
+  const validAttachmentIds = Array.isArray(attachmentIds)
+    ? (attachmentIds as string[]).filter(Boolean)
+    : [];
 
   const comment = await prisma.comment.create({
     data: {
@@ -65,8 +69,20 @@ export async function POST(
       authorId: user.id,
       body: commentBody,
     },
-    include: { author: true },
+    include: { author: true, attachments: true },
   });
 
-  return NextResponse.json(comment, { status: 201 });
+  if (validAttachmentIds.length > 0) {
+    await prisma.attachment.updateMany({
+      where: { id: { in: validAttachmentIds }, issueId, commentId: null },
+      data: { commentId: comment.id },
+    });
+  }
+
+  const commentWithAttachments = await prisma.comment.findUnique({
+    where: { id: comment.id },
+    include: { author: true, attachments: true },
+  });
+
+  return NextResponse.json(commentWithAttachments, { status: 201 });
 }
