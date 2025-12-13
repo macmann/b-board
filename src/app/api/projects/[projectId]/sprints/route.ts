@@ -44,7 +44,31 @@ export async function GET(
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json(sprints);
+    const sprintIds = sprints.map((sprint) => sprint.id);
+
+    const sprintsWithStoryPoints = sprintIds.length
+      ? await prisma.issue.groupBy({
+          by: ["sprintId"],
+          where: {
+            projectId,
+            sprintId: { in: sprintIds },
+          },
+          _sum: { storyPoints: true },
+        })
+      : [];
+
+    const sprintStoryPointsMap = new Map(
+      sprintsWithStoryPoints
+        .filter((group) => group.sprintId)
+        .map((group) => [group.sprintId as string, group._sum.storyPoints ?? 0])
+    );
+
+    return NextResponse.json(
+      sprints.map((sprint) => ({
+        ...sprint,
+        storyPoints: sprintStoryPointsMap.get(sprint.id) ?? 0,
+      }))
+    );
   } catch (error) {
     if (error instanceof ForbiddenError) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });

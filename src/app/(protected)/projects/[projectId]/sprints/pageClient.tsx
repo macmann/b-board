@@ -17,6 +17,7 @@ type Sprint = {
   startDate: string | null;
   endDate: string | null;
   status: SprintStatus;
+  storyPoints: number;
 };
 
 type ProjectSprintsPageClientProps = {
@@ -200,7 +201,9 @@ export default function ProjectSprintsPageClient({
                     <div className="font-medium text-slate-900">
                       {formatDateRange(sprint.startDate, sprint.endDate)}
                     </div>
-                    <div className="text-xs text-slate-500">Story points: —</div>
+                    <div className="text-xs text-slate-500">
+                      Story points: {sprint.storyPoints ?? 0}
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2">
