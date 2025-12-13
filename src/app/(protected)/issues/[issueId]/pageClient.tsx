@@ -18,6 +18,9 @@ import {
   IssueType,
   SprintStatus,
 } from "../../../../lib/prismaEnums";
+import IssueTypeIcon, {
+  ISSUE_TYPE_METADATA,
+} from "../../../../components/issues/IssueTypeIcon";
 
 import { ProjectRole } from "../../../../lib/roles";
 import { canDeleteIssue, canEditIssue } from "../../../../lib/uiPermissions";
@@ -97,6 +100,7 @@ export default function IssueDetailsPageClient({
   const [isUploadingCommentFiles, setIsUploadingCommentFiles] = useState(false);
 
   const [title, setTitle] = useState("");
+  const [type, setType] = useState<IssueType>(IssueType.STORY);
   const [status, setStatus] = useState<IssueStatus>(IssueStatus.TODO);
   const [priority, setPriority] = useState<IssuePriority>(IssuePriority.MEDIUM);
   const [storyPoints, setStoryPoints] = useState("");
@@ -225,6 +229,7 @@ export default function IssueDetailsPageClient({
       const data = (await response.json()) as IssueDetails;
       setIssue(data);
       setTitle(data.title);
+      setType(data.type);
       setStatus(data.status);
       setPriority(data.priority);
       setStoryPoints(data.storyPoints?.toString() ?? "");
@@ -335,6 +340,7 @@ export default function IssueDetailsPageClient({
         body: JSON.stringify({
           title,
           status,
+          type,
           priority,
           storyPoints: storyPoints === "" ? null : Number(storyPoints),
           assigneeId: assigneeId || null,
@@ -353,6 +359,7 @@ export default function IssueDetailsPageClient({
       const data = (await response.json()) as IssueDetails;
       setIssue(data);
       setTitle(data.title);
+      setType(data.type);
       setStatus(data.status);
       setPriority(data.priority);
       setStoryPoints(data.storyPoints?.toString() ?? "");
@@ -596,21 +603,38 @@ export default function IssueDetailsPageClient({
 
                 <div className="space-y-5">
                   <div className="rounded-2xl border border-slate-200 bg-white/70 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       Status & Workflow
                     </p>
                     <div className="mt-3 space-y-4">
                       <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="type">
-                          Type
-                        </label>
-                        <input
+                        <div className="flex items-center justify-between gap-3">
+                          <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="type">
+                            Type
+                          </label>
+                          <span
+                            className={`${pillBaseClasses} border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100`}
+                          >
+                            <IssueTypeIcon type={type} showLabel />
+                          </span>
+                        </div>
+                        <select
                           id="type"
                           name="type"
-                          value={issue.type}
-                          readOnly
-                          className={`${baseFieldClasses} bg-slate-50 dark:bg-slate-800`}
-                        />
+                          value={type}
+                          onChange={(event) => setType(event.target.value as IssueType)}
+                          disabled={disableEditing}
+                          className={baseFieldClasses}
+                        >
+                          {(Object.keys(ISSUE_TYPE_METADATA) as IssueType[]).map((option) => {
+                            const { icon, label } = ISSUE_TYPE_METADATA[option];
+                            return (
+                              <option key={option} value={option}>
+                                {icon} {label}
+                              </option>
+                            );
+                          })}
+                        </select>
                       </div>
 
                       <div className="space-y-1.5">
