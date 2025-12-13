@@ -22,6 +22,7 @@ type ProjectSettingsPageClientProps = {
     key: string;
     name: string;
     description: string;
+    iconUrl: string | null;
     enableResearchBoard: boolean;
     createdAt: string;
     updatedAt: string;
@@ -56,6 +57,11 @@ export default function ProjectSettingsPageClient({
   const [isDeleting, setIsDeleting] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [confirmKey, setConfirmKey] = useState("");
+  const [iconUrl, setIconUrl] = useState(project.iconUrl ?? "");
+  const [iconError, setIconError] = useState<string | null>(null);
+  const [iconMessage, setIconMessage] = useState<string | null>(null);
+  const [isUploadingIcon, setIsUploadingIcon] = useState(false);
+  const [iconPreviewError, setIconPreviewError] = useState(false);
 
   const isAdmin = useMemo(
     () => projectRole === "ADMIN" || projectRole === "PO",
@@ -67,6 +73,11 @@ export default function ProjectSettingsPageClient({
     if (Number.isNaN(parsed.getTime())) return "";
     return parsed.toLocaleDateString();
   }, [project.createdAt]);
+
+  const iconInitial = useMemo(() => {
+    const source = project.key || project.name;
+    return source ? source.charAt(0).toUpperCase() : "?";
+  }, [project.key, project.name]);
 
   const handleUpdateProject = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,6 +125,88 @@ export default function ProjectSettingsPageClient({
     router.push("/my-projects");
   };
 
+  const handleIconUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    if (!isAdmin) return;
+
+    const file = event.target.files?.[0];
+    setIconError(null);
+    setIconMessage(null);
+
+    if (!file) return;
+
+    if (!file.type?.startsWith("image/")) {
+      setIconError("Please upload an image file (PNG, JPG, or GIF).");
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setIconError("Images must be 2MB or smaller.");
+      event.target.value = "";
+      return;
+    }
+
+    setIsUploadingIcon(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("icon", file);
+
+      const response = await fetch(`/api/projects/${project.id}/icon`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        setIconError(data?.message ?? "Failed to upload project icon.");
+        return;
+      }
+
+      const newUrl = (data?.iconUrl as string | null) ?? "";
+      setIconUrl(newUrl);
+      setIconMessage("Project icon updated.");
+      setIconPreviewError(false);
+    } catch (err) {
+      setIconError("Unable to upload project icon. Please try again.");
+    } finally {
+      setIsUploadingIcon(false);
+      event.target.value = "";
+    }
+  };
+
+  const handleIconRemove = async () => {
+    if (!isAdmin) return;
+
+    setIconError(null);
+    setIconMessage(null);
+    setIsUploadingIcon(true);
+
+    try {
+      const response = await fetch(`/api/projects/${project.id}/icon`, {
+        method: "DELETE",
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        setIconError(data?.message ?? "Failed to remove project icon.");
+        return;
+      }
+
+      setIconUrl("");
+      setIconPreviewError(false);
+      setIconMessage("Project icon removed.");
+    } catch (err) {
+      setIconError("Unable to remove project icon. Please try again.");
+    } finally {
+      setIsUploadingIcon(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <header>
@@ -144,6 +237,58 @@ export default function ProjectSettingsPageClient({
         </div>
 
         <form onSubmit={handleUpdateProject} className="space-y-6">
+          <div className="space-y-1.5">
+            <label className={labelClasses} htmlFor="project-icon">
+              Project icon
+            </label>
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
+                {iconUrl && !iconPreviewError ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={iconUrl}
+                    alt={`${project.name} icon`}
+                    className="h-full w-full object-cover"
+                    onError={() => setIconPreviewError(true)}
+                  />
+                ) : (
+                  <span>{iconInitial}</span>
+                )}
+              </div>
+              <div className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
+                <input
+                  id="project-icon"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleIconUpload}
+                  disabled={!isAdmin || isUploadingIcon}
+                  className="text-xs text-slate-700 file:mr-3 file:rounded-md file:border-none file:bg-primary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-primary/90 disabled:cursor-not-allowed"
+                />
+                <p>PNG, JPG, or GIF up to 2MB.</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={handleIconRemove}
+                    disabled={!iconUrl || isUploadingIcon || !isAdmin}
+                    className="px-3 py-1 text-xs"
+                  >
+                    Remove icon
+                  </Button>
+                  {isUploadingIcon && (
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Saving...
+                    </span>
+                  )}
+                </div>
+                {iconMessage && (
+                  <p className="text-[11px] text-emerald-600">{iconMessage}</p>
+                )}
+                {iconError && <p className="text-[11px] text-red-600">{iconError}</p>}
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-1.5">
             <label className={labelClasses} htmlFor="project-name">
               Name

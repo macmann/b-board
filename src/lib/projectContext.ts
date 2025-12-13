@@ -17,6 +17,7 @@ type Project = {
   name: string;
   key?: string | null;
   description?: string | null;
+  iconUrl?: string | null;
   enableResearchBoard: boolean;
 };
 type ProjectMember = { projectId: string; userId: string; role: Role };

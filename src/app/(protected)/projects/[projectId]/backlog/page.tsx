@@ -167,6 +167,7 @@ export default async function ProjectBacklogPage(props: Props) {
         projectName={project.name}
         projectKey={project.key ?? project.name}
         projectDescription={project.description}
+        projectIconUrl={project.iconUrl}
         currentUserName={user?.name}
         currentUserEmail={user?.email}
         roleLabel={roleLabel}

@@ -155,6 +155,7 @@ model Project {
   key                 String
   name                String
   description         String?
+  iconUrl             String?
   isArchived          Boolean  @default(false)
   enableResearchBoard Boolean  @default(false)
   jiraProjectKey      String?

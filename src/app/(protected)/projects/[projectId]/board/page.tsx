@@ -46,6 +46,7 @@ export default async function Page(props: ServerProps) {
         projectName={project.name}
         projectKey={project.key ?? project.name}
         projectDescription={project.description}
+        projectIconUrl={project.iconUrl}
         currentUserName={user?.name}
         currentUserEmail={user?.email}
         roleLabel={roleLabel}
