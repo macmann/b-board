@@ -27,10 +27,25 @@ export default function HomePage() {
 
           <div className="flex items-center gap-3 text-sm">
             <a
-              href="/login"
-              className="rounded-full border border-slate-200 px-4 py-2 font-semibold text-slate-800 transition hover:border-slate-300 hover:bg-white dark:border-slate-700 dark:text-slate-100 dark:hover:border-slate-600 dark:hover:bg-slate-800"
+              href="https://github.com/macmann/b-board"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="View the B Board repository on GitHub"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-800 transition hover:border-slate-300 hover:bg-white dark:border-slate-700 dark:text-slate-100 dark:hover:border-slate-600 dark:hover:bg-slate-800"
             >
-              Login
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                className="h-5 w-5"
+                fill="currentColor"
+                aria-hidden
+              >
+                <path
+                  fillRule="evenodd"
+                  clipRule="evenodd"
+                  d="M12 2c-5.52 0-10 4.48-10 10 0 4.42 2.87 8.17 6.84 9.5.5.09.66-.22.66-.48 0-.24-.01-.87-.01-1.71-2.49.54-3.01-1.2-3.01-1.2-.45-1.14-1.11-1.45-1.11-1.45-.91-.63.07-.62.07-.62 1 .07 1.53 1.03 1.53 1.03.89 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.63-1.33-1.99-.23-4.09-.99-4.09-4.4 0-.97.35-1.77.93-2.4-.09-.23-.4-1.16.09-2.42 0 0 .75-.24 2.45.92.71-.2 1.47-.3 2.23-.3.76 0 1.52.1 2.23.3 1.7-1.16 2.45-.92 2.45-.92.49 1.26.18 2.19.09 2.42.58.63.93 1.43.93 2.4 0 3.42-2.1 4.17-4.1 4.39.36.31.68.92.68 1.86 0 1.34-.01 2.42-.01 2.75 0 .26.17.57.67.47A10.01 10.01 0 0 0 22 12c0-5.52-4.48-10-10-10Z"
+                />
+              </svg>
             </a>
             <a
               href="/login"
