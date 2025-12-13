@@ -1,49 +1,76 @@
 # B-Board
 
-B-Board is a lightweight agile board that supports sprints, epics, and issue tracking with drag-and-drop prioritization.
+B-Board is a lightweight agile board for software teams that brings sprints, epics, drag-and-drop prioritization, and role-based workflows into a single Next.js application. It ships with a PostgreSQL + Prisma data model, seed data for demos, and ready-to-use deployment automation.
 
-## Features
+## Feature Highlights
 
-- Project and sprint management with role-based access control for administrators, product owners, developers, and QA contributors.
-- Issue lifecycle tracking across TODO, IN_PROGRESS, IN_REVIEW, and DONE, including assignees, epics, and story points.
-- Drag-and-drop backlog ordering within sprints, with persisted positions per status column.
-- Commenting and history tracking for key issue fields such as status, assignee, sprint, and story points.
-- Prisma-backed PostgreSQL data model with seed utilities for quick setup.
+- **Work planning**: Create projects, epics, and sprints with roles for administrators, product owners, developers, and QA contributors.
+- **Issue lifecycle**: Track items across TODO, IN_PROGRESS, IN_REVIEW, and DONE with assignees, story points, due dates, and epic links.
+- **Backlog prioritization**: Drag-and-drop ordering within status columns, with positions persisted per sprint/backlog.
+- **Collaboration**: Inline commenting plus history for status, assignee, sprint, and story point changes.
+- **Analytics**: Built-in dashboards powered by Recharts for sprint throughput and velocity visibility.
+- **Authentication & security**: JWT-based auth with bcrypt password hashing and role-aware access controls.
+- **Email notifications**: Nodemailer integration for account and workflow emails.
+- **AI-assisted summaries**: OpenAI integration to summarize issues and updates (requires OpenAI API key).
+- **Theming**: Light/dark themes with Next Themes and Tailwind CSS typography presets.
+- **Developer tooling**: TypeScript-first setup, Vitest tests, Prisma migrations, and seed utilities for quick onboarding.
 
-## Getting Started
+## Architecture
 
-1. **Install dependencies**
+- **Frontend**: Next.js 16 with React 19, Tailwind CSS, Radix UI dialogs, markdown support via `react-markdown` + `remark-gfm`, and drag-and-drop via DnD Kit.
+- **Backend**: Next.js API routes with JWT auth, Prisma as the ORM, and PostgreSQL as the primary data store.
+- **Data & analytics**: Recharts for velocity/burndown visuals, CSV import via `csv-parse`, and history tracking in the database.
+
+## Prerequisites
+
+- Node.js 18+ (Next.js 16 requires Node 18 or newer)
+- PostgreSQL database (local or hosted)
+- An OpenAI API key if you want AI summaries (optional)
+
+## Quick Start
+
+1. **Clone and install**
    ```bash
    npm install
    ```
-2. **Set environment variables**
-   - Copy `.env.example` to `.env`.
-   - Set `JWT_SECRET` to a secure value.
-   - Provide `DATABASE_URL` for your PostgreSQL instance.
-   - Optionally set `PORT` (defaults to 3000).
+2. **Configure environment**
+   ```bash
+   cp .env.example .env
+   ```
+   - Set `JWT_SECRET` to a strong secret.
+   - Set `DATABASE_URL` to your PostgreSQL connection string.
+   - Optionally set `OPENAI_API_KEY` for AI summaries and `PORT` (defaults to 3000).
 3. **Run database migrations**
    ```bash
    npx prisma migrate dev
    ```
-4. **(Optional) Seed sample data**
+4. **(Optional) Seed demo data**
    ```bash
    npm run seed
    ```
-5. **Build and start the app**
+5. **Start the app in development**
    ```bash
-   npm run build
-   npm start
+   npm run dev
    ```
-   The start script runs the seed step automatically before launching `next start`.
+   Visit http://localhost:3000 to explore the board.
 
-## Deploying on Render
+## Production Build & Start
+
+```bash
+npm run build
+npm start
+```
+
+The `start` script seeds the database before launching `next start`, ensuring the app has starter data in fresh environments.
+
+## Deployment on Render
 
 This repository includes a `render.yaml` for one-click deployment.
 
 1. Push your code to a repository accessible by Render.
 2. Create a new Web Service on Render and import the repo.
-3. Set environment variables in the Render dashboard (see below), including `DATABASE_URL` pointing to a Render PostgreSQL database and `JWT_SECRET`.
-4. Render will install dependencies and run the build step. Ensure migrations are applied via `npx prisma migrate deploy` during deployment.
+3. Add environment variables in the Render dashboard (see below), including `DATABASE_URL` pointing to a Render PostgreSQL database and `JWT_SECRET`.
+4. Render installs dependencies and runs the build step; ensure `npx prisma migrate deploy` runs during deploy to apply migrations.
 
 ## Environment Variables
 
@@ -52,8 +79,17 @@ This repository includes a `render.yaml` for one-click deployment.
 | `PORT` | Port for the Next.js server (default: 3000). |
 | `JWT_SECRET` | Secret used to sign and verify authentication tokens. **Required**. |
 | `DATABASE_URL` | Connection string for the PostgreSQL database used by Prisma. **Required in deployed environments**. |
+| `OPENAI_API_KEY` | OpenAI key enabling AI-generated summaries. Optional. |
 
 For local development, create a `.env` file with these values. In production (e.g., Render), configure the same variables through your hosting provider's environment settings.
+
+## Useful Scripts
+
+- `npm run dev` – Start the Next.js dev server.
+- `npm run build` – Build the production bundle.
+- `npm start` – Run migrations + seed, then launch the production server.
+- `npm run seed` – Seed the database with demo data.
+- `npm test` – Run the Vitest suite.
 
 ## Testing
 
