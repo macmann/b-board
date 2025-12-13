@@ -69,6 +69,7 @@ export default async function ProjectSettingsPage(props: Props) {
         projectName={projectWithMeta.name}
         projectKey={projectWithMeta.key ?? projectWithMeta.name}
         projectDescription={projectWithMeta.description}
+        projectIconUrl={projectWithMeta.iconUrl}
         currentUserName={user.name}
         currentUserEmail={user.email}
         roleLabel={roleLabel}
@@ -82,6 +83,7 @@ export default async function ProjectSettingsPage(props: Props) {
           key: projectWithMeta.key ?? "",
           name: projectWithMeta.name,
           description: projectWithMeta.description ?? "",
+          iconUrl: projectWithMeta.iconUrl,
           enableResearchBoard: projectWithMeta.enableResearchBoard,
           createdAt: projectWithMeta.createdAt.toISOString(),
           updatedAt: projectWithMeta.updatedAt.toISOString(),
