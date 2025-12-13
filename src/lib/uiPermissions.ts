@@ -1,4 +1,4 @@
-import { ProjectRole } from "./roles";
+import { PROJECT_ADMIN_ROLES, ProjectRole } from "./roles";
 
 type IssueIdentifiers = {
   assigneeId: string | null;
@@ -14,7 +14,9 @@ export const canInviteMembers = (role: ProjectRole | null | undefined): boolean 
 };
 
 export const canDeleteIssue = (role: ProjectRole | null | undefined): boolean => {
-  return role === "ADMIN" || role === "PO";
+  if (!role) return false;
+
+  return PROJECT_ADMIN_ROLES.includes(role);
 };
 
 export const canEditIssue = (
