@@ -89,6 +89,8 @@ enum ResearchObservationType {
 enum EmailProviderType {
   SMTP
   API
+  MS365
+  GOOGLE_MAIL
 }
 
 enum IssueHistoryField {

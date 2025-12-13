@@ -38,10 +38,19 @@ const parseProviderType = (value: unknown):
   | keyof typeof EmailProviderType
   | null => {
   if (value === null) return null;
-  if (value === EmailProviderType.SMTP) return EmailProviderType.SMTP;
-  if (value === EmailProviderType.API) return EmailProviderType.API;
+
+  const providerValues = new Set(Object.values(EmailProviderType));
+  if (typeof value === "string" && providerValues.has(value as any)) {
+    return value as keyof typeof EmailProviderType;
+  }
+
   return null;
 };
+
+const isSmtpProvider = (providerType: keyof typeof EmailProviderType | null) =>
+  providerType === EmailProviderType.SMTP ||
+  providerType === EmailProviderType.MS365 ||
+  providerType === EmailProviderType.GOOGLE_MAIL;
 
 const ensureValidBody = (body: any) => {
   const providerType = parseProviderType(body?.providerType);
@@ -67,7 +76,7 @@ const ensureValidBody = (body: any) => {
     throw new Error("From email must be a valid email address.");
   }
 
-  if (providerType === EmailProviderType.SMTP) {
+  if (isSmtpProvider(providerType)) {
     if (!smtpHost) {
       throw new Error("SMTP host is required for SMTP provider.");
     }
@@ -192,7 +201,7 @@ export async function PUT(
     ? parsedSettings.apiKey
     : currentSettings?.apiKey ?? null;
 
-  if (emailProvider === EmailProviderType.SMTP && !smtpPassword) {
+  if (isSmtpProvider(emailProvider) && !smtpPassword) {
     return NextResponse.json(
       { message: "SMTP password is required for SMTP provider." },
       { status: 400 }
