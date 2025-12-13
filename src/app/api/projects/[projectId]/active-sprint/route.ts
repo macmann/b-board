@@ -40,6 +40,14 @@ export async function GET(
     const activeSprint = await prisma.sprint.findFirst({
       where: { projectId, status: SprintStatus.ACTIVE },
       orderBy: { startDate: "desc" },
+      select: {
+        id: true,
+        name: true,
+        goal: true,
+        status: true,
+        startDate: true,
+        endDate: true,
+      },
     });
 
     return NextResponse.json(activeSprint);

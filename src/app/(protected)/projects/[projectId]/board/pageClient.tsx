@@ -34,6 +34,8 @@ type Sprint = {
   name: string;
   goal: string | null;
   status: SprintStatus;
+  startDate: string | null;
+  endDate: string | null;
 };
 
 type Issue = PrismaIssue & {
@@ -173,6 +175,34 @@ export default function BoardPageClient({ projectId, projectRole }: BoardPageCli
     [issuesByStatus]
   );
 
+  const sprintDaysInfo = useMemo(() => {
+    if (!sprint?.startDate || !sprint?.endDate) return null;
+
+    const today = new Date();
+    const normalizedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+    const endDate = new Date(sprint.endDate);
+    const normalizedEndDate = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+
+    const diffInDays = Math.ceil(
+      (normalizedEndDate.getTime() - normalizedToday.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    if (diffInDays >= 0) {
+      return {
+        label: `${diffInDays} day${diffInDays === 1 ? "" : "s"} remaining`,
+        variant: "remaining" as const,
+      };
+    }
+
+    const overdueDays = Math.abs(diffInDays);
+
+    return {
+      label: `${overdueDays} day${overdueDays === 1 ? "" : "s"} overdue`,
+      variant: "overdue" as const,
+    };
+  }, [sprint?.endDate, sprint?.startDate]);
+
   const formatLabel = (value: string) => value.replace(/_/g, " ");
 
   const handleIssueStatusChange = async (
@@ -282,6 +312,17 @@ export default function BoardPageClient({ projectId, projectRole }: BoardPageCli
         <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
           <span className="font-semibold text-slate-900 dark:text-slate-50">Status:</span>
           <span className="text-slate-600 dark:text-slate-300">{sprint?.status ?? "-"}</span>
+          {sprintDaysInfo && (
+            <span
+              className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
+                sprintDaysInfo.variant === "remaining"
+                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
+                  : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200"
+              }`}
+            >
+              {sprintDaysInfo.label}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
           <span className="font-semibold text-slate-900 dark:text-slate-50">Total Story Points:</span>
