@@ -94,11 +94,11 @@ export function MyProjectsTable({ projects, createAction }: MyProjectsGridProps)
                     Project Settings
                   </Link>
                   {canManageProject && (
-                    <Link
-                      href={`/projects/${project.id}/settings#integrations`}
-                      className="block rounded-md px-3 py-2 text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
-                    >
-                      Import from Jira
+                  <Link
+                    href={`/projects/${project.id}/settings/import`}
+                    className="block rounded-md px-3 py-2 text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    Import from Jira
                     </Link>
                   )}
                   {canManageProject && (

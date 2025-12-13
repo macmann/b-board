@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { Role } from "@/lib/prismaEnums";
+
 import Button from "../ui/Button";
 import ThemeToggle from "../theme/ThemeToggle";
 import Logo from "../branding/Logo";
@@ -8,7 +10,7 @@ import Logo from "../branding/Logo";
 type AppShellProps = {
   children: ReactNode;
   currentProjectName?: string;
-  user?: { name?: string | null; email?: string | null } | null;
+  user?: { name?: string | null; email?: string | null; role?: Role | null } | null;
   onLogout?: () => Promise<void> | void;
   currentPath?: string | null;
 };
@@ -28,10 +30,13 @@ export default function AppShell({
   const projectMatch = normalizedPath.match(/^\/projects\/([^/]+)/);
   const currentProjectId = projectMatch?.[1];
 
+  const isLeadership = user?.role === Role.ADMIN || user?.role === Role.PO;
+
   const workspaceLinks = [
-    { href: "/my-projects", label: "My Projects" },
-    { href: "/reports", label: "Reports" },
-  ];
+    { href: "/dashboard", label: "Dashboard", restricted: true },
+    { href: "/my-projects", label: "My Projects", restricted: false },
+    { href: "/reports", label: "Reports", restricted: true },
+  ].filter((link) => !link.restricted || isLeadership);
 
   const projectLinks = currentProjectId
     ? [

@@ -1,6 +1,15 @@
-import Logo from "@/components/branding/Logo";
+import { redirect } from "next/navigation";
 
-export default function HomePage() {
+import Logo from "@/components/branding/Logo";
+import { getCurrentProjectContext } from "@/lib/projectContext";
+
+export default async function HomePage() {
+  const { user } = await getCurrentProjectContext();
+
+  if (user) {
+    redirect("/my-projects");
+  }
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 via-slate-50 to-white text-slate-900 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900 dark:text-slate-50">
       <div className="absolute inset-0 -z-10 overflow-hidden">
