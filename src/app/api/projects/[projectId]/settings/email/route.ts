@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getUserFromRequest } from "../../../../../../lib/auth";
-import prisma from "../../../../../../lib/db";
-import { EmailProviderType } from "../../../../../../lib/prismaEnums";
-import { resolveProjectId, type ProjectParams } from "../../../../../../lib/params";
+import { getUserFromRequest } from "@/lib/auth";
+import prisma from "@/lib/db";
+import { EmailProviderType } from "@/lib/prismaEnums";
+import { resolveProjectId, type ProjectParams } from "@/lib/params";
 import {
   ForbiddenError,
   ensureProjectRole,
   PROJECT_ADMIN_ROLES,
-} from "../../../../../../lib/permissions";
+} from "@/lib/permissions";
 
 const EMAIL_REGEX = /.+@.+\..+/i;
 

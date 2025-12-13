@@ -1,15 +1,12 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 
-import { getUserFromRequest } from "../../../../../../../lib/auth";
-import prisma from "../../../../../../../lib/db";
-import { sendEmail } from "../../../../../../../lib/email";
-import { Role } from "../../../../../../../lib/prismaEnums";
-import { resolveProjectId, type ProjectParams } from "../../../../../../../lib/params";
-import {
-  AuthorizationError,
-  requireProjectRole,
-} from "../../../../../../../lib/permissions";
+import { getUserFromRequest } from "@/lib/auth";
+import prisma from "@/lib/db";
+import { sendEmail } from "@/lib/email";
+import { Role } from "@/lib/prismaEnums";
+import { resolveProjectId, type ProjectParams } from "@/lib/params";
+import { AuthorizationError, requireProjectRole } from "@/lib/permissions";
 
 const PROJECT_ADMIN_ROLES = [Role.ADMIN, Role.PO];
 

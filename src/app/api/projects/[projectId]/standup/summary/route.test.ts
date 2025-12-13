@@ -12,13 +12,13 @@ import {
 
 const prismaHolder = vi.hoisted(() => ({ value: undefined as FakePrismaClient | undefined }));
 
-vi.mock("../../../../../../lib/auth");
-vi.mock("../../../../../../lib/db", async () => {
+vi.mock("@/lib/auth");
+vi.mock("@/lib/db", async () => {
   const { FakePrismaClient } = await import("../../../../../../test/utils/fakePrisma");
   prismaHolder.value = new FakePrismaClient();
   return { default: prismaHolder.value };
 });
-vi.mock("../../../../../../lib/permissions", () => {
+vi.mock("@/lib/permissions", () => {
   class ForbiddenError extends Error {}
   return {
     ForbiddenError,
@@ -27,8 +27,8 @@ vi.mock("../../../../../../lib/permissions", () => {
   };
 });
 
-import * as permissions from "../../../../../../lib/permissions";
-import * as auth from "../../../../../../lib/auth";
+import * as permissions from "@/lib/permissions";
+import * as auth from "@/lib/auth";
 import { GET } from "./route";
 
 const getPrisma = () => {

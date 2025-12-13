@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getUserFromRequest } from "../../../../../../lib/auth";
-import prisma from "../../../../../../lib/db";
-import { ProjectParams, resolveProjectId } from "../../../../../../lib/params";
+import { getUserFromRequest } from "@/lib/auth";
+import prisma from "@/lib/db";
+import { ProjectParams, resolveProjectId } from "@/lib/params";
 import {
   ForbiddenError,
   ensureProjectRole,
   PROJECT_ADMIN_ROLES,
   PROJECT_VIEWER_ROLES,
-} from "../../../../../../lib/permissions";
+} from "@/lib/permissions";
 
 const isValidTime = (value: unknown): value is string => {
   if (typeof value !== "string") return false;

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getUserFromRequest } from "../../../../../../../lib/auth";
-import prisma from "../../../../../../../lib/db";
+import { getUserFromRequest } from "@/lib/auth";
+import prisma from "@/lib/db";
 import {
   ensureProjectRole,
   ForbiddenError,
   PROJECT_VIEWER_ROLES,
-} from "../../../../../../../lib/permissions";
-import { resolveProjectId, type ProjectParams } from "../../../../../../../lib/params";
+} from "@/lib/permissions";
+import { resolveProjectId, type ProjectParams } from "@/lib/params";
 
 const standupInclude = {
   issues: {

@@ -166,7 +166,7 @@ export const emailStandupSummaryToStakeholders = async (
   }
 
   const [project, summaryRecord] = await Promise.all([
-    prisma.project.findUnique({ where: { id: projectId } }),
+    prisma.project.findUnique({ where: { id: projectId }, include: { settings: true } }),
     prisma.standupSummary.findUnique({
       where: { projectId_date: { projectId, date: targetDate } },
     }),
@@ -178,6 +178,10 @@ export const emailStandupSummaryToStakeholders = async (
 
   const standupSummary =
     summaryRecord ?? (await saveProjectStandupSummary(projectId, targetDate));
+
+  if (!project.settings?.emailProvider) {
+    throw new Error("Configure an email provider before sending stand-up summaries.");
+  }
 
   const stakeholders = await prisma.projectMember.findMany({
     where: { projectId, role: { in: PROJECT_ADMIN_ROLES } },
@@ -195,10 +199,29 @@ export const emailStandupSummaryToStakeholders = async (
     <p>${standupSummary.summary}</p>
   `;
 
+  const emailSettings = {
+    providerType: project.settings.emailProvider,
+    fromName: project.settings.emailFromName,
+    fromEmail: project.settings.emailFromAddress,
+    smtpHost: project.settings.smtpHost,
+    smtpPort: project.settings.smtpPort,
+    smtpUsername: project.settings.smtpUsername,
+    smtpPassword: project.settings.smtpPassword,
+    apiUrl: project.settings.apiUrl,
+    apiKey: project.settings.apiKey,
+  };
+
   const emailPromises = stakeholders
     .map(({ user }) => user)
     .filter((user): user is NonNullable<typeof user> => Boolean(user?.email))
-    .map((user) => sendEmail(user.email, subject, html));
+    .map((user) =>
+      sendEmail(emailSettings, {
+        to: user.email!,
+        subject,
+        text: standupSummary.summary,
+        html,
+      })
+    );
 
   await Promise.all(emailPromises);
 };
