@@ -86,3 +86,11 @@ export const ResearchStatus = {
 } as const;
 
 export type ResearchStatus = (typeof ResearchStatus)[keyof typeof ResearchStatus];
+
+export const EmailProviderType = {
+  SMTP: "SMTP",
+  API: "API",
+} as const;
+
+export type EmailProviderType =
+  (typeof EmailProviderType)[keyof typeof EmailProviderType];

@@ -86,6 +86,11 @@ enum ResearchObservationType {
   OTHER
 }
 
+enum EmailProviderType {
+  SMTP
+  API
+}
+
 enum IssueHistoryField {
   STATUS
   ASSIGNEE
@@ -178,6 +183,15 @@ model ProjectSettings {
   projectId          String  @unique
   standupWindowStart String?
   standupWindowEnd   String?
+  emailProvider      EmailProviderType?
+  emailFromName      String?
+  emailFromAddress   String?
+  smtpHost           String?
+  smtpPort           Int?
+  smtpUsername       String?
+  smtpPassword       String?
+  apiUrl             String?
+  apiKey             String?
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
