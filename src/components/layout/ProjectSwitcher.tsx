@@ -53,7 +53,7 @@ export default function ProjectSwitcher({ currentProjectId }: ProjectSwitcherPro
       <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Current Project</span>
       <select
         className="mt-1 min-w-[220px] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50"
-        defaultValue={currentProjectId ?? ""}
+        value={currentProjectId ?? ""}
         disabled={isLoading || projects.length === 0}
         onChange={(event) => handleSelect(event.target.value)}
       >

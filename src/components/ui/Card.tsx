@@ -4,6 +4,9 @@ import clsx from "clsx";
 type CardProps = {
   children: ReactNode;
   className?: string;
+  onClick?: () => void;
+  role?: string;
+  tabIndex?: number;
 };
 
 type CardSectionProps = {
@@ -11,13 +14,16 @@ type CardSectionProps = {
   className?: string;
 };
 
-export function Card({ children, className }: CardProps) {
+export function Card({ children, className, onClick, role, tabIndex }: CardProps) {
   return (
     <div
       className={clsx(
         "rounded-2xl border border-slate-200 bg-white shadow-sm transition-colors dark:border-slate-800 dark:bg-slate-900",
         className
       )}
+      onClick={onClick}
+      role={role}
+      tabIndex={tabIndex}
     >
       {children}
     </div>
