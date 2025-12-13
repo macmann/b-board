@@ -116,6 +116,7 @@ model User {
   assignedResearchItems ResearchItem[]      @relation("ResearchItemAssignee")
   standupEntries        DailyStandupEntry[]
   standupAttendances    StandupAttendance[]
+  uploadedAttachments   Attachment[]
 }
 
 model Workspace {
@@ -164,6 +165,7 @@ model Project {
   issues             Issue[]
   researchItems      ResearchItem[]
   standupEntries     DailyStandupEntry[]
+  attachments        Attachment[]
   settings           ProjectSettings?
   standupSummaries   StandupSummary[]
   standupAttendances StandupAttendance[]
@@ -288,8 +290,8 @@ model Comment {
   body      String
   createdAt DateTime @default(now())
 
-  issue  Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
-  author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  issue       Issue        @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  author      User?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
   attachments Attachment[]
 }
 
