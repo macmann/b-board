@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useRouter } from "next/navigation";
@@ -32,6 +32,7 @@ type IssueDetails = {
   epic: { id: string; title: string } | null;
   assignee: UserSummary;
   reporter: UserSummary;
+  attachments: Attachment[];
 };
 
 type Comment = {
@@ -39,6 +40,16 @@ type Comment = {
   body: string;
   createdAt: string;
   author: UserSummary;
+  attachments: Attachment[];
+};
+
+type Attachment = {
+  id: string;
+  fileName: string;
+  url: string;
+  mimeType: string;
+  size: number;
+  createdAt: string;
 };
 
 type SprintSummary = {
@@ -70,6 +81,10 @@ export default function IssueDetailsPageClient({
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [sprints, setSprints] = useState<SprintSummary[]>(initialSprints);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [commentAttachments, setCommentAttachments] = useState<Attachment[]>([]);
+  const [isUploadingIssueFiles, setIsUploadingIssueFiles] = useState(false);
+  const [isUploadingCommentFiles, setIsUploadingCommentFiles] = useState(false);
 
   const [title, setTitle] = useState("");
   const [status, setStatus] = useState<IssueStatus>(IssueStatus.TODO);
@@ -184,6 +199,7 @@ export default function IssueDetailsPageClient({
       setEpicId(data.epic?.id ?? "");
       setSprintId(data.sprint?.id ?? "");
       setDescription(data.description ?? "");
+        setAttachments(data.attachments ?? []);
 
     } catch (err) {
       setError("An unexpected error occurred while loading the issue.");
@@ -204,6 +220,64 @@ export default function IssueDetailsPageClient({
       setComments(data);
     } catch (err) {
       // ignore comment loading errors in UI
+    }
+  };
+
+  const uploadAttachments = async (files: FileList, target: "issue" | "comment") => {
+    if (!files.length) return;
+    setError("");
+
+    const setUploading = target === "issue" ? setIsUploadingIssueFiles : setIsUploadingCommentFiles;
+    setUploading(true);
+
+    try {
+      const formData = new FormData();
+      Array.from(files).forEach((file) => formData.append("files", file));
+      formData.append("issueId", issueId);
+
+      const response = await fetch("/api/uploads", { method: "POST", body: formData });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setError(data?.message ?? "Failed to upload attachments.");
+        return;
+      }
+
+      const data = await response.json();
+      const uploaded = (data.attachments ?? []) as Attachment[];
+
+      if (target === "issue") {
+        setAttachments((prev) => [...prev, ...uploaded]);
+      } else {
+        setCommentAttachments((prev) => [...prev, ...uploaded]);
+      }
+    } catch (err) {
+      setError("An unexpected error occurred while uploading attachments.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleAttachmentDelete = async (attachmentId: string) => {
+    try {
+      const response = await fetch(`/api/attachments/${attachmentId}`, { method: "DELETE" });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setError(data?.message ?? "Unable to delete attachment.");
+        return;
+      }
+
+      setAttachments((prev) => prev.filter((item) => item.id !== attachmentId));
+      setCommentAttachments((prev) => prev.filter((item) => item.id !== attachmentId));
+      setComments((prev) =>
+        prev.map((comment) => ({
+          ...comment,
+          attachments: comment.attachments?.filter((item) => item.id !== attachmentId) ?? [],
+        }))
+      );
+    } catch (err) {
+      setError("An unexpected error occurred while deleting the attachment.");
     }
   };
 
@@ -289,17 +363,35 @@ export default function IssueDetailsPageClient({
       const response = await fetch(`/api/issues/${issueId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body: commentBody }),
+        body: JSON.stringify({
+          body: commentBody,
+          attachmentIds: commentAttachments.map((item) => item.id),
+        }),
       });
 
       if (response.ok) {
         setCommentBody("");
+        setCommentAttachments([]);
         await fetchComments();
       }
     } catch (err) {
       // ignore errors for now
     } finally {
       setIsSubmittingComment(false);
+    }
+  };
+
+  const handleIssueAttachmentChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      await uploadAttachments(event.target.files, "issue");
+      event.target.value = "";
+    }
+  };
+
+  const handleCommentAttachmentChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      await uploadAttachments(event.target.files, "comment");
+      event.target.value = "";
     }
   };
 
@@ -385,6 +477,51 @@ export default function IssueDetailsPageClient({
                             <p className="text-slate-500 dark:text-slate-400">Nothing to preview yet.</p>
                           )}
                         </div>
+                      </div>
+
+                      <div className="mt-4 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Attachments</p>
+                          <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100">
+                            <input
+                              type="file"
+                              multiple
+                              className="hidden"
+                              onChange={handleIssueAttachmentChange}
+                              disabled={disableEditing || isUploadingIssueFiles}
+                            />
+                            {isUploadingIssueFiles ? "Uploading..." : "Add files"}
+                          </label>
+                        </div>
+                        {attachments.length === 0 ? (
+                          <p className="text-xs text-slate-500 dark:text-slate-400">No attachments yet.</p>
+                        ) : (
+                          <ul className="space-y-2 text-sm">
+                            {attachments.map((file) => (
+                              <li
+                                key={file.id}
+                                className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-slate-700 shadow-sm dark:border-slate-800 dark:text-slate-100"
+                              >
+                                <a
+                                  href={file.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="truncate text-sm font-medium text-primary hover:underline"
+                                >
+                                  {file.fileName}
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => handleAttachmentDelete(file.id)}
+                                  className="text-xs font-semibold text-red-500 hover:text-red-600"
+                                  disabled={disableEditing}
+                                >
+                                  Delete
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                     </div>
 
@@ -589,22 +726,48 @@ export default function IssueDetailsPageClient({
                       ) : (
                         <ul className="space-y-3">
                           {comments.map((comment) => (
-                            <li
-                              key={comment.id}
-                              className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 shadow-sm dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100"
-                            >
-                              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-300">
-                                <span>{comment.author?.name ?? "Unknown"}</span>
-                                <span>{new Date(comment.createdAt).toLocaleString()}</span>
-                              </div>
-                              <div className="markdown-content mt-2 text-slate-900 dark:text-slate-100">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{comment.body}</ReactMarkdown>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
+                          <li
+                            key={comment.id}
+                            className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 shadow-sm dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100"
+                          >
+                            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-300">
+                              <span>{comment.author?.name ?? "Unknown"}</span>
+                              <span>{new Date(comment.createdAt).toLocaleString()}</span>
+                            </div>
+                            <div className="markdown-content mt-2 text-slate-900 dark:text-slate-100">
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{comment.body}</ReactMarkdown>
+                            </div>
+                            {comment.attachments?.length ? (
+                              <ul className="mt-2 space-y-1 text-xs">
+                                {comment.attachments.map((attachment) => (
+                                  <li
+                                    key={attachment.id}
+                                    className="flex items-center justify-between rounded-md border border-slate-200 px-2 py-1 text-slate-700 dark:border-slate-700 dark:text-slate-100"
+                                  >
+                                    <a
+                                      className="truncate font-medium text-primary hover:underline"
+                                      href={attachment.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                    >
+                                      {attachment.fileName}
+                                    </a>
+                                    <button
+                                      type="button"
+                                      className="text-[11px] font-semibold text-red-500 hover:text-red-600"
+                                      onClick={() => handleAttachmentDelete(attachment.id)}
+                                    >
+                                      Delete
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
 
                     <form className="mt-6 space-y-3" onSubmit={handleCommentSubmit}>
                       <div className="space-y-1.5">
@@ -620,6 +783,41 @@ export default function IssueDetailsPageClient({
                           rows={3}
                           className={baseFieldClasses}
                         />
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Comment attachments</p>
+                          <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100">
+                            <input
+                              type="file"
+                              multiple
+                              className="hidden"
+                              onChange={handleCommentAttachmentChange}
+                              disabled={isUploadingCommentFiles}
+                            />
+                            {isUploadingCommentFiles ? "Uploading..." : "Add files"}
+                          </label>
+                        </div>
+                        {commentAttachments.length > 0 && (
+                          <ul className="space-y-1 text-xs">
+                            {commentAttachments.map((attachment) => (
+                              <li
+                                key={attachment.id}
+                                className="flex items-center justify-between rounded-md border border-slate-200 px-2 py-1 text-slate-700 dark:border-slate-800 dark:text-slate-100"
+                              >
+                                <span className="truncate font-medium">{attachment.fileName}</span>
+                                <button
+                                  type="button"
+                                  className="text-[11px] font-semibold text-red-500 hover:text-red-600"
+                                  onClick={() => handleAttachmentDelete(attachment.id)}
+                                >
+                                  Remove
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
 
                       <button

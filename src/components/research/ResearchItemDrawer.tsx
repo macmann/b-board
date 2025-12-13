@@ -7,6 +7,12 @@ import { ResearchDecision, ResearchPriority } from "@prisma/client";
 import { ResearchStatus } from "@/lib/prismaEnums";
 import Button from "../ui/Button";
 
+type Attachment = {
+  id: string;
+  fileName: string;
+  url: string;
+};
+
 type MemberOption = { id: string; name: string };
 
 type ResearchItemDrawerProps = {
@@ -24,6 +30,7 @@ type ResearchItemDrawerProps = {
     decision: ResearchDecision | null;
     assigneeId: string | null;
     dueDate: string | null;
+    attachments?: Attachment[];
   };
   onSuccess?: () => Promise<void> | void;
   onForbidden?: () => void;
@@ -57,6 +64,9 @@ export default function ResearchItemDrawer({
   const [members, setMembers] = useState<MemberOption[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string>("");
+  const [attachments, setAttachments] = useState<Attachment[]>(initialValues?.attachments ?? []);
+  const [isUploading, setIsUploading] = useState(false);
+  const [attachmentError, setAttachmentError] = useState("");
 
   useEffect(() => {
     if (!open || members.length > 0) return;
@@ -94,6 +104,19 @@ export default function ResearchItemDrawer({
       setDecision(initialValues.decision ?? ResearchDecision.PENDING);
       setAssigneeId(initialValues.assigneeId ?? "");
       setDueDate(initialValues.dueDate ?? "");
+      setAttachments(initialValues.attachments ?? []);
+    }
+
+    if (!open && mode === "create") {
+      setTitle(initialValues?.title ?? "");
+      setDescription(initialValues?.description ?? "");
+      setType(initialValues?.type ?? "");
+      setPriority(initialValues?.priority ?? ResearchPriority.MEDIUM);
+      setDecision(initialValues?.decision ?? ResearchDecision.PENDING);
+      setAssigneeId(initialValues?.assigneeId ?? "");
+      setDueDate(initialValues?.dueDate ?? "");
+      setAttachments(initialValues?.attachments ?? []);
+      setAttachmentError("");
     }
   }, [initialValues, mode, open]);
 
@@ -103,6 +126,7 @@ export default function ResearchItemDrawer({
     event.preventDefault();
     setIsSubmitting(true);
     setError("");
+    setAttachmentError("");
 
     try {
       const body = {
@@ -113,6 +137,7 @@ export default function ResearchItemDrawer({
         type: type || null,
         assigneeId: assigneeId || null,
         dueDate: dueDate || null,
+        attachmentIds: attachments.map((file) => file.id),
         ...(isEdit ? { status } : {}),
       };
 
@@ -142,6 +167,53 @@ export default function ResearchItemDrawer({
       setError("An unexpected error occurred while saving the research item.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleAttachmentsUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setAttachmentError("");
+    setIsUploading(true);
+
+    try {
+      const formData = new FormData();
+      Array.from(files).forEach((file) => formData.append("files", file));
+      formData.append("projectId", projectId);
+
+      if (isEdit && researchItemId) {
+        formData.append("researchItemId", researchItemId);
+      }
+
+      const response = await fetch("/api/uploads", { method: "POST", body: formData });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setAttachmentError(data?.message ?? "Unable to upload attachments.");
+        return;
+      }
+
+      const data = await response.json();
+      setAttachments((prev) => [...prev, ...(data.attachments ?? [])]);
+    } catch (err) {
+      setAttachmentError("An unexpected error occurred while uploading attachments.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleRemoveAttachment = async (attachmentId: string) => {
+    try {
+      const response = await fetch(`/api/attachments/${attachmentId}`, { method: "DELETE" });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setAttachmentError(data?.message ?? "Unable to delete attachment.");
+        return;
+      }
+
+      setAttachments((prev) => prev.filter((file) => file.id !== attachmentId));
+    } catch (err) {
+      setAttachmentError("An unexpected error occurred while deleting the attachment.");
     }
   };
 
@@ -189,6 +261,52 @@ export default function ResearchItemDrawer({
                 disabled={isReadOnly}
                 className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
               />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-gray-700">Attachments</label>
+                <input
+                  type="file"
+                  multiple
+                  disabled={isReadOnly || isUploading}
+                  onChange={(event) => handleAttachmentsUpload(event.target.files)}
+                  className="text-xs"
+                />
+              </div>
+              {attachments.length > 0 ? (
+                <ul className="space-y-1 text-sm">
+                  {attachments.map((file) => (
+                    <li
+                      key={file.id}
+                      className="flex items-center justify-between rounded-md border border-gray-200 px-2 py-1 text-gray-800"
+                    >
+                      <a
+                        href={file.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="truncate font-medium text-blue-600 hover:underline"
+                      >
+                        {file.fileName}
+                      </a>
+                      {!isReadOnly && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveAttachment(file.id)}
+                          className="text-xs font-semibold text-red-500 hover:text-red-600"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-gray-500">No attachments</p>
+              )}
+              {attachmentError && (
+                <p className="text-xs text-red-600">{attachmentError}</p>
+              )}
             </div>
 
             <div className="flex flex-col gap-2">

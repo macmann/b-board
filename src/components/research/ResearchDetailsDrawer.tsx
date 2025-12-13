@@ -16,6 +16,12 @@ type ResearchObservation = {
   createdAt: string;
 };
 
+type Attachment = {
+  id: string;
+  fileName: string;
+  url: string;
+};
+
 type ResearchIssueLink = {
   id: string;
   issueId: string;
@@ -40,6 +46,7 @@ type ResearchDetail = {
   priority: ResearchPriority;
   decision: ResearchDecision;
   tags: string[];
+  attachments: Attachment[];
 };
 
 type ResearchDetailsDrawerProps = {
@@ -256,6 +263,25 @@ export default function ResearchDetailsDrawer({
     }
   };
 
+  const handleAttachmentDelete = async (attachmentId: string) => {
+    setActionMessage("");
+
+    try {
+      const response = await fetch(`/api/attachments/${attachmentId}`, { method: "DELETE" });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setActionMessage(data?.message ?? "Unable to delete attachment.");
+        return;
+      }
+
+      await loadDetail();
+      await onUpdated?.();
+    } catch (err) {
+      setActionMessage("An unexpected error occurred while deleting the attachment.");
+    }
+  };
+
   const formatTag = (tag: string) => tag.replace(/_/g, " ");
 
   const availableIssues = useMemo(() => {
@@ -282,6 +308,7 @@ export default function ResearchDetailsDrawer({
         decision: detail.decision,
         assigneeId: detail.assigneeId,
         dueDate: detail.dueDate?.slice(0, 10) ?? null,
+        attachments: detail.attachments,
       }
     : undefined;
 
@@ -441,6 +468,43 @@ export default function ResearchDetailsDrawer({
                   <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
                     {detail.description || "No description provided."}
                   </p>
+                </div>
+
+                <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-base font-semibold text-slate-900">Attachments</h3>
+                    <span className="text-xs text-slate-500">{detail.attachments.length} files</span>
+                  </div>
+                  {detail.attachments.length === 0 ? (
+                    <p className="mt-2 text-sm text-slate-600">No attachments yet.</p>
+                  ) : (
+                    <ul className="mt-3 space-y-2 text-sm">
+                      {detail.attachments.map((attachment) => (
+                        <li
+                          key={attachment.id}
+                          className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-slate-800"
+                        >
+                          <a
+                            href={attachment.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="truncate font-medium text-blue-600 hover:underline"
+                          >
+                            {attachment.fileName}
+                          </a>
+                          {!isReadOnly && (
+                            <button
+                              type="button"
+                              className="text-xs font-semibold text-red-500 hover:text-red-600"
+                              onClick={() => handleAttachmentDelete(attachment.id)}
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
 
                 <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">

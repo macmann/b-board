@@ -6,7 +6,7 @@ import type {
 } from "@prisma/client";
 import { StandupSummary } from "@prisma/client";
 
-import openai from "@/lib/openai";
+import openai from "./openai";
 import prisma from "./db";
 import { sendEmail } from "./email";
 import { PROJECT_ADMIN_ROLES } from "./roles";
