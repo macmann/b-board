@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import Button from "../ui/Button";
 import ThemeToggle from "../theme/ThemeToggle";
+import Logo from "../branding/Logo";
 
 type AppShellProps = {
   children: ReactNode;
@@ -56,14 +57,13 @@ export default function AppShell({
   return (
     <div className="flex min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-50">
       <aside className="flex w-64 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
-        <div className="flex items-center gap-3 border-b border-slate-200 px-5 py-5 dark:border-slate-800">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-white">
-            BB
-          </div>
-          <div className="flex flex-col">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">B Board</span>
-            <span className="text-sm font-semibold text-slate-900 dark:text-slate-50">Workspace</span>
-          </div>
+        <div className="border-b border-slate-200 px-5 py-5 dark:border-slate-800">
+          <Logo
+            subtitle="Workspace"
+            textClassName="gap-0.5"
+            titleClassName="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400"
+            subtitleClassName="text-sm font-semibold text-slate-900 dark:text-slate-50"
+          />
         </div>
 
         <nav className="mt-4 space-y-1 px-3">

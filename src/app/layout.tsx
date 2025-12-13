@@ -6,6 +6,11 @@ import AppThemeProvider from "@/components/theme/ThemeProvider";
 export const metadata: Metadata = {
   title: "B Board",
   description: "Lightweight agile board and backlog manager.",
+  icons: {
+    icon: "/logo.svg",
+    shortcut: "/logo.svg",
+    apple: "/logo.svg",
+  },
 };
 
 import "./globals.css";
