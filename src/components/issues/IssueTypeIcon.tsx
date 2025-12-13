@@ -1,6 +1,6 @@
 import { IssueType } from "@/lib/prismaEnums";
 
-const TYPE_METADATA: Record<IssueType, { icon: string; label: string }> = {
+export const ISSUE_TYPE_METADATA: Record<IssueType, { icon: string; label: string }> = {
   [IssueType.STORY]: { icon: "📘", label: "Story" },
   [IssueType.BUG]: { icon: "🐛", label: "Bug" },
   [IssueType.TASK]: { icon: "🛠️", label: "Task" },
@@ -12,7 +12,7 @@ type IssueTypeIconProps = {
 };
 
 export default function IssueTypeIcon({ type, showLabel = false }: IssueTypeIconProps) {
-  const { icon, label } = TYPE_METADATA[type];
+  const { icon, label } = ISSUE_TYPE_METADATA[type];
 
   return (
     <span className="inline-flex items-center gap-1">
