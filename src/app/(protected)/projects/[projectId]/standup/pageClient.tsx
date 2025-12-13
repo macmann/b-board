@@ -783,247 +783,253 @@ export default function StandupPageClient({
               />
             ) : (
               <>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-6">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-                          Progress since yesterday
-                        </label>
-                        {currentEntry?.isComplete && (
-                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-100">
-                            Complete
-                          </span>
-                        )}
-                      </div>
-                      <textarea
-                        value={formState.progressSinceYesterday}
-                        onChange={(event) =>
-                          setFormState((prev) => ({
-                            ...prev,
-                            progressSinceYesterday: event.target.value,
-                          }))
-                        }
-                        placeholder="Yesterday I finished..."
-                        rows={4}
-                        className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+                  <div className="h-full flex flex-col">
+                    <div className="flex items-center justify-between">
                       <label className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-                        Today's plan
+                        Progress since yesterday
                       </label>
-                      <textarea
-                        value={formState.summaryToday}
-                        onChange={(event) =>
-                          setFormState((prev) => ({
-                            ...prev,
-                            summaryToday: event.target.value,
-                          }))
-                        }
-                        placeholder="Today I'll..."
-                        rows={4}
-                        className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
-                      />
-                      {!computedCompletion && (
-                        <p className="text-xs text-amber-600 dark:text-amber-300">
-                          Add a plan for today and at least one linked issue to mark this entry complete.
-                        </p>
+                      {currentEntry?.isComplete && (
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-100">
+                          Complete
+                        </span>
                       )}
                     </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-                        Blockers
-                      </label>
-                      <textarea
-                        value={formState.blockers}
-                        onChange={(event) =>
-                          setFormState((prev) => ({
-                            ...prev,
-                            blockers: event.target.value,
-                          }))
-                        }
-                        placeholder="Any blockers to call out?"
-                        rows={3}
-                        className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
-                      />
-                    </div>
+                    <textarea
+                      value={formState.progressSinceYesterday}
+                      onChange={(event) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          progressSinceYesterday: event.target.value,
+                        }))
+                      }
+                      placeholder="Yesterday I finished..."
+                      rows={4}
+                      className="mt-2 flex-1 min-h-[140px] h-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
+                    />
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 min-h-[16px]">&nbsp;</p>
                   </div>
 
-                  <div className="space-y-6">
-                    <div className="space-y-2">
+                  <div className="h-full flex flex-col">
+                    <label className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+                      Dependencies
+                    </label>
+                    <textarea
+                      value={formState.dependencies}
+                      onChange={(event) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          dependencies: event.target.value,
+                        }))
+                      }
+                      placeholder="Any dependencies to track?"
+                      rows={3}
+                      className="mt-2 flex-1 min-h-[140px] h-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
+                    />
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 min-h-[16px]">&nbsp;</p>
+                  </div>
+
+                  <div className="h-full flex flex-col">
+                    <label className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+                      Today's plan
+                    </label>
+                    <textarea
+                      value={formState.summaryToday}
+                      onChange={(event) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          summaryToday: event.target.value,
+                        }))
+                      }
+                      placeholder="Today I'll..."
+                      rows={4}
+                      className="mt-2 flex-1 min-h-[140px] h-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
+                    />
+                    <p
+                      className={`mt-2 min-h-[16px] text-xs ${
+                        !computedCompletion
+                          ? "text-amber-600 dark:text-amber-300"
+                          : "text-slate-500 dark:text-slate-400"
+                      }`}
+                    >
+                      {!computedCompletion
+                        ? "Add a plan for today and at least one linked issue to mark this entry complete."
+                        : ""}
+                    </p>
+                  </div>
+
+                  <div className="h-full flex flex-col">
+                    <label className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+                      Notes
+                    </label>
+                    <textarea
+                      value={formState.notes}
+                      onChange={(event) =>
+                        setFormState((prev) => ({ ...prev, notes: event.target.value }))
+                      }
+                      placeholder="Anything else to capture?"
+                      rows={3}
+                      className="mt-2 flex-1 min-h-[140px] h-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
+                    />
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 min-h-[16px]">&nbsp;</p>
+                  </div>
+
+                  <div className="h-full flex flex-col">
+                    <label className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+                      Blockers
+                    </label>
+                    <textarea
+                      value={formState.blockers}
+                      onChange={(event) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          blockers: event.target.value,
+                        }))
+                      }
+                      placeholder="Any blockers to call out?"
+                      rows={3}
+                      className="mt-2 flex-1 min-h-[140px] h-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
+                    />
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 min-h-[16px]">&nbsp;</p>
+                  </div>
+
+                  <div className="h-full space-y-2">
+                    <div className="flex items-center justify-between">
                       <label className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-                        Dependencies
+                        Linked issues
                       </label>
-                      <textarea
-                        value={formState.dependencies}
-                        onChange={(event) =>
-                          setFormState((prev) => ({
-                            ...prev,
-                            dependencies: event.target.value,
-                          }))
-                        }
-                        placeholder="Any dependencies to track?"
-                        rows={3}
-                        className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
-                      />
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                        Uses project issue search
+                      </span>
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-                        Notes
-                      </label>
-                      <textarea
-                        value={formState.notes}
-                        onChange={(event) =>
-                          setFormState((prev) => ({ ...prev, notes: event.target.value }))
-                        }
-                        placeholder="Anything else to capture?"
-                        rows={3}
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={issueQuery}
+                        onChange={(event) => setIssueQuery(event.target.value)}
+                        placeholder="Search issues by key or title"
                         className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
                       />
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-                          Linked issues
-                        </label>
-                        <span className="text-xs text-slate-500 dark:text-slate-400">
-                          Uses project issue search
-                        </span>
-                      </div>
-
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={issueQuery}
-                          onChange={(event) => setIssueQuery(event.target.value)}
-                          placeholder="Search issues by key or title"
-                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
-                        />
-                        {issueQuery && issueOptions.length > 0 && (
-                          <div className="absolute z-10 mt-2 w-full rounded-md border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
-                            {issueOptions.map((issue) => (
-                              <button
-                                key={issue.id}
-                                type="button"
-                                className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-700"
-                                onClick={() => handleIssueAdd(issue)}
-                              >
-                                <span className="min-w-[70px] text-xs font-semibold text-slate-500 dark:text-slate-300">
-                                  {issue.key ?? "ISSUE"}
-                                </span>
-                                <span>{issue.title}</span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                        {issueSearchError && (
-                          <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">
-                            {issueSearchError}
-                          </p>
-                        )}
-                      </div>
-
-                      {selectedIssues.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {selectedIssues.map((issue) => (
-                            <span
+                      {issueQuery && issueOptions.length > 0 && (
+                        <div className="absolute z-10 mt-2 w-full rounded-md border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
+                          {issueOptions.map((issue) => (
+                            <button
                               key={issue.id}
-                              className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-200"
+                              type="button"
+                              className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-700"
+                              onClick={() => handleIssueAdd(issue)}
                             >
-                              <Link
-                                href={`/issues/${issue.id}`}
-                                className="hover:underline"
-                              >
-                                {issue.key ? `${issue.key}: ${issue.title}` : issue.title}
-                              </Link>
-                              <button
-                                type="button"
-                                onClick={() => handleIssueRemove(issue.id)}
-                                className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                                aria-label="Remove issue"
-                              >
-                                ×
-                              </button>
-                            </span>
+                              <span className="min-w-[70px] text-xs font-semibold text-slate-500 dark:text-slate-300">
+                                {issue.key ?? "ISSUE"}
+                              </span>
+                              <span>{issue.title}</span>
+                            </button>
                           ))}
                         </div>
-                      ) : (
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                          Link at least one issue or research item to complete your standup.
+                      )}
+                      {issueSearchError && (
+                        <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">
+                          {issueSearchError}
                         </p>
                       )}
                     </div>
 
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-                          Linked research
-                        </label>
-                        <span className="text-xs text-slate-500 dark:text-slate-400">
-                          Requires research board access
-                        </span>
+                    {selectedIssues.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {selectedIssues.map((issue) => (
+                          <span
+                            key={issue.id}
+                            className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-200"
+                          >
+                            <Link
+                              href={`/issues/${issue.id}`}
+                              className="hover:underline"
+                            >
+                              {issue.key ? `${issue.key}: ${issue.title}` : issue.title}
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={() => handleIssueRemove(issue.id)}
+                              className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                              aria-label="Remove issue"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
                       </div>
+                    ) : (
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Link at least one issue or research item to complete your standup.
+                      </p>
+                    )}
+                  </div>
 
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={researchQuery}
-                          onChange={(event) => setResearchQuery(event.target.value)}
-                          placeholder="Search research by key or title"
-                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
-                        />
-                        {researchQuery && researchOptions.length > 0 && (
-                          <div className="absolute z-10 mt-2 w-full rounded-md border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
-                            {researchOptions.map((item) => (
-                              <button
-                                key={item.id}
-                                type="button"
-                                className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-700"
-                                onClick={() => handleResearchAdd(item)}
-                              >
-                                <span className="min-w-[70px] text-xs font-semibold text-slate-500 dark:text-slate-300">
-                                  {item.key ?? "RESEARCH"}
-                                </span>
-                                <span>{item.title}</span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                        {researchSearchError && (
-                          <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">{researchSearchError}</p>
-                        )}
-                      </div>
+                  <div className="h-full space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+                        Linked research
+                      </label>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                        Requires research board access
+                      </span>
+                    </div>
 
-                      {selectedResearch.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {selectedResearch.map((item) => (
-                            <span
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={researchQuery}
+                        onChange={(event) => setResearchQuery(event.target.value)}
+                        placeholder="Search research by key or title"
+                        className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
+                      />
+                      {researchQuery && researchOptions.length > 0 && (
+                        <div className="absolute z-10 mt-2 w-full rounded-md border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
+                          {researchOptions.map((item) => (
+                            <button
                               key={item.id}
-                              className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200"
+                              type="button"
+                              className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-700"
+                              onClick={() => handleResearchAdd(item)}
                             >
-                              <span>{item.key ? `${item.key}: ${item.title}` : item.title}</span>
-                              <button
-                                type="button"
-                                onClick={() => handleResearchRemove(item.id)}
-                                className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                                aria-label="Remove research item"
-                              >
-                                ×
-                              </button>
-                            </span>
+                              <span className="min-w-[70px] text-xs font-semibold text-slate-500 dark:text-slate-300">
+                                {item.key ?? "RESEARCH"}
+                              </span>
+                              <span>{item.title}</span>
+                            </button>
                           ))}
                         </div>
-                      ) : (
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                          Link research to capture ongoing discovery alongside delivery work.
-                        </p>
+                      )}
+                      {researchSearchError && (
+                        <p className="mt-1 text-xs text-rose-600 dark:text-rose-300">{researchSearchError}</p>
                       )}
                     </div>
+
+                    {selectedResearch.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {selectedResearch.map((item) => (
+                          <span
+                            key={item.id}
+                            className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200"
+                          >
+                            <span>{item.key ? `${item.key}: ${item.title}` : item.title}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleResearchRemove(item.id)}
+                              className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                              aria-label="Remove research item"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Link research to capture ongoing discovery alongside delivery work.
+                      </p>
+                    )}
                   </div>
                 </div>
 
