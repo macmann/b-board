@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import ProjectTeamSettings from "@/components/projects/ProjectTeamSettings";
 import ProjectStandupSettings from "@/components/projects/ProjectStandupSettings";
+import ProjectEmailSettings from "@/components/projects/ProjectEmailSettings";
 import Button from "@/components/ui/Button";
 import { Role } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
@@ -280,6 +281,8 @@ export default function ProjectSettingsPageClient({
           </p>
         </section>
       )}
+
+      <ProjectEmailSettings projectId={project.id} projectRole={projectRole} />
 
       <ProjectStandupSettings projectId={project.id} projectRole={projectRole} />
 
