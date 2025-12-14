@@ -65,6 +65,22 @@ type Attachment = {
   createdAt: string;
 };
 
+type AISuggestion = {
+  id: string;
+  targetId: string;
+  suggestionType: string;
+  title: string;
+  rationaleBullets?: string[] | null;
+  confidence?: number | null;
+  payload: {
+    recommendedTitle?: string;
+    recommendedDescription?: string;
+    recommendedAcceptanceCriteria?: string[];
+    notes?: string[];
+  };
+  status?: string;
+};
+
 type SprintSummary = {
   id: string;
   name: string;
@@ -99,6 +115,20 @@ export default function IssueDetailsPageClient({
   const [commentAttachments, setCommentAttachments] = useState<Attachment[]>([]);
   const [isUploadingIssueFiles, setIsUploadingIssueFiles] = useState(false);
   const [isUploadingCommentFiles, setIsUploadingCommentFiles] = useState(false);
+  const [suggestions, setSuggestions] = useState<AISuggestion[]>([]);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(true);
+  const [suggestionError, setSuggestionError] = useState("");
+  const [decisionLoadingId, setDecisionLoadingId] = useState<string | null>(null);
+  const [applyModalSuggestion, setApplyModalSuggestion] = useState<
+    AISuggestion | null
+  >(null);
+  const [applySelection, setApplySelection] = useState({
+    title: true,
+    description: true,
+    criteria: true,
+  });
+  const [isApplying, setIsApplying] = useState(false);
+  const [applyError, setApplyError] = useState("");
 
   const [title, setTitle] = useState("");
   const [type, setType] = useState<IssueType>(IssueType.STORY);
@@ -189,6 +219,8 @@ export default function IssueDetailsPageClient({
         ? "bg-primary text-white shadow-sm"
         : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
     }`;
+  const hasApplySelection =
+    applySelection.title || applySelection.description || applySelection.criteria;
 
   const fetchAssignees = useCallback(
     async (projectId: string) => {
@@ -272,6 +304,37 @@ export default function IssueDetailsPageClient({
     }
   };
 
+  const fetchSuggestions = useCallback(
+    async (projectId: string) => {
+      setIsLoadingSuggestions(true);
+      setSuggestionError("");
+
+      try {
+        const response = await fetch(
+          `/api/projects/${projectId}/ai-suggestions?targetId=${issueId}&excludeSnoozed=true`
+        );
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => null);
+          setSuggestionError(
+            data?.message ?? "Failed to load AI suggestions for this issue."
+          );
+          return;
+        }
+
+        const data = (await response.json()) as AISuggestion[];
+        setSuggestions(data ?? []);
+      } catch (err) {
+        setSuggestionError(
+          "An unexpected error occurred while loading AI suggestions."
+        );
+      } finally {
+        setIsLoadingSuggestions(false);
+      }
+    },
+    [issueId]
+  );
+
   const uploadAttachments = async (files: FileList, target: "issue" | "comment") => {
     if (!files.length) return;
     setError("");
@@ -335,6 +398,11 @@ export default function IssueDetailsPageClient({
     fetchIssue();
     fetchComments();
   }, [issueId]);
+
+  useEffect(() => {
+    if (!issue?.project?.id) return;
+    void fetchSuggestions(issue.project.id);
+  }, [fetchSuggestions, issue?.project?.id]);
 
   const handleUpdate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -449,28 +517,112 @@ export default function IssueDetailsPageClient({
     }
   };
 
-  return (
-    <main className="min-h-screen bg-slate-50 px-4 py-10 dark:bg-slate-950">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <header className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Issue</p>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">
-            {issue?.title || title || "Untitled issue"}
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">{issueKey} · {projectKey}</p>
-        </header>
+  const handleDecision = async (
+    suggestionId: string,
+    action: "ACCEPT" | "REJECT" | "SNOOZE",
+    snoozeDays?: number
+  ) => {
+    if (!issue?.project?.id) return;
+    setDecisionLoadingId(suggestionId);
+    setSuggestionError("");
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
-          {isLoading ? (
-            <p className="text-sm text-slate-700 dark:text-slate-200">Loading issue...</p>
-          ) : error && !issue ? (
-            <p className="text-sm text-red-500">{error}</p>
-          ) : issue ? (
-            <>
-              <form
-                onSubmit={handleUpdate}
-                className="grid gap-6 md:grid-cols-[minmax(0,7fr)_minmax(280px,3fr)]"
-              >
+    try {
+      const response = await fetch(
+        `/api/projects/${issue.project.id}/ai-suggestions/${suggestionId}/decision`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, snoozeDays }),
+        }
+      );
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setSuggestionError(data?.message ?? "Failed to update suggestion.");
+        return;
+      }
+
+      void fetchSuggestions(issue.project.id);
+    } catch (err) {
+      setSuggestionError("An unexpected error occurred while updating the suggestion.");
+    } finally {
+      setDecisionLoadingId(null);
+    }
+  };
+
+  const openApplyModal = (suggestion: AISuggestion) => {
+    const {
+      recommendedTitle,
+      recommendedDescription,
+      recommendedAcceptanceCriteria,
+    } = suggestion.payload ?? {};
+    setApplySelection({
+      title: Boolean(recommendedTitle),
+      description: Boolean(recommendedDescription),
+      criteria: (recommendedAcceptanceCriteria?.length ?? 0) > 0,
+    });
+    setApplyError("");
+    setApplyModalSuggestion(suggestion);
+  };
+
+  const handleApplyEdits = async () => {
+    if (!issue?.project?.id || !applyModalSuggestion) return;
+    setIsApplying(true);
+    setApplyError("");
+
+    try {
+      const response = await fetch(
+        `/api/projects/${issue.project.id}/ai-suggestions/${applyModalSuggestion.id}/apply`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            applyTitle: applySelection.title,
+            applyDescription: applySelection.description,
+            applyAcceptanceCriteria: applySelection.criteria,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setApplyError(data?.message ?? "Failed to apply edits.");
+        return;
+      }
+
+      await fetchIssue();
+      void fetchSuggestions(issue.project.id);
+      setApplyModalSuggestion(null);
+    } catch (err) {
+      setApplyError("An unexpected error occurred while applying edits.");
+    } finally {
+      setIsApplying(false);
+    }
+  };
+
+  return (
+    <>
+      <main className="min-h-screen bg-slate-50 px-4 py-10 dark:bg-slate-950">
+        <div className="mx-auto max-w-6xl space-y-6">
+          <header className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Issue</p>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">
+              {issue?.title || title || "Untitled issue"}
+            </h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">{issueKey} · {projectKey}</p>
+          </header>
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
+            {isLoading ? (
+              <p className="text-sm text-slate-700 dark:text-slate-200">Loading issue...</p>
+            ) : error && !issue ? (
+              <p className="text-sm text-red-500">{error}</p>
+            ) : issue ? (
+              <>
+                <form
+                  onSubmit={handleUpdate}
+                  className="grid gap-6 md:grid-cols-[minmax(0,7fr)_minmax(280px,3fr)]"
+                >
                 <div className="space-y-6">
                   <div className="rounded-2xl border border-slate-200 bg-white/60 p-6 shadow-inner dark:border-slate-800 dark:bg-slate-900">
                     <div className="space-y-2">
@@ -610,6 +762,156 @@ export default function IssueDetailsPageClient({
                 </div>
 
                 <div className="space-y-5">
+                  <div className="rounded-2xl border border-slate-200 bg-white/70 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          AI Suggestions
+                        </p>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">
+                          AI draft insights for this issue. Review before applying.
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase text-slate-700 shadow-inner dark:bg-slate-800 dark:text-slate-200">
+                        AI draft
+                      </span>
+                    </div>
+
+                    <div className="mt-3 space-y-3">
+                      {isLoadingSuggestions ? (
+                        <p className="text-sm text-slate-600 dark:text-slate-300">Loading suggestions...</p>
+                      ) : suggestionError ? (
+                        <p className="text-sm text-red-500">{suggestionError}</p>
+                      ) : suggestions.length === 0 ? (
+                        <p className="text-sm text-slate-600 dark:text-slate-300">
+                          No AI drafts yet. Trigger backlog grooming to see ideas here.
+                        </p>
+                      ) : (
+                        suggestions.map((suggestion) => (
+                          <div
+                            key={suggestion.id}
+                            className="rounded-xl border border-slate-200 bg-white/70 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold uppercase text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                                    {suggestion.suggestionType}
+                                  </span>
+                                  {typeof suggestion.confidence === "number" && (
+                                    <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                                      {Math.round(suggestion.confidence * 100)}% confidence
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-base font-semibold text-slate-900 dark:text-slate-50">
+                                  {suggestion.title}
+                                </p>
+                              </div>
+
+                              <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDecision(suggestion.id, "ACCEPT")}
+                                  disabled={decisionLoadingId === suggestion.id}
+                                  className="rounded-full bg-emerald-500 px-3 py-1 text-white shadow-sm transition hover:bg-emerald-600 disabled:opacity-60"
+                                >
+                                  {decisionLoadingId === suggestion.id ? "Saving..." : "Accept"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDecision(suggestion.id, "REJECT")}
+                                  disabled={decisionLoadingId === suggestion.id}
+                                  className="rounded-full border border-slate-300 px-3 py-1 text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
+                                >
+                                  Reject
+                                </button>
+                                {[7, 14, 30].map((days) => (
+                                  <button
+                                    key={days}
+                                    type="button"
+                                    onClick={() => handleDecision(suggestion.id, "SNOOZE", days)}
+                                    disabled={decisionLoadingId === suggestion.id}
+                                    className="rounded-full border border-amber-200 px-3 py-1 text-amber-700 transition hover:bg-amber-50 disabled:opacity-60 dark:border-amber-700 dark:text-amber-100 dark:hover:bg-amber-900/30"
+                                  >
+                                    Snooze {days}d
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="mt-3 space-y-2 text-sm text-slate-700 dark:text-slate-200">
+                              {(suggestion.rationaleBullets?.length ?? 0) > 0 && (
+                                <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700 dark:text-slate-200">
+                                  {suggestion.rationaleBullets?.map((item) => (
+                                    <li key={item}>{item}</li>
+                                  ))}
+                                </ul>
+                              )}
+
+                              {suggestion.payload?.notes?.length ? (
+                                <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700 dark:text-slate-200">
+                                  {suggestion.payload.notes.map((note) => (
+                                    <li key={note}>{note}</li>
+                                  ))}
+                                </ul>
+                              ) : null}
+
+                              {suggestion.suggestionType === "IMPROVE_TEXT" && (
+                                <div className="space-y-3 rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800/70">
+                                  {suggestion.payload?.recommendedTitle && (
+                                    <div>
+                                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                        Proposed Title
+                                      </p>
+                                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                                        {suggestion.payload.recommendedTitle}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {suggestion.payload?.recommendedDescription && (
+                                    <div>
+                                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                        Proposed Description
+                                      </p>
+                                      <div className="rounded-md border border-slate-200 bg-white p-2 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                          {suggestion.payload.recommendedDescription}
+                                        </ReactMarkdown>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {suggestion.payload?.recommendedAcceptanceCriteria?.length ? (
+                                    <div>
+                                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                        Proposed Acceptance Criteria
+                                      </p>
+                                      <ul className="mt-1 list-disc space-y-1 pl-5 text-slate-800 dark:text-slate-100">
+                                        {suggestion.payload.recommendedAcceptanceCriteria.map((criteria) => (
+                                          <li key={criteria}>{criteria}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  ) : null}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => openApplyModal(suggestion)}
+                                    className="inline-flex items-center rounded-full bg-primary px-3 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90"
+                                  >
+                                    Apply edits
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
                   <div className="rounded-2xl border border-slate-200 bg-white/70 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       Status & Workflow
@@ -940,5 +1242,120 @@ export default function IssueDetailsPageClient({
         </section>
       </div>
     </main>
+
+      {applyModalSuggestion && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Apply AI edits
+                </p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  {applyModalSuggestion.title}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setApplyModalSuggestion(null)}
+                className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-2 text-sm text-slate-700 dark:text-slate-200">
+              <label className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 text-sm dark:border-slate-700 dark:bg-slate-800">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                  checked={applySelection.title}
+                  onChange={(event) =>
+                    setApplySelection((prev) => ({ ...prev, title: event.target.checked }))
+                  }
+                  disabled={!applyModalSuggestion.payload?.recommendedTitle}
+                />
+                <div>
+                  <p className="font-semibold">Title</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {applyModalSuggestion.payload?.recommendedTitle ?? "No AI title provided."}
+                  </p>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 text-sm dark:border-slate-700 dark:bg-slate-800">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                  checked={applySelection.description}
+                  onChange={(event) =>
+                    setApplySelection((prev) => ({ ...prev, description: event.target.checked }))
+                  }
+                  disabled={!applyModalSuggestion.payload?.recommendedDescription}
+                />
+                <div className="space-y-1">
+                  <p className="font-semibold">Description</p>
+                  {applyModalSuggestion.payload?.recommendedDescription ? (
+                    <div className="rounded-md border border-slate-200 bg-white p-2 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {applyModalSuggestion.payload.recommendedDescription}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500 dark:text-slate-400">No AI description provided.</p>
+                  )}
+                </div>
+              </label>
+
+              <label className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 text-sm dark:border-slate-700 dark:bg-slate-800">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                  checked={applySelection.criteria}
+                  onChange={(event) =>
+                    setApplySelection((prev) => ({ ...prev, criteria: event.target.checked }))
+                  }
+                  disabled={
+                    !(applyModalSuggestion.payload?.recommendedAcceptanceCriteria?.length)
+                  }
+                />
+                <div className="space-y-1">
+                  <p className="font-semibold">Acceptance Criteria</p>
+                  {applyModalSuggestion.payload?.recommendedAcceptanceCriteria?.length ? (
+                    <ul className="list-disc space-y-1 pl-5 text-xs text-slate-700 dark:text-slate-200">
+                      {applyModalSuggestion.payload.recommendedAcceptanceCriteria.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-slate-500 dark:text-slate-400">No AI criteria provided.</p>
+                  )}
+                </div>
+              </label>
+
+              {applyError && <p className="text-sm text-red-500">{applyError}</p>}
+            </div>
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setApplyModalSuggestion(null)}
+                className="rounded-full border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleApplyEdits}
+                disabled={isApplying || !hasApplySelection}
+                className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
+              >
+                {isApplying ? "Applying..." : "Apply selected edits"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

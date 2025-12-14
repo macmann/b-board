@@ -48,6 +48,21 @@ type BacklogResponse = {
   canEdit?: boolean;
 };
 
+type AISuggestion = {
+  id: string;
+  targetId: string;
+  title: string;
+  suggestionType: string;
+  rationaleBullets?: string[] | null;
+  confidence?: number | null;
+  payload: Record<string, unknown>;
+};
+
+type SuggestionGroup = {
+  targetId: string;
+  suggestions: AISuggestion[];
+};
+
 type BacklogPageClientProps = {
   projectId: string;
   projectRole: ProjectRole | null;
@@ -83,6 +98,13 @@ export default function BacklogPageClient({
   const [isLoading, setIsLoading] = useState(initialBacklogGroups.length === 0);
   const [error, setError] = useState("");
   const [hasAccess, setHasAccess] = useState(true);
+  const [aiOnly, setAiOnly] = useState(false);
+  const [suggestionGroups, setSuggestionGroups] = useState<SuggestionGroup[]>(
+    []
+  );
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const [suggestionError, setSuggestionError] = useState("");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [activeSegment, setActiveSegment] = useState<"product" | "research">(
     initialSegment
   );
@@ -140,6 +162,30 @@ export default function BacklogPageClient({
   );
 
   const projectIssues = useMemo(() => allIssues, [allIssues]);
+
+  const suggestionIssueMap = useMemo(() => {
+    return backlogGroups.reduce((acc, group) => {
+      group.issues.forEach((issue) => {
+        acc.set(issue.id, issue);
+      });
+      return acc;
+    }, new Map<string, BacklogIssue>());
+  }, [backlogGroups]);
+
+  const filteredBacklogGroups = useMemo(() => {
+    if (!aiOnly) return backlogGroups;
+
+    const suggestedIds = new Set(
+      suggestionGroups.map((group) => group.targetId)
+    );
+
+    return backlogGroups
+      .map((group) => ({
+        ...group,
+        issues: group.issues.filter((issue) => suggestedIds.has(issue.id)),
+      }))
+      .filter((group) => group.issues.length > 0);
+  }, [aiOnly, backlogGroups, suggestionGroups]);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -205,6 +251,66 @@ export default function BacklogPageClient({
     if (!projectId) return;
     fetchBacklogGroups();
   }, [fetchBacklogGroups, projectId]);
+
+  const fetchSuggestions = useCallback(async () => {
+    setIsLoadingSuggestions(true);
+    setSuggestionError("");
+
+    try {
+      const response = await fetch(
+        `/api/projects/${projectId}/ai-suggestions?status=PROPOSED&excludeSnoozed=true`
+      );
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setSuggestionError(
+          data?.message ?? "Failed to load AI grooming suggestions."
+        );
+        return;
+      }
+
+      const data = (await response.json()) as SuggestionGroup[];
+      setSuggestionGroups(data ?? []);
+    } catch (err) {
+      setSuggestionError("An unexpected error occurred while loading AI drafts.");
+    } finally {
+      setIsLoadingSuggestions(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    fetchSuggestions();
+  }, [fetchSuggestions, projectId]);
+
+  const handleAnalyze = useCallback(async () => {
+    setIsAnalyzing(true);
+    setToastMessage("");
+
+    try {
+      const response = await fetch(
+        `/api/projects/${projectId}/ai/backlog-grooming/analyze`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ limit: 30 }),
+        }
+      );
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setToastMessage(data?.message ?? "Failed to start grooming run.");
+        return;
+      }
+
+      setToastMessage("AI grooming run started. Suggestions will appear shortly.");
+      void fetchSuggestions();
+    } catch (err) {
+      setToastMessage("An unexpected error occurred while starting grooming.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }, [fetchSuggestions, projectId]);
 
   const fetchResearchItems = useCallback(async () => {
     setIsResearchLoading(true);
@@ -512,25 +618,131 @@ export default function BacklogPageClient({
         </div>
       )}
 
-      {activeSegment === "product" ? (
-        isLoading ? (
-          <div className="rounded-xl border border-slate-200 bg-white px-6 py-4 text-sm text-slate-600 shadow-sm">
-            Loading backlog...
-          </div>
-        ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <div className="space-y-6">
-              {backlogGroups.map((group) => {
-                return <BacklogGroupSection key={group.id} group={group} />;
-              })}
+      {activeSegment === "product" && (
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                  Grooming Inbox
+                </p>
+                <p className="text-sm text-slate-600 dark:text-slate-300">
+                  AI drafts are grouped by issue. Review before applying.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                  <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold uppercase text-slate-700 shadow-inner dark:bg-slate-800 dark:text-slate-200">
+                    AI
+                  </span>
+                  <span>Only</span>
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                    checked={aiOnly}
+                    onChange={(event) => setAiOnly(event.target.checked)}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={handleAnalyze}
+                  disabled={isAnalyzing}
+                  className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
+                >
+                  {isAnalyzing ? "Starting..." : "AI Groom backlog"}
+                </button>
+              </div>
             </div>
-          </DndContext>
-        )
-      ) : (
+
+            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-3 text-sm dark:border-slate-800 dark:bg-slate-900/60">
+              {isLoadingSuggestions ? (
+                <p className="text-slate-600 dark:text-slate-300">Loading AI drafts...</p>
+              ) : suggestionError ? (
+                <p className="text-red-500">{suggestionError}</p>
+              ) : suggestionGroups.length === 0 ? (
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200">No AI drafts yet.</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Run grooming to generate suggestions.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {suggestionGroups.map((group) => {
+                    const issue = suggestionIssueMap.get(group.targetId);
+                    return (
+                      <div
+                        key={group.targetId}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+                              {issue?.title ?? "Issue"}
+                            </p>
+                            <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              {issue?.key ?? group.targetId}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/issues/${group.targetId}`)}
+                            className="inline-flex items-center rounded-full border border-primary/30 px-3 py-1 text-xs font-semibold text-primary transition hover:bg-primary/10"
+                          >
+                            Review
+                          </button>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {group.suggestions.map((suggestion) => (
+                            <span
+                              key={suggestion.id}
+                              className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                            >
+                              <span className="rounded-full bg-slate-200 px-1 text-[10px] font-bold uppercase text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                                AI draft
+                              </span>
+                              {suggestion.title}
+                              {typeof suggestion.confidence === "number" && (
+                                <span className="text-[10px] text-slate-500">
+                                  {Math.round(suggestion.confidence * 100)}%
+                                </span>
+                              )}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="rounded-xl border border-slate-200 bg-white px-6 py-4 text-sm text-slate-600 shadow-sm">
+              Loading backlog...
+            </div>
+          ) : (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <div className="space-y-6">
+                {filteredBacklogGroups.map((group) => {
+                  return <BacklogGroupSection key={group.id} group={group} />;
+                })}
+
+                {aiOnly && filteredBacklogGroups.length === 0 && (
+                  <div className="rounded-xl border border-dashed border-slate-200 bg-white px-6 py-4 text-sm text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                    No issues with AI drafts yet.
+                  </div>
+                )}
+              </div>
+            </DndContext>
+          )}
+        </div>
+      )}
+
+      {activeSegment === "research" && (
         <ResearchBacklogContainer
           projectId={projectId}
           enableResearchBoard={enableResearchBoard}
