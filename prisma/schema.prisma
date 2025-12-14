@@ -93,6 +93,28 @@ enum AuditEntityType {
   SETTINGS
 }
 
+enum FeatureType {
+  BACKLOG_GROOMING
+}
+
+enum AIRunStatus {
+  STARTED
+  SUCCEEDED
+  FAILED
+}
+
+enum AISuggestionTargetType {
+  ISSUE
+}
+
+enum AISuggestionStatus {
+  PROPOSED
+  ACCEPTED
+  REJECTED
+  APPLIED
+  SNOOZED
+}
+
 enum ResearchObservationType {
   INTERVIEW
   SURVEY
@@ -140,6 +162,8 @@ model User {
   standupEntries        DailyStandupEntry[]
   standupAttendances    StandupAttendance[]
   uploadedAttachments   Attachment[]
+  aiRuns                AIRun[]             @relation("AIRunCreatedBy")
+  aiSuggestionsDecided  AISuggestion[]      @relation("AISuggestionDecisionUser")
 }
 
 model Workspace {
@@ -193,6 +217,9 @@ model Project {
   settings           ProjectSettings?
   standupSummaries   StandupSummary[]
   standupAttendances StandupAttendance[]
+  aiSettings         ProjectAISettings?
+  aiRuns             AIRun[]
+  aiSuggestions      AISuggestion[]
 
   @@unique([workspaceId, key])
 }
@@ -505,6 +532,62 @@ model InviteToken {
   createdAt DateTime  @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model ProjectAISettings {
+  id                       String   @id @default(cuid())
+  projectId                String   @unique
+  backlogGroomingEnabled   Boolean  @default(false)
+  model                    String?
+  temperature              Float?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model AIRun {
+  id              String       @id @default(cuid())
+  projectId       String
+  featureType     FeatureType
+  status          AIRunStatus
+  startedAt       DateTime     @default(now())
+  finishedAt      DateTime?
+  createdByUserId String?
+  inputSnapshot   Json
+  outputRaw       Json?
+  errorMessage    String?
+  createdAt       DateTime     @default(now())
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy  User?   @relation("AIRunCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([featureType])
+}
+
+model AISuggestion {
+  id              String                 @id @default(cuid())
+  projectId       String
+  featureType     FeatureType
+  targetType      AISuggestionTargetType
+  targetId        String
+  suggestionType  String
+  title           String
+  rationale       String
+  confidence      Float
+  payload         Json
+  status          AISuggestionStatus     @default(PROPOSED)
+  decidedByUserId String?
+  decidedAt       DateTime?
+  snoozedUntil    DateTime?
+  createdAt       DateTime               @default(now())
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  decidedBy User?   @relation("AISuggestionDecisionUser", fields: [decidedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([targetType, targetId])
 }
 
 model AuditLog {
