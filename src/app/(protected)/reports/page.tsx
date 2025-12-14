@@ -29,7 +29,7 @@ export default async function ReportsPage() {
 
       <div className="grid gap-4 md:grid-cols-2">
         {reportModules.map((module) => (
-          <ReportCard key={module.key} module={module} scope="workspace" />
+          <ReportCard key={module.key} module={module} scope="workspace" ctaHref={module.href} />
         ))}
       </div>
     </div>
