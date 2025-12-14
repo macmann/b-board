@@ -1,4 +1,6 @@
 import Logo from "@/components/branding/Logo";
+import { ContactUsSection } from "@/components/marketing/ContactUsSection";
+import { FeaturesSection } from "@/components/marketing/FeaturesSection";
 
 export default function HomePage() {
   return (
@@ -14,14 +16,20 @@ export default function HomePage() {
           <Logo subtitle="Ship faster with less overhead" />
 
           <nav className="flex items-center gap-6 text-sm text-slate-700 dark:text-slate-200">
+            <a className="transition hover:text-primary" href="#features">
+              Features
+            </a>
             <a className="transition hover:text-primary" href="#workflow">
               Workflow
             </a>
-            <a className="transition hover:text-primary" href="#features">
+            <a className="transition hover:text-primary" href="#highlights">
               Highlights
             </a>
             <a className="transition hover:text-primary" href="#screenshots">
               Screenshots
+            </a>
+            <a className="transition hover:text-primary" href="#contact">
+              Contact
             </a>
           </nav>
 
@@ -158,6 +166,10 @@ export default function HomePage() {
           </div>
         </section>
 
+        <FeaturesSection />
+
+        <ContactUsSection />
+
         <section id="workflow" className="mt-16 space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
@@ -205,7 +217,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section id="features" className="mt-16 space-y-6">
+        <section id="highlights" className="mt-16 space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary/80">Highlights</p>

@@ -80,6 +80,12 @@ This repository includes a `render.yaml` for one-click deployment.
 | `JWT_SECRET` | Secret used to sign and verify authentication tokens. **Required**. |
 | `DATABASE_URL` | Connection string for the PostgreSQL database used by Prisma. **Required in deployed environments**. |
 | `OPENAI_API_KEY` | OpenAI key enabling AI-generated summaries. Optional. |
+| `SMTP_HOST` | SMTP server host for outbound emails (contact form + notifications). |
+| `SMTP_PORT` | SMTP server port (e.g., 587 or 465). |
+| `SMTP_USER` | SMTP username/credential. |
+| `SMTP_PASS` | SMTP password/credential. |
+| `SMTP_FROM` | From email for contact replies (e.g., `B Board <no-reply@bboard.site>`). |
+| `CONTACT_TO` | Destination for contact form submissions (defaults to `admin@bboard.site`). |
 
 For local development, create a `.env` file with these values. In production (e.g., Render), configure the same variables through your hosting provider's environment settings.
 
