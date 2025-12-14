@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { routes } from "@/lib/routes";
+
 export default function NotFound() {
   return (
     <div className="flex h-full items-center justify-center">
@@ -15,7 +17,7 @@ export default function NotFound() {
         </p>
         <div className="mt-6 flex justify-center">
           <Link
-            href="/my-projects"
+            href={routes.myProjects()}
             className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500"
           >
             Back to projects

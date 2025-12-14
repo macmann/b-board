@@ -10,6 +10,7 @@ import ProjectEmailSettings from "@/components/projects/ProjectEmailSettings";
 import Button from "@/components/ui/Button";
 import { Role } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
+import { routes } from "@/lib/routes";
 
 const inputClasses =
   "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50";
@@ -122,7 +123,7 @@ export default function ProjectSettingsPageClient({
       return;
     }
 
-    router.push("/my-projects");
+    router.push(routes.myProjects());
   };
 
   const handleIconUpload = async (
@@ -405,20 +406,20 @@ export default function ProjectSettingsPageClient({
 
       {isAdmin && (
         <section
-          id="integrations"
+          id="import"
           className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900"
         >
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-                Integrations
+                Import from Jira
               </h2>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Import issues from Jira to jump-start this project.
+                Move your backlog into B Board with a CSV export from Jira.
               </p>
             </div>
             <Button asChild>
-              <Link href={`/import/jira?projectId=${project.id}`}>Import from Jira</Link>
+              <Link href={`/projects/${project.id}/settings/import`}>Open import</Link>
             </Button>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400">
