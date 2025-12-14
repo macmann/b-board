@@ -23,6 +23,7 @@ import { SprintStatus } from "@/lib/prismaEnums";
 
 import { type ResearchBacklogItem } from "@/components/research/types";
 
+import { routes } from "@/lib/routes";
 import { ProjectRole } from "../../../../../lib/roles";
 
 export type BacklogIssue = BacklogTableIssue;
@@ -438,7 +439,7 @@ export default function BacklogPageClient({
             Ask a project admin to invite you to this project.
           </p>
           <Link
-            href="/my-projects"
+            href={routes.myProjects()}
             className="mt-4 inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
           >
             Back to My Projects
