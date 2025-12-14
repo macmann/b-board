@@ -33,7 +33,7 @@ export default function LoginPage() {
       });
 
       if (response.ok) {
-        router.push(routes.myProjects());
+        router.push(routes.dashboard());
         return;
       }
 
