@@ -117,3 +117,35 @@ export const AuditEntityType = {
 
 export type AuditEntityType =
   (typeof AuditEntityType)[keyof typeof AuditEntityType];
+
+export const FeatureType = {
+  BACKLOG_GROOMING: "BACKLOG_GROOMING",
+} as const;
+
+export type FeatureType = (typeof FeatureType)[keyof typeof FeatureType];
+
+export const AIRunStatus = {
+  STARTED: "STARTED",
+  SUCCEEDED: "SUCCEEDED",
+  FAILED: "FAILED",
+} as const;
+
+export type AIRunStatus = (typeof AIRunStatus)[keyof typeof AIRunStatus];
+
+export const AISuggestionTargetType = {
+  ISSUE: "ISSUE",
+} as const;
+
+export type AISuggestionTargetType =
+  (typeof AISuggestionTargetType)[keyof typeof AISuggestionTargetType];
+
+export const AISuggestionStatus = {
+  PROPOSED: "PROPOSED",
+  ACCEPTED: "ACCEPTED",
+  REJECTED: "REJECTED",
+  APPLIED: "APPLIED",
+  SNOOZED: "SNOOZED",
+} as const;
+
+export type AISuggestionStatus =
+  (typeof AISuggestionStatus)[keyof typeof AISuggestionStatus];
