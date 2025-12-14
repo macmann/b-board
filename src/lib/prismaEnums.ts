@@ -96,3 +96,24 @@ export const EmailProviderType = {
 
 export type EmailProviderType =
   (typeof EmailProviderType)[keyof typeof EmailProviderType];
+
+export const AuditActorType = {
+  USER: "USER",
+  SYSTEM: "SYSTEM",
+  AI: "AI",
+} as const;
+
+export type AuditActorType = (typeof AuditActorType)[keyof typeof AuditActorType];
+
+export const AuditEntityType = {
+  PROJECT: "PROJECT",
+  ISSUE: "ISSUE",
+  SPRINT: "SPRINT",
+  COMMENT: "COMMENT",
+  AI_SUGGESTION: "AI_SUGGESTION",
+  AI_RUN: "AI_RUN",
+  SETTINGS: "SETTINGS",
+} as const;
+
+export type AuditEntityType =
+  (typeof AuditEntityType)[keyof typeof AuditEntityType];

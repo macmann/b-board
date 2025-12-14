@@ -24,6 +24,7 @@ import IssueTypeIcon, {
 
 import { ProjectRole } from "../../../../lib/roles";
 import { canDeleteIssue, canEditIssue } from "../../../../lib/uiPermissions";
+import AuditLogList from "@/components/audit/AuditLogList";
 
 type UserSummary = { id: string; name: string } | null;
 
@@ -109,6 +110,7 @@ export default function IssueDetailsPageClient({
   const [sprintId, setSprintId] = useState("");
   const [description, setDescription] = useState("");
   const [commentBody, setCommentBody] = useState("");
+  const [activityTab, setActivityTab] = useState<"comments" | "audit">("comments");
 
   const epicOptions = useMemo(() => {
     const options = [] as Array<{ id: string; label: string }>;
@@ -181,6 +183,12 @@ export default function IssueDetailsPageClient({
     : "Recently";
   const issueKey = issue?.key ?? issue?.id ?? issueId;
   const projectKey = issue?.project?.key ?? issue?.project?.name ?? "Project";
+  const activityTabButton = (tab: "comments" | "audit") =>
+    `rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+      activityTab === tab
+        ? "bg-primary text-white shadow-sm"
+        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+    }`;
 
   const fetchAssignees = useCallback(
     async (projectId: string) => {
@@ -779,118 +787,147 @@ export default function IssueDetailsPageClient({
               <div className="mt-6 grid gap-6 md:grid-cols-[minmax(0,7fr)_minmax(280px,3fr)]">
                 <div className="space-y-4">
                   <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">Comments</h2>
-                      <p className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Conversation</p>
-                    </div>
-                    <div className="mt-4">
-                      {comments.length === 0 ? (
-                        <p className="text-sm text-slate-600 dark:text-slate-300">No comments yet.</p>
-                      ) : (
-                        <ul className="space-y-3">
-                          {comments.map((comment) => (
-                          <li
-                            key={comment.id}
-                            className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 shadow-sm dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100"
-                          >
-                            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-300">
-                              <span>{comment.author?.name ?? "Unknown"}</span>
-                              <span>{new Date(comment.createdAt).toLocaleString()}</span>
-                            </div>
-                            <div className="markdown-content mt-2 text-slate-900 dark:text-slate-100">
-                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{comment.body}</ReactMarkdown>
-                            </div>
-                            {comment.attachments?.length ? (
-                              <ul className="mt-2 space-y-1 text-xs">
-                                {comment.attachments.map((attachment) => (
-                                  <li
-                                    key={attachment.id}
-                                    className="flex items-center justify-between rounded-md border border-slate-200 px-2 py-1 text-slate-700 dark:border-slate-700 dark:text-slate-100"
-                                  >
-                                    <a
-                                      className="truncate font-medium text-primary hover:underline"
-                                      href={attachment.url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                    >
-                                      {attachment.fileName}
-                                    </a>
-                                    <button
-                                      type="button"
-                                      className="text-[11px] font-semibold text-red-500 hover:text-red-600"
-                                      onClick={() => handleAttachmentDelete(attachment.id)}
-                                    >
-                                      Delete
-                                    </button>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : null}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-
-                    <form className="mt-6 space-y-3" onSubmit={handleCommentSubmit}>
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="newComment">
-                          Add a comment
-                        </label>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Use Markdown to add emphasis, lists, and links.</p>
-                        <textarea
-                          id="newComment"
-                          name="newComment"
-                          value={commentBody}
-                          onChange={(event) => setCommentBody(event.target.value)}
-                          rows={3}
-                          className={baseFieldClasses}
-                        />
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">Activity</h2>
+                        <p className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Conversation & audit trail</p>
                       </div>
-
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Comment attachments</p>
-                          <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100">
-                            <input
-                              type="file"
-                              multiple
-                              className="hidden"
-                              onChange={handleCommentAttachmentChange}
-                              disabled={isUploadingCommentFiles}
-                            />
-                            {isUploadingCommentFiles ? "Uploading..." : "Add files"}
-                          </label>
-                        </div>
-                        {commentAttachments.length > 0 && (
-                          <ul className="space-y-1 text-xs">
-                            {commentAttachments.map((attachment) => (
+                      <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => setActivityTab("comments")}
+                          className={activityTabButton("comments")}
+                        >
+                          Comments
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActivityTab("audit")}
+                          className={activityTabButton("audit")}
+                        >
+                          Audit
+                        </button>
+                      </div>
+                    </div>
+                    {activityTab === "comments" ? (
+                      <>
+                        <div className="mt-4">
+                          {comments.length === 0 ? (
+                            <p className="text-sm text-slate-600 dark:text-slate-300">No comments yet.</p>
+                          ) : (
+                            <ul className="space-y-3">
+                              {comments.map((comment) => (
                               <li
-                                key={attachment.id}
-                                className="flex items-center justify-between rounded-md border border-slate-200 px-2 py-1 text-slate-700 dark:border-slate-800 dark:text-slate-100"
+                                key={comment.id}
+                                className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 shadow-sm dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100"
                               >
-                                <span className="truncate font-medium">{attachment.fileName}</span>
-                                <button
-                                  type="button"
-                                  className="text-[11px] font-semibold text-red-500 hover:text-red-600"
-                                  onClick={() => handleAttachmentDelete(attachment.id)}
-                                >
-                                  Remove
-                                </button>
+                                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-300">
+                                  <span>{comment.author?.name ?? "Unknown"}</span>
+                                  <span>{new Date(comment.createdAt).toLocaleString()}</span>
+                                </div>
+                                <div className="markdown-content mt-2 text-slate-900 dark:text-slate-100">
+                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{comment.body}</ReactMarkdown>
+                                </div>
+                                {comment.attachments?.length ? (
+                                  <ul className="mt-2 space-y-1 text-xs">
+                                    {comment.attachments.map((attachment) => (
+                                      <li
+                                        key={attachment.id}
+                                        className="flex items-center justify-between rounded-md border border-slate-200 px-2 py-1 text-slate-700 dark:border-slate-700 dark:text-slate-100"
+                                      >
+                                        <a
+                                          className="truncate font-medium text-primary hover:underline"
+                                          href={attachment.url}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                        >
+                                          {attachment.fileName}
+                                        </a>
+                                        <button
+                                          type="button"
+                                          className="text-[11px] font-semibold text-red-500 hover:text-red-600"
+                                          onClick={() => handleAttachmentDelete(attachment.id)}
+                                        >
+                                          Delete
+                                        </button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : null}
                               </li>
                             ))}
                           </ul>
                         )}
                       </div>
 
-                      <button
-                        type="submit"
-                        disabled={isSubmittingComment || !commentBody.trim()}
-                        className="inline-flex items-center rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
-                      >
-                        {isSubmittingComment ? "Posting..." : "Post comment"}
-                      </button>
-                    </form>
+                        <form className="mt-6 space-y-3" onSubmit={handleCommentSubmit}>
+                          <div className="space-y-1.5">
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="newComment">
+                              Add a comment
+                            </label>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Use Markdown to add emphasis, lists, and links.</p>
+                            <textarea
+                              id="newComment"
+                              name="newComment"
+                              value={commentBody}
+                              onChange={(event) => setCommentBody(event.target.value)}
+                              rows={3}
+                              className={baseFieldClasses}
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Comment attachments</p>
+                              <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100">
+                                <input
+                                  type="file"
+                                  multiple
+                                  className="hidden"
+                                  onChange={handleCommentAttachmentChange}
+                                  disabled={isUploadingCommentFiles}
+                                />
+                                {isUploadingCommentFiles ? "Uploading..." : "Add files"}
+                              </label>
+                            </div>
+                            {commentAttachments.length > 0 && (
+                              <ul className="space-y-1 text-xs">
+                                {commentAttachments.map((attachment) => (
+                                  <li
+                                    key={attachment.id}
+                                    className="flex items-center justify-between rounded-md border border-slate-200 px-2 py-1 text-slate-700 dark:border-slate-800 dark:text-slate-100"
+                                  >
+                                    <span className="truncate font-medium">{attachment.fileName}</span>
+                                    <button
+                                      type="button"
+                                      className="text-[11px] font-semibold text-red-500 hover:text-red-600"
+                                      onClick={() => handleAttachmentDelete(attachment.id)}
+                                    >
+                                      Remove
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+
+                          <button
+                            type="submit"
+                            disabled={isSubmittingComment || !commentBody.trim()}
+                            className="inline-flex items-center rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
+                          >
+                            {isSubmittingComment ? "Posting..." : "Post comment"}
+                          </button>
+                        </form>
+                      </>
+                    ) : (
+                      <div className="mt-4">
+                        <AuditLogList
+                          fetchUrl={`/api/issues/${issueId}/audit-logs`}
+                          emptyMessage="No audit entries yet for this issue."
+                        />
+                      </div>
+                    )}
                   </section>
                 </div>
 
