@@ -1,10 +1,14 @@
+"use client";
+
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { useRouter } from "next/navigation";
 
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/Card";
 import { ProjectRole } from "@/lib/roles";
+import { routes } from "@/lib/routes";
 
 export type ProjectSummary = {
   id: string;
@@ -32,6 +36,8 @@ const metricLabel = "text-xs text-slate-500";
 const metricValue = "text-lg font-semibold text-slate-900 dark:text-slate-100";
 
 export function MyProjectsTable({ projects, createAction }: MyProjectsGridProps) {
+  const router = useRouter();
+
   if (projects.length === 0) {
     return (
       <Card className="flex flex-col items-center justify-center py-10 text-center">
@@ -54,8 +60,24 @@ export function MyProjectsTable({ projects, createAction }: MyProjectsGridProps)
       {projects.map((project) => {
         const canManageProject = project.role === "ADMIN" || project.role === "PO";
 
+        const backlogUrl = routes.project.backlog(project.id);
+
         return (
-          <Card key={project.id} className="flex h-full flex-col">
+          <Card
+            key={project.id}
+            className="flex h-full cursor-pointer flex-col hover:border-primary/30 hover:shadow-md"
+            onClick={() => router.push(backlogUrl)}
+            role="link"
+            tabIndex={0}
+            onKeyDown={(event) => {
+              if (event.target !== event.currentTarget) return;
+
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                router.push(backlogUrl);
+              }
+            }}
+          >
             <CardHeader className="flex items-start justify-between gap-3">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
@@ -81,21 +103,26 @@ export function MyProjectsTable({ projects, createAction }: MyProjectsGridProps)
                 </div>
               </div>
 
-              <details className="relative">
+              <details
+                className="relative"
+                onClick={(event) => {
+                  event.stopPropagation();
+                }}
+              >
                 <summary className="flex cursor-pointer items-center rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
                   Actions
                   <span className="ml-1">▾</span>
                 </summary>
                 <div className="absolute right-0 z-10 mt-2 w-48 rounded-lg border border-slate-200 bg-white p-1 text-sm shadow-lg dark:border-slate-700 dark:bg-slate-900">
                   <Link
-                    href={`/projects/${project.id}/settings`}
+                    href={routes.project.settings(project.id)}
                     className="block rounded-md px-3 py-2 text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
                     Project Settings
                   </Link>
                   {canManageProject && (
                     <Link
-                      href={`/projects/${project.id}/settings#integrations`}
+                      href={routes.project.settingsImport(project.id)}
                       className="block rounded-md px-3 py-2 text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
                       Import from Jira
@@ -103,7 +130,7 @@ export function MyProjectsTable({ projects, createAction }: MyProjectsGridProps)
                   )}
                   {canManageProject && (
                     <Link
-                      href={`/projects/${project.id}/settings#danger-zone`}
+                      href={routes.project.settingsDangerZone(project.id)}
                       className="block rounded-md px-3 py-2 text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
                       Archive Project
@@ -131,12 +158,18 @@ export function MyProjectsTable({ projects, createAction }: MyProjectsGridProps)
             </CardContent>
 
             <CardFooter className="flex items-center justify-between gap-3">
-              <Button asChild>
-                <Link href={`/projects/${project.id}/backlog`}>Open Project</Link>
+              <Button
+                asChild
+                onClick={(event) => {
+                  event.stopPropagation();
+                }}
+              >
+                <Link href={backlogUrl}>Open Project</Link>
               </Button>
               <Link
-                href={`/projects/${project.id}/backlog`}
+                href={backlogUrl}
                 className="text-sm font-medium text-primary hover:text-blue-600"
+                onClick={(event) => event.stopPropagation()}
               >
                 Go to backlog →
               </Link>

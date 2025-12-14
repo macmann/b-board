@@ -31,13 +31,13 @@ describe("issue routes", () => {
   });
 
   it("allows project product owners to delete issues", async () => {
-    mockGetUserFromRequest.mockResolvedValue({ id: "user-1", role: UserRole.MEMBER });
+    mockGetUserFromRequest.mockResolvedValue({ id: "user-1", role: UserRole.DEV });
     mockPrisma.issue.findUnique.mockResolvedValue({ id: "issue-1", projectId: "project-1" });
     mockPrisma.projectMember.findUnique.mockResolvedValue({ role: Role.PO });
     mockPrisma.issue.delete.mockResolvedValue({ id: "issue-1" });
 
     const { DELETE } = await import("../issues/[issueId]/route");
-    const response = await DELETE({} as any, { params: { issueId: "issue-1" } });
+    const response = await DELETE({} as any, { params: Promise.resolve({ issueId: "issue-1" }) });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ message: "Issue deleted" });
@@ -45,12 +45,12 @@ describe("issue routes", () => {
   });
 
   it("blocks deletion for non-admin, non-owner members", async () => {
-    mockGetUserFromRequest.mockResolvedValue({ id: "user-2", role: UserRole.MEMBER });
+    mockGetUserFromRequest.mockResolvedValue({ id: "user-2", role: UserRole.DEV });
     mockPrisma.issue.findUnique.mockResolvedValue({ id: "issue-2", projectId: "project-2" });
     mockPrisma.projectMember.findUnique.mockResolvedValue({ role: Role.DEV });
 
     const { DELETE } = await import("../issues/[issueId]/route");
-    const response = await DELETE({} as any, { params: { issueId: "issue-2" } });
+    const response = await DELETE({} as any, { params: Promise.resolve({ issueId: "issue-2" }) });
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({ message: "Forbidden" });

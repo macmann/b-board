@@ -2,6 +2,6 @@ import { redirect } from "next/navigation";
 
 import { routes } from "@/lib/routes";
 
-export default function ProjectsRedirectPage() {
+export default function LegacyMyProjectRedirectPage() {
   redirect(routes.myProjects());
 }

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import AuthLayout from "@/components/auth/AuthLayout";
 import Button from "@/components/ui/Button";
+import { routes } from "@/lib/routes";
 
 const inputClasses =
   "block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary";
@@ -32,7 +33,7 @@ export default function LoginPage() {
       });
 
       if (response.ok) {
-        router.push("/my-projects");
+        router.push(routes.myProjects());
         return;
       }
 
@@ -99,7 +100,7 @@ export default function LoginPage() {
 
       <p className="mt-6 text-center text-sm text-slate-600">
         Don&apos;t have an account?{" "}
-        <Link href="/register" className="font-semibold text-primary hover:text-blue-600">
+        <Link href={routes.register()} className="font-semibold text-primary hover:text-blue-600">
           Create an account
         </Link>
       </p>

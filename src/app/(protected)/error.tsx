@@ -1,5 +1,7 @@
 "use client";
 
+import { routes } from "@/lib/routes";
+
 export default function Error({
   reset,
 }: {
@@ -22,7 +24,7 @@ export default function Error({
             Try again
           </button>
           <a
-            href="/my-projects"
+            href={routes.myProjects()}
             className="inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-semibold text-blue-700 ring-1 ring-inset ring-blue-200 transition hover:bg-blue-50"
           >
             Back to projects
