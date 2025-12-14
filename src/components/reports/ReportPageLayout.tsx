@@ -27,11 +27,11 @@ const getDefaultDates = () => {
 };
 
 const parseFiltersFromSearch = (
-  searchParams: ReturnType<typeof useSearchParams>,
+  searchParams: ReturnType<typeof useSearchParams> | null | undefined,
   showSprintSelect: boolean
 ): ReportsFilterValue => {
   const defaults = getDefaultDates();
-  const params = new URLSearchParams(searchParams.toString());
+  const params = new URLSearchParams(searchParams?.toString() ?? "");
 
   return {
     dateFrom: params.get("from") ?? defaults.from,
