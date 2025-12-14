@@ -8,6 +8,7 @@ import ProjectTeamSettings from "@/components/projects/ProjectTeamSettings";
 import ProjectStandupSettings from "@/components/projects/ProjectStandupSettings";
 import ProjectEmailSettings from "@/components/projects/ProjectEmailSettings";
 import Button from "@/components/ui/Button";
+import AuditLogList from "@/components/audit/AuditLogList";
 import { Role } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
 import { routes } from "@/lib/routes";
@@ -400,6 +401,27 @@ export default function ProjectSettingsPageClient({
         {!isAdmin && (
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Only admins and product owners can change this setting.
+          </p>
+        )}
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Audit Log</h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Track changes across this project with before/after context.
+            </p>
+          </div>
+        </div>
+        {isAdmin ? (
+          <AuditLogList
+            fetchUrl={`/api/projects/${project.id}/audit-logs`}
+            emptyMessage="No audit entries yet for this project."
+          />
+        ) : (
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Only admins and product owners can view the audit log.
           </p>
         )}
       </section>

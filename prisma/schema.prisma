@@ -77,6 +77,22 @@ enum ResearchDecision {
   DEFERRED
 }
 
+enum AuditActorType {
+  USER
+  SYSTEM
+  AI
+}
+
+enum AuditEntityType {
+  PROJECT
+  ISSUE
+  SPRINT
+  COMMENT
+  AI_SUGGESTION
+  AI_RUN
+  SETTINGS
+}
+
 enum ResearchObservationType {
   INTERVIEW
   SURVEY
@@ -489,4 +505,24 @@ model InviteToken {
   createdAt DateTime  @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        String         @id @default(cuid())
+  projectId String?
+  actorType AuditActorType
+  actorId   String?
+  action    String
+  entityType AuditEntityType
+  entityId  String?
+  summary   String
+  before    Json?
+  after     Json?
+  metadata  Json?
+  createdAt DateTime       @default(now())
+
+  @@index([projectId])
+  @@index([entityType, entityId])
+  @@index([actorType, actorId])
+  @@index([createdAt])
 }
