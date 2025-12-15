@@ -55,7 +55,8 @@ type AISuggestion = {
   suggestionType: string;
   rationaleBullets?: string[] | null;
   confidence?: number | null;
-  payload: Record<string, unknown>;
+  payload: { code?: string } & Record<string, unknown>;
+  status?: string;
 };
 
 type SuggestionGroup = {
@@ -119,6 +120,8 @@ export default function BacklogPageClient({
     initialResearchItems.length > 0
   );
   const [toastMessage, setToastMessage] = useState<string>("");
+
+  const INCOMPLETE_STORY_FLAG = "INCOMPLETE_STORY_FLAG";
 
   const isReadOnly = projectRole === "VIEWER";
   const canReorder = projectRole === "ADMIN" || projectRole === "PO";
@@ -260,8 +263,14 @@ export default function BacklogPageClient({
     setSuggestionError("");
 
     try {
+      const params = new URLSearchParams({
+        status: "PROPOSED",
+        excludeSnoozed: "true",
+        suggestionType: INCOMPLETE_STORY_FLAG,
+      });
+
       const response = await fetch(
-        `/api/projects/${projectId}/ai-suggestions?status=PROPOSED&excludeSnoozed=true`
+        `/api/projects/${projectId}/ai-suggestions?${params.toString()}`
       );
 
       if (!response.ok) {
@@ -273,7 +282,19 @@ export default function BacklogPageClient({
       }
 
       const data = (await response.json()) as SuggestionGroup[];
-      setSuggestionGroups(data ?? []);
+
+      const filteredGroups = (data ?? [])
+        .map((group) => ({
+          ...group,
+          suggestions: group.suggestions.filter(
+            (suggestion) =>
+              suggestion.suggestionType === INCOMPLETE_STORY_FLAG &&
+              (suggestion.status ? suggestion.status === "PROPOSED" : true)
+          ),
+        }))
+        .filter((group) => group.suggestions.length > 0);
+
+      setSuggestionGroups(filteredGroups);
     } catch (err) {
       setSuggestionError("An unexpected error occurred while loading AI drafts.");
     } finally {
@@ -292,7 +313,7 @@ export default function BacklogPageClient({
 
     try {
       const response = await fetch(
-        `/api/projects/${projectId}/ai/backlog-grooming/analyze`,
+        `/api/projects/${projectId}/ai/backlog-grooming/scan`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -695,22 +716,39 @@ export default function BacklogPageClient({
                           </button>
                         </div>
                         <div className="mt-2 flex flex-wrap gap-2">
-                          {group.suggestions.map((suggestion) => (
-                            <span
-                              key={suggestion.id}
-                              className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                            >
-                              <span className="rounded-full bg-slate-200 px-1 text-[10px] font-bold uppercase text-slate-700 dark:bg-slate-700 dark:text-slate-200">
-                                AI draft
-                              </span>
-                              {suggestion.title}
-                              {typeof suggestion.confidence === "number" && (
-                                <span className="text-[10px] text-slate-500">
-                                  {Math.round(suggestion.confidence * 100)}%
+                          {group.suggestions.map((suggestion) => {
+                            const code =
+                              typeof suggestion.payload?.code === "string"
+                                ? suggestion.payload.code
+                                : undefined;
+                            const confidence =
+                              typeof suggestion.confidence === "number"
+                                ? Math.round(suggestion.confidence * 100)
+                                : null;
+
+                            return (
+                              <span
+                                key={suggestion.id}
+                                className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                              >
+                                <span className="rounded-full bg-slate-200 px-2 text-[10px] font-bold uppercase text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                                  AI flag
                                 </span>
-                              )}
-                            </span>
-                          ))}
+                                {code ? (
+                                  <span className="rounded-full bg-primary/10 px-2 py-[2px] text-[10px] uppercase tracking-wide text-primary">
+                                    {code}
+                                  </span>
+                                ) : (
+                                  <span>{suggestion.title}</span>
+                                )}
+                                {confidence !== null && (
+                                  <span className="text-[10px] text-slate-500">
+                                    {confidence}% confidence
+                                  </span>
+                                )}
+                              </span>
+                            );
+                          })}
                         </div>
                       </div>
                     );

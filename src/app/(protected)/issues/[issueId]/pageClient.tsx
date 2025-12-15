@@ -304,36 +304,33 @@ export default function IssueDetailsPageClient({
     }
   };
 
-  const fetchSuggestions = useCallback(
-    async (projectId: string) => {
-      setIsLoadingSuggestions(true);
-      setSuggestionError("");
+  const fetchSuggestions = useCallback(async (projectId: string, targetId: string) => {
+    setIsLoadingSuggestions(true);
+    setSuggestionError("");
 
-      try {
-        const response = await fetch(
-          `/api/projects/${projectId}/ai-suggestions?targetId=${issueId}&excludeSnoozed=true`
-        );
+    try {
+      const response = await fetch(
+        `/api/projects/${projectId}/ai-suggestions?targetId=${targetId}&excludeSnoozed=true`
+      );
 
-        if (!response.ok) {
-          const data = await response.json().catch(() => null);
-          setSuggestionError(
-            data?.message ?? "Failed to load AI suggestions for this issue."
-          );
-          return;
-        }
-
-        const data = (await response.json()) as AISuggestion[];
-        setSuggestions(data ?? []);
-      } catch (err) {
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
         setSuggestionError(
-          "An unexpected error occurred while loading AI suggestions."
+          data?.message ?? "Failed to load AI suggestions for this issue."
         );
-      } finally {
-        setIsLoadingSuggestions(false);
+        return;
       }
-    },
-    [issueId]
-  );
+
+      const data = (await response.json()) as AISuggestion[];
+      setSuggestions(data ?? []);
+    } catch (err) {
+      setSuggestionError(
+        "An unexpected error occurred while loading AI suggestions."
+      );
+    } finally {
+      setIsLoadingSuggestions(false);
+    }
+  }, []);
 
   const uploadAttachments = async (files: FileList, target: "issue" | "comment") => {
     if (!files.length) return;
@@ -400,9 +397,9 @@ export default function IssueDetailsPageClient({
   }, [issueId]);
 
   useEffect(() => {
-    if (!issue?.project?.id) return;
-    void fetchSuggestions(issue.project.id);
-  }, [fetchSuggestions, issue?.project?.id]);
+    if (!issue?.project?.id || !issue?.id) return;
+    void fetchSuggestions(issue.project.id, issue.id);
+  }, [fetchSuggestions, issue?.id, issue?.project?.id]);
 
   const handleUpdate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
