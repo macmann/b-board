@@ -11,7 +11,7 @@ import {
   ForbiddenError,
   PROJECT_CONTRIBUTOR_ROLES,
 } from "@/lib/permissions";
-import aiClient from "@/lib/aiClient";
+import { chatJson } from "@/lib/ai/aiClient";
 import {
   AuditActorType,
   AuditEntityType,
@@ -246,12 +246,14 @@ export async function POST(
     }).catch((error) => logError("Failed to write grooming audit log", error));
 
     try {
-      const aiResult = await aiClient.chatJson({
-        model: settings.model,
-        temperature: settings.temperature,
+      const systemPrompt =
+        "You are a precise JSON generator. Provide thoughtful backlog grooming insights and respond only with valid JSON.";
+
+      const aiResult = await chatJson({
+        model: settings.model ?? undefined,
+        temperature: settings.temperature ?? undefined,
         user: userPrompt,
-        system:
-          "You are a precise JSON generator. Provide thoughtful backlog grooming insights and respond only with valid JSON.",
+        system: systemPrompt,
       });
 
       const parsed = aiResponseSchema.safeParse(aiResult);

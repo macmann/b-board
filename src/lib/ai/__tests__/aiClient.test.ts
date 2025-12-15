@@ -40,14 +40,16 @@ describe("chatJson", () => {
 
     expect(result).toEqual({ result: true });
     expect(mockCreate).toHaveBeenCalledWith(
-      {
+      expect.objectContaining({
         model: "gpt-default",
         temperature: 0.5,
         messages: [
+          { role: "system", content: "Return ONLY valid JSON. No markdown." },
           { role: "system", content: "Return JSON" },
           { role: "user", content: "Provide a JSON response" },
         ],
-      },
+        response_format: { type: "json_object" },
+      }),
       expect.objectContaining({ signal: expect.any(Object), timeout: expect.any(Number) })
     );
   });
@@ -69,6 +71,32 @@ describe("chatJson", () => {
       chatJson({
         user: "Return JSON",
       })
-    ).rejects.toThrow(/parse/i);
+    ).rejects.toThrow(/JSON/);
+  });
+});
+
+describe("extractFirstJsonObject", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it("returns the JSON when the response is already valid JSON", async () => {
+    const { extractFirstJsonObject } = await import("../aiClient");
+
+    expect(extractFirstJsonObject('{"foo":1}')).toEqual('{"foo":1}');
+  });
+
+  it("extracts the first JSON object from surrounding text", async () => {
+    const { extractFirstJsonObject } = await import("../aiClient");
+
+    expect(
+      extractFirstJsonObject("Sure, here is the JSON: {\"foo\":1,\"bar\":[2,3]}. Anything else?")
+    ).toEqual('{"foo":1,"bar":[2,3]}');
+  });
+
+  it("throws when no JSON object can be parsed", async () => {
+    const { extractFirstJsonObject } = await import("../aiClient");
+
+    expect(() => extractFirstJsonObject("No JSON here")).toThrow(/JSON/);
   });
 });
