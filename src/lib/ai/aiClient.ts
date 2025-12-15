@@ -6,7 +6,8 @@ const MAX_PROMPT_CHARS = 20000;
 const MAX_RESPONSE_CHARS = 50000;
 const RESPONSE_SNIPPET_LENGTH = 200;
 
-const defaultModel = process.env.AI_MODEL_DEFAULT;
+const FALLBACK_MODEL = "gpt-4o-mini";
+const defaultModel = process.env.AI_MODEL_DEFAULT ?? FALLBACK_MODEL;
 
 const openai = new OpenAI({
   apiKey: process.env.AI_API_KEY,

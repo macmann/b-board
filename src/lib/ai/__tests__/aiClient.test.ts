@@ -73,6 +73,20 @@ describe("chatJson", () => {
       })
     ).rejects.toThrow(/JSON/);
   });
+
+  it("defaults to the latest lightweight model when none is configured", async () => {
+    delete process.env.AI_MODEL_DEFAULT;
+    const { chatJson } = await import("../aiClient");
+
+    await chatJson({
+      user: "Provide a JSON response",
+    });
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "gpt-4o-mini" }),
+      expect.anything()
+    );
+  });
 });
 
 describe("extractFirstJsonObject", () => {
