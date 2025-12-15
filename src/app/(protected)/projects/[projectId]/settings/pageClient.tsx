@@ -40,12 +40,16 @@ type ProjectSettingsPageClientProps = {
     };
   }[];
   projectRole: ProjectRole | null;
+  aiSettings: {
+    backlogGroomingEnabled: boolean;
+  };
 };
 
 export default function ProjectSettingsPageClient({
   project,
   members,
   projectRole,
+  aiSettings,
 }: ProjectSettingsPageClientProps) {
   const router = useRouter();
 
@@ -55,9 +59,14 @@ export default function ProjectSettingsPageClient({
   const [enableResearchBoard, setEnableResearchBoard] = useState(
     project.enableResearchBoard
   );
+  const [backlogGroomingEnabled, setBacklogGroomingEnabled] = useState(
+    aiSettings.backlogGroomingEnabled
+  );
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingAISettings, setIsSavingAISettings] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [aiStatus, setAIStatus] = useState<string | null>(null);
   const [confirmKey, setConfirmKey] = useState("");
   const [iconUrl, setIconUrl] = useState(project.iconUrl ?? "");
   const [iconError, setIconError] = useState<string | null>(null);
@@ -104,6 +113,42 @@ export default function ProjectSettingsPageClient({
     }
 
     setStatus("Project updated successfully.");
+    router.refresh();
+  };
+
+  const handleUpdateAISettings = async () => {
+    if (!isAdmin) return;
+
+    setIsSavingAISettings(true);
+    setAIStatus(null);
+
+    const response = await fetch(`/api/projects/${project.id}/ai-settings`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        backlogGroomingEnabled,
+        model: null,
+        temperature: null,
+      }),
+    });
+
+    setIsSavingAISettings(false);
+
+    if (!response.ok) {
+      setAIStatus("Failed to update AI settings. Please try again.");
+      return;
+    }
+
+    const data = await response.json().catch(() => null);
+    const isEnabled = Boolean(data?.backlogGroomingEnabled ?? backlogGroomingEnabled);
+    setBacklogGroomingEnabled(isEnabled);
+    setAIStatus(
+      isEnabled
+        ? "Backlog grooming AI enabled for this project."
+        : "Backlog grooming AI disabled for this project."
+    );
     router.refresh();
   };
 
@@ -361,6 +406,67 @@ export default function ProjectSettingsPageClient({
             </div>
           )}
         </form>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+              Backlog grooming AI
+            </h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Control whether AI-powered grooming suggestions are available for this project.
+            </p>
+          </div>
+          {aiStatus && (
+            <p className="text-xs text-slate-500 dark:text-slate-400">{aiStatus}</p>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-600 dark:text-slate-300">
+              {backlogGroomingEnabled ? "Enabled" : "Disabled"}
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={backlogGroomingEnabled}
+              aria-label="Toggle backlog grooming AI"
+              disabled={!isAdmin}
+              onClick={() =>
+                isAdmin && setBacklogGroomingEnabled((prev) => !prev)
+              }
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${
+                backlogGroomingEnabled
+                  ? "bg-primary"
+                  : "bg-slate-200 dark:bg-slate-700"
+              } ${!isAdmin ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ${
+                  backlogGroomingEnabled ? "translate-x-5" : "translate-x-1"
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              onClick={handleUpdateAISettings}
+              disabled={!isAdmin || isSavingAISettings}
+            >
+              {isSavingAISettings ? "Saving..." : "Save AI settings"}
+            </Button>
+          </div>
+        </div>
+
+        {!isAdmin && (
+          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+            Only admins and product owners can change this setting.
+          </p>
+        )}
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">

@@ -49,6 +49,7 @@ export default async function ProjectSettingsPage(props: Props) {
         },
         orderBy: { createdAt: "asc" },
       },
+      aiSettings: true,
     },
   });
 
@@ -87,6 +88,10 @@ export default async function ProjectSettingsPage(props: Props) {
           enableResearchBoard: projectWithMeta.enableResearchBoard,
           createdAt: projectWithMeta.createdAt.toISOString(),
           updatedAt: projectWithMeta.updatedAt.toISOString(),
+        }}
+        aiSettings={{
+          backlogGroomingEnabled:
+            projectWithMeta.aiSettings?.backlogGroomingEnabled ?? false,
         }}
         members={projectWithMeta.members.map((member) => ({
           ...member,
