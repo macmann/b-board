@@ -112,12 +112,14 @@ export async function chatJson<T = unknown>({
       model: modelToUse,
       temperature: temperature ?? undefined,
       messages: baseMessages,
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-expect-error The installed OpenAI SDK may or may not support response_format
-      response_format: { type: "json_object" },
     };
 
-    const completion = await openai.chat.completions.create(params, {
+    const paramsWithResponseFormat = {
+      ...params,
+      response_format: { type: "json_object" as const },
+    } as typeof params;
+
+    const completion = await openai.chat.completions.create(paramsWithResponseFormat, {
       signal: controller.signal,
       timeout: requestTimeout,
     });
