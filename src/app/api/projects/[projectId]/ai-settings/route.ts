@@ -17,6 +17,7 @@ type SettingsPayload = {
   backlogGroomingEnabled: boolean;
   model: string | null;
   temperature: number | null;
+  projectBrief: string | null;
 };
 
 const parseModel = (value: unknown): string | null => {
@@ -42,7 +43,15 @@ const mapResponse = (settings: SettingsPayload) => ({
   backlogGroomingEnabled: settings.backlogGroomingEnabled,
   model: settings.model ?? null,
   temperature: settings.temperature,
+  projectBrief: settings.projectBrief,
 });
+
+const parseProjectBrief = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : null;
+};
 
 export async function GET(
   request: NextRequest,
@@ -79,6 +88,7 @@ export async function GET(
       backlogGroomingEnabled: settings?.backlogGroomingEnabled ?? false,
       model: settings?.model ?? process.env.AI_MODEL_DEFAULT ?? null,
       temperature: settings?.temperature ?? null,
+      projectBrief: settings?.projectBrief ?? null,
     })
   );
 }
@@ -125,6 +135,7 @@ export async function PUT(
 
   const model = parseModel(body?.model ?? null);
   const temperature = parseTemperature(body?.temperature ?? null);
+  const projectBrief = parseProjectBrief(body?.projectBrief);
 
   if (Number.isNaN(temperature)) {
     return NextResponse.json(
@@ -139,12 +150,14 @@ export async function PUT(
       backlogGroomingEnabled,
       model,
       temperature,
+      projectBrief,
     },
     create: {
       projectId,
       backlogGroomingEnabled,
       model,
       temperature,
+      projectBrief,
     },
   });
 
@@ -153,6 +166,7 @@ export async function PUT(
         backlogGroomingEnabled: existingSettings.backlogGroomingEnabled,
         model: existingSettings.model,
         temperature: existingSettings.temperature,
+        projectBrief: existingSettings.projectBrief,
       }
     : {};
 
@@ -160,6 +174,7 @@ export async function PUT(
     backlogGroomingEnabled: updated.backlogGroomingEnabled,
     model: updated.model,
     temperature: updated.temperature,
+    projectBrief: updated.projectBrief,
   };
 
   try {

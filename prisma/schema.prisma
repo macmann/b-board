@@ -540,6 +540,7 @@ model ProjectAISettings {
   backlogGroomingEnabled   Boolean  @default(false)
   model                    String?
   temperature              Float?
+  projectBrief             String?  @db.Text
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 
