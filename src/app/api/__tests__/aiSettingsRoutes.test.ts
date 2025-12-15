@@ -54,6 +54,7 @@ describe("project AI settings routes", () => {
       backlogGroomingEnabled: false,
       model: "gpt-default",
       temperature: null,
+      projectBrief: null,
     });
   });
 
@@ -99,6 +100,7 @@ describe("project AI settings routes", () => {
       backlogGroomingEnabled: false,
       model: null,
       temperature: null,
+      projectBrief: "Old brief",
     });
     mockPrisma.projectAISettings.upsert.mockResolvedValue({
       id: "settings-1",
@@ -106,11 +108,19 @@ describe("project AI settings routes", () => {
       backlogGroomingEnabled: true,
       model: "gpt-4",
       temperature: 0.7,
+      projectBrief: "New brief",
     });
 
     const { PUT } = await import("../projects/[projectId]/ai-settings/route");
     const response = await PUT(
-      { json: async () => ({ backlogGroomingEnabled: true, model: "gpt-4", temperature: 0.7 }) } as any,
+      {
+        json: async () => ({
+          backlogGroomingEnabled: true,
+          model: "gpt-4",
+          temperature: 0.7,
+          projectBrief: "New brief",
+        }),
+      } as any,
       { params: Promise.resolve({ projectId: "project-4" }) }
     );
 
@@ -119,6 +129,7 @@ describe("project AI settings routes", () => {
       backlogGroomingEnabled: true,
       model: "gpt-4",
       temperature: 0.7,
+      projectBrief: "New brief",
     });
 
     expect(mockPrisma.projectAISettings.upsert).toHaveBeenCalledWith({
@@ -127,12 +138,14 @@ describe("project AI settings routes", () => {
         backlogGroomingEnabled: true,
         model: "gpt-4",
         temperature: 0.7,
+        projectBrief: "New brief",
       },
       create: {
         projectId: "project-4",
         backlogGroomingEnabled: true,
         model: "gpt-4",
         temperature: 0.7,
+        projectBrief: "New brief",
       },
     });
 

@@ -9,35 +9,13 @@ import {
   requireProjectRole,
 } from "@/lib/permissions";
 import { setRequestContextUser, withRequestContext } from "@/lib/requestContext";
-import { AISuggestionStatus, Role } from "@/lib/prismaEnums";
+import { resolveIssueId } from "@/lib/issues";
+import { AISuggestionStatus, AISuggestionTargetType, Role } from "@/lib/prismaEnums";
 
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE_SIZE = 20;
-const ISSUE_KEY_PATTERN = /^[A-Z]+-\d+$/i;
 
 const SUGGESTION_STATUS_SET = new Set(Object.values(AISuggestionStatus));
-
-const resolveTargetId = async (projectId: string, targetId?: string | null) => {
-  if (!targetId) return undefined;
-
-  if (ISSUE_KEY_PATTERN.test(targetId)) {
-    const issue = await prisma.issue.findFirst({
-      where: { projectId, key: targetId },
-      select: { id: true },
-    });
-
-    if (issue) {
-      if (process.env.NODE_ENV !== "production") {
-        console.debug(
-          `[ai-suggestions] Resolved issue key ${targetId} to issue ID ${issue.id}`
-        );
-      }
-      return issue.id;
-    }
-  }
-
-  return targetId;
-};
 
 export async function GET(
   request: NextRequest,
@@ -75,10 +53,12 @@ export async function GET(
     }
 
     const searchParams = request.nextUrl.searchParams;
-    const targetId = await resolveTargetId(
-      projectId,
-      searchParams.get("targetId") ?? undefined
-    );
+    const targetParam = searchParams.get("targetId");
+    const targetId = targetParam ? await resolveIssueId(projectId, targetParam) : null;
+
+    if (targetParam && !targetId) {
+      return jsonError("Target issue not found", 404);
+    }
     const suggestionTypes = searchParams
       .getAll("suggestionType")
       .flatMap((value) => value.split(","))
@@ -99,6 +79,7 @@ export async function GET(
 
     const where = {
       projectId,
+      targetType: AISuggestionTargetType.ISSUE,
       ...(targetId ? { targetId } : {}),
       ...(suggestionTypes.length ? { suggestionType: { in: suggestionTypes } } : {}),
       ...(statuses && statuses.length
