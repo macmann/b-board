@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import type { ChatCompletion } from "openai/resources/chat/completions";
 
 const REQUEST_TIMEOUT_MS = 20000;
 const MAX_PROMPT_CHARS = 20000;
@@ -108,21 +109,18 @@ export async function chatJson<T = unknown>({
       { role: "user" as const, content: safeUser },
     ];
 
-    const params: Parameters<typeof openai.chat.completions.create>[0] = {
+    const params = {
       model: modelToUse,
       temperature: temperature ?? undefined,
       messages: baseMessages,
-    };
-
-    const paramsWithResponseFormat = {
-      ...params,
+      stream: false as const,
       response_format: { type: "json_object" as const },
-    } as typeof params;
+    } as const;
 
-    const completion = await openai.chat.completions.create(paramsWithResponseFormat, {
+    const completion = (await openai.chat.completions.create(params as any, {
       signal: controller.signal,
       timeout: requestTimeout,
-    });
+    })) as ChatCompletion;
 
     const content = completion.choices?.[0]?.message?.content;
 
