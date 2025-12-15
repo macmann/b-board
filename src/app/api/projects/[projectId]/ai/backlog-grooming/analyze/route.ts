@@ -24,6 +24,7 @@ import {
 } from "@/lib/prismaEnums";
 import { safeLogAudit } from "@/lib/auditLogger";
 import { logError } from "@/lib/logger";
+import { toInputJsonValue } from "@/lib/prisma/json";
 
 const MAX_LIMIT = 50;
 const DEFAULT_LIMIT = 30;
@@ -231,7 +232,7 @@ export async function POST(
         featureType: FeatureType.BACKLOG_GROOMING,
         status: AIRunStatus.STARTED,
         createdByUserId: user.id,
-        inputSnapshot: snapshot,
+        inputSnapshot: toInputJsonValue(snapshot),
       },
     });
 
@@ -249,22 +250,24 @@ export async function POST(
       const systemPrompt =
         "You are a precise JSON generator. Provide thoughtful backlog grooming insights and respond only with valid JSON.";
 
-      const aiResult = await chatJson({
+      const aiResultUnknown = await chatJson({
         model: settings.model ?? undefined,
         temperature: settings.temperature ?? undefined,
         user: userPrompt,
         system: systemPrompt,
       });
 
-      const parsed = aiResponseSchema.safeParse(aiResult);
+      let parsed: z.infer<typeof aiResponseSchema>;
 
-      if (!parsed.success) {
+      try {
+        parsed = aiResponseSchema.parse(aiResultUnknown);
+      } catch (error) {
         await prisma.aIRun.update({
           where: { id: aiRun.id },
           data: {
             status: AIRunStatus.FAILED,
             finishedAt: new Date(),
-            outputRaw: aiResult,
+            outputRaw: toInputJsonValue(aiResultUnknown),
             errorMessage: "AI response failed schema validation",
           },
         });
@@ -277,13 +280,13 @@ export async function POST(
           entityType: AuditEntityType.AI_RUN,
           entityId: aiRun.id,
           summary: "AI grooming run failed validation",
-          metadata: { zodErrors: parsed.error.flatten() },
-        }).catch((error) => logError("Failed to audit AI run failure", error));
+          metadata: error instanceof z.ZodError ? { zodErrors: error.flatten() } : undefined,
+        }).catch((auditError) => logError("Failed to audit AI run failure", auditError));
 
         return jsonError("AI response validation failed", 500);
       }
 
-      const suggestions = parsed.data.issues.flatMap((issue) =>
+      const suggestions = parsed.issues.flatMap((issue) =>
         issue.suggestions.map((suggestion) => ({ issueId: issue.issueId, suggestion }))
       );
 
@@ -299,10 +302,10 @@ export async function POST(
               title: suggestion.title,
               rationale: (suggestion.rationaleBullets ?? []).join("\n"),
               confidence: suggestion.confidence,
-              payload: {
+              payload: toInputJsonValue({
                 ...suggestion.payload,
                 rationaleBullets: suggestion.rationaleBullets ?? [],
-              },
+              }),
               status: AISuggestionStatus.PROPOSED,
             })),
           });
@@ -313,7 +316,7 @@ export async function POST(
           data: {
             status: AIRunStatus.SUCCEEDED,
             finishedAt: new Date(),
-            outputRaw: parsed.data,
+            outputRaw: toInputJsonValue(aiResultUnknown),
           },
         });
       });
