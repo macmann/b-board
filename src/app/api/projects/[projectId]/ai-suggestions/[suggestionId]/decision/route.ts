@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
 import prisma from "@/lib/db";
 import { jsonError } from "@/lib/apiResponse";
-import { resolveProjectId, type ProjectParams } from "@/lib/params";
+import { resolveProjectId } from "@/lib/params";
 import {
   AuthorizationError,
   requireProjectRole,
@@ -24,11 +24,13 @@ type DecisionAction = "ACCEPT" | "REJECT" | "SNOOZE";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: ProjectParams & { suggestionId: string } }
+  { params }: { params: Promise<{ projectId: string; suggestionId: string }> }
 ) {
+  const resolvedParams = await params;
+
   return withRequestContext(request, async () => {
-    const projectId = await resolveProjectId(params);
-    const suggestionId = params.suggestionId;
+    const projectId = await resolveProjectId(resolvedParams);
+    const suggestionId = resolvedParams.suggestionId;
 
     if (!projectId) {
       return jsonError("projectId is required", 400);
