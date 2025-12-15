@@ -81,6 +81,8 @@ export function extractFirstJsonObject(text: string): string {
   throw new Error("AI response contained incomplete JSON");
 }
 
+export async function chatJson(args: ChatJsonArgs): Promise<unknown>;
+export async function chatJson<T>(args: ChatJsonArgs): Promise<T>;
 export async function chatJson<T = unknown>({
   model,
   temperature,
