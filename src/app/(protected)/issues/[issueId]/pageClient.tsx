@@ -65,6 +65,22 @@ type Attachment = {
   createdAt: string;
 };
 
+type UserStoryDraft = {
+  userStory?: string;
+  description?: string;
+  acceptanceCriteria?: string[];
+  assumptions?: string[];
+  openQuestions?: string[];
+  outOfScope?: string[];
+};
+
+type AISuggestionPayload = {
+  recommendedTitle?: string;
+  recommendedDescription?: string;
+  recommendedAcceptanceCriteria?: string[];
+  notes?: string[];
+} & UserStoryDraft;
+
 type AISuggestion = {
   id: string;
   targetId: string;
@@ -72,14 +88,11 @@ type AISuggestion = {
   title: string;
   rationaleBullets?: string[] | null;
   confidence?: number | null;
-  payload: {
-    recommendedTitle?: string;
-    recommendedDescription?: string;
-    recommendedAcceptanceCriteria?: string[];
-    notes?: string[];
-  };
+  payload: AISuggestionPayload;
   status?: string;
 };
+
+type SuggestionGroup = { targetId: string; suggestions: AISuggestion[] };
 
 type SprintSummary = {
   id: string;
@@ -118,6 +131,9 @@ export default function IssueDetailsPageClient({
   const [suggestions, setSuggestions] = useState<AISuggestion[]>([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(true);
   const [suggestionError, setSuggestionError] = useState("");
+  const [autofillError, setAutofillError] = useState("");
+  const [autofillActionError, setAutofillActionError] = useState("");
+  const [isGeneratingAutofill, setIsGeneratingAutofill] = useState(false);
   const [decisionLoadingId, setDecisionLoadingId] = useState<string | null>(null);
   const [applyModalSuggestion, setApplyModalSuggestion] = useState<
     AISuggestion | null
@@ -213,6 +229,15 @@ export default function IssueDetailsPageClient({
     : "Recently";
   const issueKey = issue?.key ?? issue?.id ?? issueId;
   const projectKey = issue?.project?.key ?? issue?.project?.name ?? "Project";
+  const autofillSuggestion = useMemo(
+    () =>
+      suggestions.find((item) => item.suggestionType === "AUTOFILL_USER_STORY") ?? null,
+    [suggestions]
+  );
+  const otherSuggestions = useMemo(
+    () => suggestions.filter((item) => item.suggestionType !== "AUTOFILL_USER_STORY"),
+    [suggestions]
+  );
   const activityTabButton = (tab: "comments" | "audit") =>
     `rounded-full px-3 py-1.5 text-xs font-semibold transition ${
       activityTab === tab
@@ -304,33 +329,51 @@ export default function IssueDetailsPageClient({
     }
   };
 
-  const fetchSuggestions = useCallback(async (projectId: string, targetId: string) => {
-    setIsLoadingSuggestions(true);
-    setSuggestionError("");
+  const fetchSuggestions = useCallback(
+    async (projectId: string, targetId?: string) => {
+      setIsLoadingSuggestions(true);
+      setSuggestionError("");
 
-    try {
-      const response = await fetch(
-        `/api/projects/${projectId}/ai-suggestions?targetId=${targetId}&excludeSnoozed=true`
-      );
+      try {
+        const params = new URLSearchParams({ excludeSnoozed: "true" });
+        if (targetId) {
+          params.set("targetId", targetId);
+        }
 
-      if (!response.ok) {
-        const data = await response.json().catch(() => null);
-        setSuggestionError(
-          data?.message ?? "Failed to load AI suggestions for this issue."
+        const response = await fetch(
+          `/api/projects/${projectId}/ai-suggestions${
+            params.toString() ? `?${params.toString()}` : ""
+          }`
         );
-        return;
-      }
 
-      const data = (await response.json()) as AISuggestion[];
-      setSuggestions(data ?? []);
-    } catch (err) {
-      setSuggestionError(
-        "An unexpected error occurred while loading AI suggestions."
-      );
-    } finally {
-      setIsLoadingSuggestions(false);
-    }
-  }, []);
+        if (!response.ok) {
+          const data = await response.json().catch(() => null);
+          setSuggestionError(
+            data?.message ?? "Failed to load AI suggestions for this issue."
+          );
+          return;
+        }
+
+        const rawData = (await response.json()) as
+          | AISuggestion[]
+          | SuggestionGroup[];
+        const normalizedSuggestions =
+          Array.isArray(rawData) && rawData.length > 0 &&
+          typeof (rawData[0] as SuggestionGroup).suggestions !== "undefined"
+            ? (rawData as SuggestionGroup[]).flatMap((group) => group.suggestions ?? [])
+            : (rawData as AISuggestion[]);
+
+        setSuggestions(normalizedSuggestions ?? []);
+      } catch (err) {
+        setSuggestionError(
+          "An unexpected error occurred while loading AI suggestions."
+        );
+      } finally {
+        setIsLoadingSuggestions(false);
+      }
+    },
+    []
+  );
 
   const uploadAttachments = async (files: FileList, target: "issue" | "comment") => {
     if (!files.length) return;
@@ -539,11 +582,74 @@ export default function IssueDetailsPageClient({
         return;
       }
 
-      void fetchSuggestions(issue.project.id);
+      void fetchSuggestions(issue.project.id, issue.id);
     } catch (err) {
       setSuggestionError("An unexpected error occurred while updating the suggestion.");
     } finally {
       setDecisionLoadingId(null);
+    }
+  };
+
+  const triggerAutofill = async () => {
+    if (!issue?.project?.id || !issueKey) return;
+    setAutofillError("");
+    setAutofillActionError("");
+    setIsGeneratingAutofill(true);
+
+    try {
+      const response = await fetch(
+        `/api/projects/${issue.project.id}/issues/${issueKey}/ai/autofill`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "ON_DEMAND" }),
+        }
+      );
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setAutofillError(
+          data?.message ?? "Failed to generate an AI user story draft."
+        );
+        return;
+      }
+
+      const created = (await response.json()) as AISuggestion;
+      setSuggestions((prev) => [created, ...prev.filter((item) => item.id !== created.id)]);
+    } catch (err) {
+      setAutofillError("An unexpected error occurred while generating the draft.");
+    } finally {
+      setIsGeneratingAutofill(false);
+    }
+  };
+
+  const applyAutofill = async (suggestion: AISuggestion) => {
+    if (!issue?.project?.id) return;
+    setIsApplying(true);
+    setAutofillActionError("");
+
+    try {
+      const response = await fetch(
+        `/api/projects/${issue.project.id}/ai-suggestions/${suggestion.id}/apply`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ applyDescription: true }),
+        }
+      );
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setAutofillActionError(data?.message ?? "Failed to apply AI draft.");
+        return;
+      }
+
+      await fetchIssue();
+      void fetchSuggestions(issue.project.id, issue.id);
+    } catch (err) {
+      setAutofillActionError("An unexpected error occurred while applying the draft.");
+    } finally {
+      setIsApplying(false);
     }
   };
 
@@ -588,7 +694,7 @@ export default function IssueDetailsPageClient({
       }
 
       await fetchIssue();
-      void fetchSuggestions(issue.project.id);
+      void fetchSuggestions(issue.project.id, issue.id);
       setApplyModalSuggestion(null);
     } catch (err) {
       setApplyError("An unexpected error occurred while applying edits.");
@@ -763,6 +869,158 @@ export default function IssueDetailsPageClient({
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          AI Autofill
+                        </p>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">
+                          Generate a complete user story draft for this issue.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={triggerAutofill}
+                        disabled={isGeneratingAutofill}
+                        className="inline-flex items-center rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
+                      >
+                        {isGeneratingAutofill ? "Generating..." : "Generate"}
+                      </button>
+                    </div>
+
+                    {autofillError && (
+                      <p className="mt-3 text-sm text-red-500">{autofillError}</p>
+                    )}
+
+                    {autofillSuggestion ? (
+                      <div className="mt-4 space-y-4">
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+                          <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700 shadow-inner dark:bg-slate-800 dark:text-slate-200">
+                            {autofillSuggestion.suggestionType}
+                          </span>
+                          <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700 shadow-inner dark:bg-emerald-900/40 dark:text-emerald-100">
+                            {autofillSuggestion.status ?? "PROPOSED"}
+                          </span>
+                        </div>
+
+                        {autofillSuggestion.payload.userStory ? (
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              User Story
+                            </p>
+                            <p className="text-sm font-medium text-slate-900 dark:text-slate-50">
+                              {autofillSuggestion.payload.userStory}
+                            </p>
+                          </div>
+                        ) : null}
+
+                        {autofillSuggestion.payload.description ? (
+                          <div className="space-y-1">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              Description
+                            </p>
+                            <div className="prose prose-sm max-w-none rounded-md border border-slate-200 bg-white px-3 py-2 text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:prose-invert">
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {autofillSuggestion.payload.description}
+                              </ReactMarkdown>
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {autofillSuggestion.payload.acceptanceCriteria?.length ? (
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              Acceptance Criteria
+                            </p>
+                            <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-800 dark:text-slate-100">
+                              {autofillSuggestion.payload.acceptanceCriteria.map((item) => (
+                                <li key={item}>{item}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+
+                        {autofillSuggestion.payload.assumptions?.length ? (
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              Assumptions
+                            </p>
+                            <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-800 dark:text-slate-100">
+                              {autofillSuggestion.payload.assumptions.map((item) => (
+                                <li key={item}>{item}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+
+                        {autofillSuggestion.payload.openQuestions?.length ? (
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              Open Questions
+                            </p>
+                            <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-800 dark:text-slate-100">
+                              {autofillSuggestion.payload.openQuestions.map((item) => (
+                                <li key={item}>{item}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+
+                        {autofillSuggestion.payload.outOfScope?.length ? (
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                              Out of Scope
+                            </p>
+                            <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-800 dark:text-slate-100">
+                              {autofillSuggestion.payload.outOfScope.map((item) => (
+                                <li key={item}>{item}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+
+                        {autofillActionError && (
+                          <p className="text-sm text-red-500">{autofillActionError}</p>
+                        )}
+
+                        <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                          <button
+                            type="button"
+                            onClick={() => applyAutofill(autofillSuggestion)}
+                            disabled={isApplying || autofillSuggestion.status === "APPLIED"}
+                            className="rounded-full bg-primary px-3 py-1 text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
+                          >
+                            {isApplying ? "Applying..." : "Apply to description"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDecision(autofillSuggestion.id, "REJECT")}
+                            disabled={decisionLoadingId === autofillSuggestion.id}
+                            className="rounded-full border border-slate-300 px-3 py-1 text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
+                          >
+                            Reject
+                          </button>
+                          {[7, 14, 30].map((days) => (
+                            <button
+                              key={days}
+                              type="button"
+                              onClick={() => handleDecision(autofillSuggestion.id, "SNOOZE", days)}
+                              disabled={decisionLoadingId === autofillSuggestion.id}
+                              className="rounded-full border border-amber-200 px-3 py-1 text-amber-700 transition hover:bg-amber-50 disabled:opacity-60 dark:border-amber-700 dark:text-amber-100 dark:hover:bg-amber-900/30"
+                            >
+                              Snooze {days}d
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+                        No AI draft yet. Generate one to start a user story.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white/70 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                           AI Suggestions
                         </p>
                         <p className="text-sm text-slate-600 dark:text-slate-300">
@@ -779,12 +1037,12 @@ export default function IssueDetailsPageClient({
                         <p className="text-sm text-slate-600 dark:text-slate-300">Loading suggestions...</p>
                       ) : suggestionError ? (
                         <p className="text-sm text-red-500">{suggestionError}</p>
-                      ) : suggestions.length === 0 ? (
+                      ) : otherSuggestions.length === 0 ? (
                         <p className="text-sm text-slate-600 dark:text-slate-300">
                           No AI drafts yet. Trigger backlog grooming to see ideas here.
                         </p>
                       ) : (
-                        suggestions.map((suggestion) => (
+                        otherSuggestions.map((suggestion) => (
                           <div
                             key={suggestion.id}
                             className="rounded-xl border border-slate-200 bg-white/70 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
