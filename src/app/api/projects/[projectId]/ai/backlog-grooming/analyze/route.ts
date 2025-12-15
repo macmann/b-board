@@ -286,9 +286,34 @@ export async function POST(
         return jsonError("AI response validation failed", 500);
       }
 
-      const suggestions = parsed.issues.flatMap((issue) =>
-        issue.suggestions.map((suggestion) => ({ issueId: issue.issueId, suggestion }))
-      );
+      const issueIdLookup = issues.reduce((lookup, issue) => {
+        lookup.set(issue.id, issue.id);
+        if (issue.key) {
+          lookup.set(issue.key, issue.id);
+        }
+        return lookup;
+      }, new Map<string, string>());
+
+      const suggestions = parsed.issues.flatMap((issue) => {
+        const targetId = issueIdLookup.get(issue.issueId);
+
+        if (!targetId) {
+          if (process.env.NODE_ENV !== "production") {
+            console.debug(
+              `[ai/backlog-grooming] Skipping suggestion for unknown issue identifier: ${issue.issueId}`
+            );
+          }
+          return [] as Array<{ issueId: string; suggestion: (typeof issue.suggestions)[number] }>;
+        }
+
+        if (process.env.NODE_ENV !== "production" && targetId !== issue.issueId) {
+          console.debug(
+            `[ai/backlog-grooming] Normalized AI response issue identifier ${issue.issueId} to issue ID ${targetId}`
+          );
+        }
+
+        return issue.suggestions.map((suggestion) => ({ issueId: targetId, suggestion }));
+      });
 
       await prisma.$transaction(async (tx) => {
         if (suggestions.length > 0) {

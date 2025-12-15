@@ -167,6 +167,9 @@ export default function BacklogPageClient({
     return backlogGroups.reduce((acc, group) => {
       group.issues.forEach((issue) => {
         acc.set(issue.id, issue);
+        if (issue.key) {
+          acc.set(issue.key, issue);
+        }
       });
       return acc;
     }, new Map<string, BacklogIssue>());
@@ -668,6 +671,7 @@ export default function BacklogPageClient({
                 <div className="space-y-3">
                   {suggestionGroups.map((group) => {
                     const issue = suggestionIssueMap.get(group.targetId);
+                    const issueIdForNavigation = issue?.id ?? group.targetId;
                     return (
                       <div
                         key={group.targetId}
@@ -684,7 +688,7 @@ export default function BacklogPageClient({
                           </div>
                           <button
                             type="button"
-                            onClick={() => router.push(`/issues/${group.targetId}`)}
+                            onClick={() => router.push(`/issues/${issueIdForNavigation}`)}
                             className="inline-flex items-center rounded-full border border-primary/30 px-3 py-1 text-xs font-semibold text-primary transition hover:bg-primary/10"
                           >
                             Review
