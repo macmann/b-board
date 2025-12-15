@@ -3,6 +3,7 @@
 import {
   ChangeEvent,
   FormEvent,
+  ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -107,6 +108,153 @@ type IssueDetailsPageClientProps = {
   initialSprints: SprintSummary[];
 };
 
+type AISuggestionCardProps = {
+  suggestion: AISuggestion;
+  decisionLoadingId: string | null;
+  onAccept?: () => void;
+  onReject: () => void;
+  onSnooze: (days: number) => void;
+  onPreview?: () => void;
+  primaryActionLabel?: string;
+  onPrimaryAction?: () => void;
+  disableActions?: boolean;
+  caption?: ReactNode;
+};
+
+function AISuggestionRow({ children }: { children: ReactNode }) {
+  return (
+    <div className="mt-4 flex gap-4 overflow-x-auto pb-2">
+      {children}
+    </div>
+  );
+}
+
+function getSuggestionSummary(suggestion: AISuggestion) {
+  if (suggestion.payload?.recommendedDescription) {
+    return suggestion.payload.recommendedDescription;
+  }
+
+  if (suggestion.payload?.description) {
+    return suggestion.payload.description;
+  }
+
+  if (suggestion.payload?.notes?.length) {
+    return suggestion.payload.notes[0];
+  }
+
+  if (suggestion.rationaleBullets?.length) {
+    return suggestion.rationaleBullets[0];
+  }
+
+  return "";
+}
+
+function AISuggestionCard({
+  suggestion,
+  onAccept,
+  onReject,
+  onSnooze,
+  onPreview,
+  onPrimaryAction,
+  primaryActionLabel,
+  decisionLoadingId,
+  disableActions,
+  caption,
+}: AISuggestionCardProps) {
+  const confidenceLabel =
+    typeof suggestion.confidence === "number"
+      ? `${Math.round(suggestion.confidence * 100)}%`
+      : null;
+
+  const summary = getSuggestionSummary(suggestion);
+
+  return (
+    <div className="flex min-w-[260px] max-w-[320px] flex-1 flex-shrink-0 flex-col justify-between rounded-xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold uppercase text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+              {suggestion.suggestionType}
+            </span>
+            {confidenceLabel ? (
+              <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 shadow-inner dark:bg-emerald-900/50 dark:text-emerald-100">
+                {confidenceLabel}
+              </span>
+            ) : null}
+          </div>
+          {caption}
+        </div>
+
+        <div className="space-y-1">
+          <p className="line-clamp-1 text-sm font-semibold text-slate-900 dark:text-slate-50">
+            {suggestion.title}
+          </p>
+          {summary ? (
+            <p className="line-clamp-3 text-sm text-slate-600 dark:text-slate-300">{summary}</p>
+          ) : (
+            <p className="text-sm text-slate-500 dark:text-slate-400">No preview available.</p>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
+        {onPrimaryAction && primaryActionLabel ? (
+          <button
+            type="button"
+            onClick={onPrimaryAction}
+            disabled={disableActions}
+            className="inline-flex items-center rounded-full bg-primary px-3 py-1 text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
+          >
+            {primaryActionLabel}
+          </button>
+        ) : null}
+
+        {onAccept ? (
+          <button
+            type="button"
+            onClick={onAccept}
+            disabled={disableActions || decisionLoadingId === suggestion.id}
+            className="inline-flex items-center rounded-full bg-emerald-500 px-3 py-1 text-white shadow-sm transition hover:bg-emerald-600 disabled:opacity-60"
+          >
+            {decisionLoadingId === suggestion.id ? "Saving..." : "Accept"}
+          </button>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={onReject}
+          disabled={disableActions || decisionLoadingId === suggestion.id}
+          className="inline-flex items-center rounded-full border border-slate-300 px-3 py-1 text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
+        >
+          Reject
+        </button>
+
+        {[7, 14, 30].map((days) => (
+          <button
+            key={days}
+            type="button"
+            onClick={() => onSnooze(days)}
+            disabled={disableActions || decisionLoadingId === suggestion.id}
+            className="inline-flex items-center rounded-full border border-amber-200 px-3 py-1 text-amber-700 transition hover:bg-amber-50 disabled:opacity-60 dark:border-amber-700 dark:text-amber-100 dark:hover:bg-amber-900/30"
+          >
+            Snooze {days}d
+          </button>
+        ))}
+
+        {onPreview ? (
+          <button
+            type="button"
+            onClick={onPreview}
+            className="inline-flex items-center rounded-full border border-slate-200 px-3 py-1 text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
+          >
+            Preview
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export default function IssueDetailsPageClient({
   issueId,
   projectRole,
@@ -145,6 +293,7 @@ export default function IssueDetailsPageClient({
   });
   const [isApplying, setIsApplying] = useState(false);
   const [applyError, setApplyError] = useState("");
+  const [previewSuggestion, setPreviewSuggestion] = useState<AISuggestion | null>(null);
 
   const [title, setTitle] = useState("");
   const [type, setType] = useState<IssueType>(IssueType.STORY);
@@ -703,6 +852,164 @@ export default function IssueDetailsPageClient({
     }
   };
 
+  const renderPreviewContent = (suggestion: AISuggestion) => {
+    const sharedNotes = (
+      <>
+        {(suggestion.rationaleBullets?.length ?? 0) > 0 && (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Rationale</p>
+            <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-800 dark:text-slate-100">
+              {suggestion.rationaleBullets?.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {suggestion.payload?.notes?.length ? (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Notes</p>
+            <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-800 dark:text-slate-100">
+              {suggestion.payload.notes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </>
+    );
+
+    if (suggestion.suggestionType === "AUTOFILL_USER_STORY") {
+      return (
+        <div className="space-y-4 text-sm text-slate-700 dark:text-slate-200">
+          {suggestion.payload.userStory ? (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">User Story</p>
+              <p className="text-sm font-medium text-slate-900 dark:text-slate-50">
+                {suggestion.payload.userStory}
+              </p>
+            </div>
+          ) : null}
+
+          {suggestion.payload.description ? (
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Description</p>
+              <div className="prose prose-sm max-w-none rounded-md border border-slate-200 bg-white px-3 py-2 text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:prose-invert">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {suggestion.payload.description}
+                </ReactMarkdown>
+              </div>
+            </div>
+          ) : null}
+
+          {suggestion.payload.acceptanceCriteria?.length ? (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Acceptance Criteria
+              </p>
+              <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-800 dark:text-slate-100">
+                {suggestion.payload.acceptanceCriteria.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {suggestion.payload.assumptions?.length ? (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Assumptions</p>
+              <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-800 dark:text-slate-100">
+                {suggestion.payload.assumptions.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {suggestion.payload.openQuestions?.length ? (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Open Questions</p>
+              <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-800 dark:text-slate-100">
+                {suggestion.payload.openQuestions.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {suggestion.payload.outOfScope?.length ? (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Out of Scope</p>
+              <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-800 dark:text-slate-100">
+                {suggestion.payload.outOfScope.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {sharedNotes}
+        </div>
+      );
+    }
+
+    if (suggestion.suggestionType === "IMPROVE_TEXT") {
+      return (
+        <div className="space-y-4 text-sm text-slate-700 dark:text-slate-200">
+          {suggestion.payload?.recommendedTitle && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Proposed Title
+              </p>
+              <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                {suggestion.payload.recommendedTitle}
+              </p>
+            </div>
+          )}
+
+          {suggestion.payload?.recommendedDescription && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Proposed Description
+              </p>
+              <div className="rounded-md border border-slate-200 bg-white p-2 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {suggestion.payload.recommendedDescription}
+                </ReactMarkdown>
+              </div>
+            </div>
+          )}
+
+          {suggestion.payload?.recommendedAcceptanceCriteria?.length ? (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Proposed Acceptance Criteria
+              </p>
+              <ul className="mt-1 list-disc space-y-1 pl-5 text-slate-800 dark:text-slate-100">
+                {suggestion.payload.recommendedAcceptanceCriteria.map((criteria) => (
+                  <li key={criteria}>{criteria}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {sharedNotes}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3 text-sm text-slate-700 dark:text-slate-200">
+        {getSuggestionSummary(suggestion) ? (
+          <p className="leading-6 text-slate-700 dark:text-slate-200">{getSuggestionSummary(suggestion)}</p>
+        ) : (
+          <p className="text-slate-500 dark:text-slate-400">No details provided.</p>
+        )}
+        {sharedNotes}
+      </div>
+    );
+  };
+
   return (
     <>
       <main className="min-h-screen bg-slate-50 px-4 py-10 dark:bg-slate-950">
@@ -861,312 +1168,124 @@ export default function IssueDetailsPageClient({
                         </button>
                       </div>
                     </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-white/70 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            AI Suggestions
+                          </p>
+                          <p className="text-sm text-slate-600 dark:text-slate-300">AI drafts. Review before applying.</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={triggerAutofill}
+                            disabled={isGeneratingAutofill}
+                            className="inline-flex items-center rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
+                          >
+                            {isGeneratingAutofill ? "Generating..." : "Generate draft"}
+                          </button>
+                          <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase text-slate-700 shadow-inner dark:bg-slate-800 dark:text-slate-200">
+                            AI draft
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 space-y-3">
+                        {autofillError && (
+                          <p className="text-sm text-red-500">{autofillError}</p>
+                        )}
+                        {isLoadingSuggestions ? (
+                          <p className="text-sm text-slate-600 dark:text-slate-300">Loading suggestions...</p>
+                        ) : suggestionError ? (
+                          <p className="text-sm text-red-500">{suggestionError}</p>
+                        ) : suggestions.length === 0 ? (
+                          <p className="text-sm text-slate-600 dark:text-slate-300">
+                            No AI drafts yet. Trigger backlog grooming to see ideas here.
+                          </p>
+                        ) : (
+                          <>
+                            <AISuggestionRow>
+                              {autofillSuggestion ? (
+                                <AISuggestionCard
+                                  suggestion={autofillSuggestion}
+                                  onPrimaryAction={() => applyAutofill(autofillSuggestion)}
+                                  primaryActionLabel={
+                                    autofillSuggestion.status === "APPLIED"
+                                      ? "Applied"
+                                      : isApplying
+                                        ? "Applying..."
+                                        : "Apply"
+                                  }
+                                  onReject={() => handleDecision(autofillSuggestion.id, "REJECT")}
+                                  onSnooze={(days) => handleDecision(autofillSuggestion.id, "SNOOZE", days)}
+                                  onPreview={() => setPreviewSuggestion(autofillSuggestion)}
+                                  decisionLoadingId={decisionLoadingId}
+                                  disableActions={isApplying || autofillSuggestion.status === "APPLIED"}
+                                  caption={
+                                    <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 shadow-inner dark:bg-emerald-900/50 dark:text-emerald-100">
+                                      {autofillSuggestion.status ?? "PROPOSED"}
+                                    </span>
+                                  }
+                                />
+                              ) : (
+                                <div className="flex min-w-[260px] max-w-[320px] flex-1 flex-shrink-0 flex-col justify-between rounded-xl border border-dashed border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-700 shadow-inner dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-200">
+                                  <div className="space-y-1">
+                                    <p className="font-semibold text-slate-900 dark:text-slate-50">Generate a user story draft</p>
+                                    <p className="text-sm text-slate-600 dark:text-slate-300">
+                                      Kickstart a user story with an AI-generated draft.
+                                    </p>
+                                  </div>
+                                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
+                                    <button
+                                      type="button"
+                                      onClick={triggerAutofill}
+                                      disabled={isGeneratingAutofill}
+                                      className="inline-flex items-center rounded-full bg-primary px-3 py-1 text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
+                                    >
+                                      {isGeneratingAutofill ? "Generating..." : "Generate"}
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
+                              {otherSuggestions.map((suggestion) => (
+                                <AISuggestionCard
+                                  key={suggestion.id}
+                                  suggestion={suggestion}
+                                  onAccept={() => handleDecision(suggestion.id, "ACCEPT")}
+                                  onReject={() => handleDecision(suggestion.id, "REJECT")}
+                                  onSnooze={(days) => handleDecision(suggestion.id, "SNOOZE", days)}
+                                  decisionLoadingId={decisionLoadingId}
+                                  onPreview={
+                                    suggestion.suggestionType === "IMPROVE_TEXT"
+                                      ? () => setPreviewSuggestion(suggestion)
+                                      : undefined
+                                  }
+                                  onPrimaryAction={
+                                    suggestion.suggestionType === "IMPROVE_TEXT"
+                                      ? () => openApplyModal(suggestion)
+                                      : undefined
+                                  }
+                                  primaryActionLabel={
+                                    suggestion.suggestionType === "IMPROVE_TEXT" ? "Apply edits" : undefined
+                                  }
+                                />
+                              ))}
+                            </AISuggestionRow>
+
+                            {autofillActionError && (
+                              <p className="text-sm text-red-500">{autofillActionError}</p>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
                 <div className="space-y-5">
-                  <div className="rounded-2xl border border-slate-200 bg-white/70 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          AI Autofill
-                        </p>
-                        <p className="text-sm text-slate-600 dark:text-slate-300">
-                          Generate a complete user story draft for this issue.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={triggerAutofill}
-                        disabled={isGeneratingAutofill}
-                        className="inline-flex items-center rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
-                      >
-                        {isGeneratingAutofill ? "Generating..." : "Generate"}
-                      </button>
-                    </div>
-
-                    {autofillError && (
-                      <p className="mt-3 text-sm text-red-500">{autofillError}</p>
-                    )}
-
-                    {autofillSuggestion ? (
-                      <div className="mt-4 space-y-4">
-                        <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
-                          <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700 shadow-inner dark:bg-slate-800 dark:text-slate-200">
-                            {autofillSuggestion.suggestionType}
-                          </span>
-                          <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700 shadow-inner dark:bg-emerald-900/40 dark:text-emerald-100">
-                            {autofillSuggestion.status ?? "PROPOSED"}
-                          </span>
-                        </div>
-
-                        {autofillSuggestion.payload.userStory ? (
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                              User Story
-                            </p>
-                            <p className="text-sm font-medium text-slate-900 dark:text-slate-50">
-                              {autofillSuggestion.payload.userStory}
-                            </p>
-                          </div>
-                        ) : null}
-
-                        {autofillSuggestion.payload.description ? (
-                          <div className="space-y-1">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                              Description
-                            </p>
-                            <div className="prose prose-sm max-w-none rounded-md border border-slate-200 bg-white px-3 py-2 text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:prose-invert">
-                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                {autofillSuggestion.payload.description}
-                              </ReactMarkdown>
-                            </div>
-                          </div>
-                        ) : null}
-
-                        {autofillSuggestion.payload.acceptanceCriteria?.length ? (
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                              Acceptance Criteria
-                            </p>
-                            <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-800 dark:text-slate-100">
-                              {autofillSuggestion.payload.acceptanceCriteria.map((item) => (
-                                <li key={item}>{item}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        ) : null}
-
-                        {autofillSuggestion.payload.assumptions?.length ? (
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                              Assumptions
-                            </p>
-                            <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-800 dark:text-slate-100">
-                              {autofillSuggestion.payload.assumptions.map((item) => (
-                                <li key={item}>{item}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        ) : null}
-
-                        {autofillSuggestion.payload.openQuestions?.length ? (
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                              Open Questions
-                            </p>
-                            <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-800 dark:text-slate-100">
-                              {autofillSuggestion.payload.openQuestions.map((item) => (
-                                <li key={item}>{item}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        ) : null}
-
-                        {autofillSuggestion.payload.outOfScope?.length ? (
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                              Out of Scope
-                            </p>
-                            <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-800 dark:text-slate-100">
-                              {autofillSuggestion.payload.outOfScope.map((item) => (
-                                <li key={item}>{item}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        ) : null}
-
-                        {autofillActionError && (
-                          <p className="text-sm text-red-500">{autofillActionError}</p>
-                        )}
-
-                        <div className="flex flex-wrap gap-2 text-xs font-semibold">
-                          <button
-                            type="button"
-                            onClick={() => applyAutofill(autofillSuggestion)}
-                            disabled={isApplying || autofillSuggestion.status === "APPLIED"}
-                            className="rounded-full bg-primary px-3 py-1 text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
-                          >
-                            {isApplying ? "Applying..." : "Apply to description"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDecision(autofillSuggestion.id, "REJECT")}
-                            disabled={decisionLoadingId === autofillSuggestion.id}
-                            className="rounded-full border border-slate-300 px-3 py-1 text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
-                          >
-                            Reject
-                          </button>
-                          {[7, 14, 30].map((days) => (
-                            <button
-                              key={days}
-                              type="button"
-                              onClick={() => handleDecision(autofillSuggestion.id, "SNOOZE", days)}
-                              disabled={decisionLoadingId === autofillSuggestion.id}
-                              className="rounded-full border border-amber-200 px-3 py-1 text-amber-700 transition hover:bg-amber-50 disabled:opacity-60 dark:border-amber-700 dark:text-amber-100 dark:hover:bg-amber-900/30"
-                            >
-                              Snooze {days}d
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
-                        No AI draft yet. Generate one to start a user story.
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-white/70 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          AI Suggestions
-                        </p>
-                        <p className="text-sm text-slate-600 dark:text-slate-300">
-                          AI draft insights for this issue. Review before applying.
-                        </p>
-                      </div>
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase text-slate-700 shadow-inner dark:bg-slate-800 dark:text-slate-200">
-                        AI draft
-                      </span>
-                    </div>
-
-                    <div className="mt-3 space-y-3">
-                      {isLoadingSuggestions ? (
-                        <p className="text-sm text-slate-600 dark:text-slate-300">Loading suggestions...</p>
-                      ) : suggestionError ? (
-                        <p className="text-sm text-red-500">{suggestionError}</p>
-                      ) : otherSuggestions.length === 0 ? (
-                        <p className="text-sm text-slate-600 dark:text-slate-300">
-                          No AI drafts yet. Trigger backlog grooming to see ideas here.
-                        </p>
-                      ) : (
-                        otherSuggestions.map((suggestion) => (
-                          <div
-                            key={suggestion.id}
-                            className="rounded-xl border border-slate-200 bg-white/70 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold uppercase text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                                    {suggestion.suggestionType}
-                                  </span>
-                                  {typeof suggestion.confidence === "number" && (
-                                    <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                                      {Math.round(suggestion.confidence * 100)}% confidence
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-base font-semibold text-slate-900 dark:text-slate-50">
-                                  {suggestion.title}
-                                </p>
-                              </div>
-
-                              <div className="flex flex-wrap gap-2 text-xs font-semibold">
-                                <button
-                                  type="button"
-                                  onClick={() => handleDecision(suggestion.id, "ACCEPT")}
-                                  disabled={decisionLoadingId === suggestion.id}
-                                  className="rounded-full bg-emerald-500 px-3 py-1 text-white shadow-sm transition hover:bg-emerald-600 disabled:opacity-60"
-                                >
-                                  {decisionLoadingId === suggestion.id ? "Saving..." : "Accept"}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDecision(suggestion.id, "REJECT")}
-                                  disabled={decisionLoadingId === suggestion.id}
-                                  className="rounded-full border border-slate-300 px-3 py-1 text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
-                                >
-                                  Reject
-                                </button>
-                                {[7, 14, 30].map((days) => (
-                                  <button
-                                    key={days}
-                                    type="button"
-                                    onClick={() => handleDecision(suggestion.id, "SNOOZE", days)}
-                                    disabled={decisionLoadingId === suggestion.id}
-                                    className="rounded-full border border-amber-200 px-3 py-1 text-amber-700 transition hover:bg-amber-50 disabled:opacity-60 dark:border-amber-700 dark:text-amber-100 dark:hover:bg-amber-900/30"
-                                  >
-                                    Snooze {days}d
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-
-                            <div className="mt-3 space-y-2 text-sm text-slate-700 dark:text-slate-200">
-                              {(suggestion.rationaleBullets?.length ?? 0) > 0 && (
-                                <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700 dark:text-slate-200">
-                                  {suggestion.rationaleBullets?.map((item) => (
-                                    <li key={item}>{item}</li>
-                                  ))}
-                                </ul>
-                              )}
-
-                              {suggestion.payload?.notes?.length ? (
-                                <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700 dark:text-slate-200">
-                                  {suggestion.payload.notes.map((note) => (
-                                    <li key={note}>{note}</li>
-                                  ))}
-                                </ul>
-                              ) : null}
-
-                              {suggestion.suggestionType === "IMPROVE_TEXT" && (
-                                <div className="space-y-3 rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800/70">
-                                  {suggestion.payload?.recommendedTitle && (
-                                    <div>
-                                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                                        Proposed Title
-                                      </p>
-                                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                                        {suggestion.payload.recommendedTitle}
-                                      </p>
-                                    </div>
-                                  )}
-
-                                  {suggestion.payload?.recommendedDescription && (
-                                    <div>
-                                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                                        Proposed Description
-                                      </p>
-                                      <div className="rounded-md border border-slate-200 bg-white p-2 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                          {suggestion.payload.recommendedDescription}
-                                        </ReactMarkdown>
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {suggestion.payload?.recommendedAcceptanceCriteria?.length ? (
-                                    <div>
-                                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                                        Proposed Acceptance Criteria
-                                      </p>
-                                      <ul className="mt-1 list-disc space-y-1 pl-5 text-slate-800 dark:text-slate-100">
-                                        {suggestion.payload.recommendedAcceptanceCriteria.map((criteria) => (
-                                          <li key={criteria}>{criteria}</li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  ) : null}
-
-                                  <button
-                                    type="button"
-                                    onClick={() => openApplyModal(suggestion)}
-                                    className="inline-flex items-center rounded-full bg-primary px-3 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90"
-                                  >
-                                    Apply edits
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-
                   <div className="rounded-2xl border border-slate-200 bg-white/70 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       Status & Workflow
@@ -1497,6 +1616,86 @@ export default function IssueDetailsPageClient({
         </section>
       </div>
     </main>
+
+      {previewSuggestion && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold uppercase text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                    {previewSuggestion.suggestionType}
+                  </span>
+                  {typeof previewSuggestion.confidence === "number" && (
+                    <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 shadow-inner dark:bg-emerald-900/50 dark:text-emerald-100">
+                      {Math.round(previewSuggestion.confidence * 100)}%
+                    </span>
+                  )}
+                </div>
+                <p className="text-base font-semibold text-slate-900 dark:text-slate-100">{previewSuggestion.title}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewSuggestion(null)}
+                className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-4">
+              {renderPreviewContent(previewSuggestion)}
+            </div>
+
+            <div className="mt-5 flex flex-wrap justify-end gap-2 text-xs font-semibold">
+              {previewSuggestion.suggestionType === "IMPROVE_TEXT" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    openApplyModal(previewSuggestion);
+                    setPreviewSuggestion(null);
+                  }}
+                  className="inline-flex items-center rounded-full bg-primary px-4 py-2 text-white shadow-sm transition hover:bg-primary/90"
+                >
+                  Apply edits
+                </button>
+              )}
+
+              {previewSuggestion.suggestionType === "AUTOFILL_USER_STORY" && (
+                <button
+                  type="button"
+                  onClick={() => applyAutofill(previewSuggestion)}
+                  disabled={isApplying || previewSuggestion.status === "APPLIED"}
+                  className="inline-flex items-center rounded-full bg-primary px-4 py-2 text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
+                >
+                  {previewSuggestion.status === "APPLIED"
+                    ? "Applied"
+                    : isApplying
+                      ? "Applying..."
+                      : "Apply to description"}
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => handleDecision(previewSuggestion.id, "REJECT")}
+                disabled={decisionLoadingId === previewSuggestion.id}
+                className="inline-flex items-center rounded-full border border-slate-300 px-4 py-2 text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
+              >
+                Reject
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDecision(previewSuggestion.id, "ACCEPT")}
+                disabled={decisionLoadingId === previewSuggestion.id}
+                className="inline-flex items-center rounded-full bg-emerald-500 px-4 py-2 text-white shadow-sm transition hover:bg-emerald-600 disabled:opacity-60"
+              >
+                {decisionLoadingId === previewSuggestion.id ? "Saving..." : "Accept"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {applyModalSuggestion && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
