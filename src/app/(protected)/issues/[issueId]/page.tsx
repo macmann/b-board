@@ -36,37 +36,37 @@ type Props = {
 };
 
 export default async function IssueDetailsPage({ params }: Props) {
-  const issueId = await resolveIssueId(params);
+  const issueIdentifier = await resolveIssueId(params);
 
-  if (!issueId) {
+  if (!issueIdentifier) {
     notFound();
   }
 
-  const issue = await prisma.issue.findUnique({
-    where: { id: issueId },
-    select: { projectId: true },
+  const issue = await prisma.issue.findFirst({
+    where: { OR: [{ id: issueIdentifier }, { key: issueIdentifier }] },
+    select: { id: true, projectId: true },
   });
 
-  const context = issue
-    ? await getCurrentProjectContext(issue.projectId)
-    : { membership: null, user: null, project: null };
+  if (!issue) {
+    notFound();
+  }
+
+  const context = await getCurrentProjectContext(issue.projectId);
 
   const projectRole = mapRole(
     (context.membership?.role as ProjectRole | null) ?? null,
     context.user?.role ?? null
   );
 
-  const sprints = issue
-    ? await prisma.sprint.findMany({
-        where: { projectId: issue.projectId },
-        select: { id: true, name: true, status: true },
-        orderBy: { createdAt: "desc" },
-      })
-    : [];
+  const sprints = await prisma.sprint.findMany({
+    where: { projectId: issue.projectId },
+    select: { id: true, name: true, status: true },
+    orderBy: { createdAt: "desc" },
+  });
 
   return (
     <IssueDetailsPageClient
-      issueId={issueId}
+      issueId={issue.id}
       projectRole={projectRole}
       currentUserId={context.user?.id ?? null}
       initialSprints={sprints}
