@@ -225,7 +225,7 @@ export async function POST(
 
     const { user: userPrompt, snapshot } = buildAiPrompt(issues);
 
-    const aiRun = await prisma.airRun.create({
+    const aiRun = await prisma.aIRun.create({
       data: {
         projectId,
         featureType: FeatureType.BACKLOG_GROOMING,
@@ -257,7 +257,7 @@ export async function POST(
       const parsed = aiResponseSchema.safeParse(aiResult);
 
       if (!parsed.success) {
-        await prisma.airRun.update({
+        await prisma.aIRun.update({
           where: { id: aiRun.id },
           data: {
             status: AIRunStatus.FAILED,
@@ -333,7 +333,7 @@ export async function POST(
     } catch (error) {
       logError("Backlog grooming analysis failed", error);
 
-      await prisma.airRun.update({
+      await prisma.aIRun.update({
         where: { id: aiRun.id },
         data: {
           status: AIRunStatus.FAILED,
