@@ -233,18 +233,30 @@ export function InlineUserSelectCell({
     }
   }, [value, isEditing]);
 
+  const label = useMemo(() => {
+    if (labelRenderer) return labelRenderer(value);
+
+    const resolved = options.find((option) => option.value === value)?.label;
+    return resolved ?? "Unassigned";
+  }, [labelRenderer, options, value]);
+
   const handleSave = async (nextValue: string | null) => {
     if (isSaving) return;
 
     setIsSaving(true);
-    const success = await onSave(nextValue);
+    try {
+      const success = await onSave(nextValue);
 
-    if (!success) {
+      if (!success) {
+        setDraft(value);
+      }
+    } catch (error) {
+      console.error("Failed to save assignee selection", error);
       setDraft(value);
+    } finally {
+      setIsSaving(false);
+      setIsEditing(false);
     }
-
-    setIsSaving(false);
-    setIsEditing(false);
   };
 
   if (isEditing && !disabled) {
@@ -270,13 +282,6 @@ export function InlineUserSelectCell({
       </div>
     );
   }
-
-  const label = useMemo(() => {
-    if (labelRenderer) return labelRenderer(value);
-
-    const resolved = options.find((option) => option.value === value)?.label;
-    return resolved ?? "Unassigned";
-  }, [labelRenderer, options, value]);
 
   return (
     <EditableWrapper

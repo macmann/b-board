@@ -258,6 +258,37 @@ export default function BacklogPageClient({
     fetchBacklogGroups();
   }, [fetchBacklogGroups, projectId]);
 
+  const refreshAssignees = useCallback(async () => {
+    if (!projectId) return;
+
+    try {
+      const response = await fetch(`/api/projects/${projectId}/members`);
+
+      if (!response.ok) {
+        return;
+      }
+
+      const members = (await response.json()) as Array<{
+        user: { id: string; name: string | null } | null;
+      }>;
+
+      setAssigneeOptions(
+        members
+          .map((member) => member.user)
+          .filter(Boolean)
+          .map((user) => ({ id: user!.id, label: user!.name ?? "Unassigned" }))
+      );
+    } catch (error) {
+      console.error("Failed to load project members", error);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    if (assigneeOptions.length === 0) {
+      void refreshAssignees();
+    }
+  }, [assigneeOptions.length, refreshAssignees]);
+
   const fetchSuggestions = useCallback(async () => {
     setIsLoadingSuggestions(true);
     setSuggestionError("");
@@ -387,14 +418,34 @@ export default function BacklogPageClient({
         epicId?: string | null;
       }
     ) => {
-      const previousState = backlogGroups;
+      const previousState = structuredClone(backlogGroups);
       setToastMessage("");
+
+      const optimisticAssignee =
+        updates.assigneeId !== undefined
+          ? updates.assigneeId === null
+            ? null
+            : {
+                id: updates.assigneeId,
+                name:
+                  assigneeOptions.find((option) => option.id === updates.assigneeId)
+                    ?.label ?? "Unassigned",
+              }
+          : undefined;
 
       setBacklogGroups((groups) =>
         groups.map((group) => ({
           ...group,
           issues: group.issues.map((issue) =>
-            issue.id === issueId ? { ...issue, ...updates } : issue
+            issue.id === issueId
+              ? {
+                  ...issue,
+                  ...updates,
+                  ...(optimisticAssignee !== undefined
+                    ? { assignee: optimisticAssignee }
+                    : {}),
+                }
+              : issue
           ),
         }))
       );
@@ -409,7 +460,12 @@ export default function BacklogPageClient({
         if (!response.ok) {
           const data = await response.json().catch(() => null);
           setBacklogGroups(previousState);
-          setToastMessage(data?.message ?? "Failed to update issue.");
+          setToastMessage(
+            data?.message ??
+              (updates.assigneeId !== undefined
+                ? "Unable to update assignee. Please try again."
+                : "Failed to update issue.")
+          );
           return false;
         }
 
@@ -427,11 +483,15 @@ export default function BacklogPageClient({
         return true;
       } catch (err) {
         setBacklogGroups(previousState);
-        setToastMessage("An unexpected error occurred while updating the issue.");
+        setToastMessage(
+          updates.assigneeId !== undefined
+            ? "Unable to update assignee. Please try again."
+            : "An unexpected error occurred while updating the issue."
+        );
         return false;
       }
     },
-    [backlogGroups]
+    [assigneeOptions, backlogGroups]
   );
 
   const handleRowClick = (issueId: string) => {
