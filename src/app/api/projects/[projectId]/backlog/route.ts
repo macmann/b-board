@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getUserFromRequest } from "../../../../../lib/auth";
 import prisma from "../../../../../lib/db";
+import { Prisma } from "@prisma/client";
 import {
   ensureProjectRole,
   ForbiddenError,
@@ -66,7 +67,7 @@ export async function GET(
     );
     const searchQuery = searchParams.get("q")?.trim();
 
-    const andFilters = [
+    const andFilters: Prisma.IssueWhereInput[] = [
       { projectId },
       ...(statusFilter.length > 0 ? [{ status: { in: statusFilter } }] : []),
       ...(typeFilter.length > 0 ? [{ type: { in: typeFilter } }] : []),
@@ -76,7 +77,7 @@ export async function GET(
       ...(epicFilter.length > 0 ? [{ epicId: { in: epicFilter } }] : []),
     ];
 
-    const assigneeConditions = [] as Array<{ assigneeId: string | null } | { assigneeId: { in: string[] } }>;
+    const assigneeConditions: Prisma.IssueWhereInput[] = [];
 
     if (assigneeFilter.includes("unassigned")) {
       assigneeConditions.push({ assigneeId: null });
