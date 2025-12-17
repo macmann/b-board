@@ -280,6 +280,7 @@ export default function ProjectSettingsPageClient({
       setIconUrl(newUrl);
       setIconMessage("Project icon updated.");
       setIconPreviewError(false);
+      router.refresh();
     } catch (err) {
       setIconError("Unable to upload project icon. Please try again.");
     } finally {
@@ -310,6 +311,7 @@ export default function ProjectSettingsPageClient({
       setIconUrl("");
       setIconPreviewError(false);
       setIconMessage("Project icon removed.");
+      router.refresh();
     } catch (err) {
       setIconError("Unable to remove project icon. Please try again.");
     } finally {
