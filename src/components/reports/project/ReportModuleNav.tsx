@@ -2,18 +2,24 @@
 
 import clsx from "clsx";
 import { useMemo } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 
-import { DEFAULT_REPORT_MODULE, parseReportSearchParams } from "@/lib/reports/filters";
+import {
+  DEFAULT_REPORT_MODULE,
+  normalizeModule,
+  parseReportSearchParams,
+  type ReportModuleKey,
+} from "@/lib/reports/filters";
 
 export type ReportModuleNavItem = {
-  key: string;
+  key: ReportModuleKey;
   title: string;
   description: string;
 };
 
 type ReportModuleNavProps = {
-  activeModuleKey: string;
+  activeModuleKey: ReportModuleKey;
   modules: ReadonlyArray<ReportModuleNavItem>;
 };
 
@@ -21,16 +27,15 @@ export default function ReportModuleNav({
   activeModuleKey,
   modules,
 }: ReportModuleNavProps) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const currentModule = useMemo(() => {
     const parsed = parseReportSearchParams(searchParams);
-    return parsed.module ?? activeModuleKey;
+    return normalizeModule(parsed.module ?? activeModuleKey);
   }, [activeModuleKey, searchParams]);
 
-  const handleSelect = (key: string) => {
+  const buildHref = (key: ReportModuleKey) => {
     const params = new URLSearchParams(searchParams?.toString() ?? "");
 
     if (key === DEFAULT_REPORT_MODULE) {
@@ -40,7 +45,7 @@ export default function ReportModuleNav({
     }
 
     const query = params.toString();
-    router.replace(`${pathname}${query ? `?${query}` : ""}`);
+    return `${pathname}${query ? `?${query}` : ""}`;
   };
 
   return (
@@ -50,10 +55,9 @@ export default function ReportModuleNav({
       </p>
       <div className="mt-4 space-y-2">
         {modules.map((module) => (
-          <button
+          <Link
             key={module.key}
-            type="button"
-            onClick={() => handleSelect(module.key)}
+            href={buildHref(module.key)}
             className={clsx(
               "block w-full rounded-lg px-3 py-2 text-left text-sm font-medium transition",
               currentModule === module.key
@@ -70,7 +74,7 @@ export default function ReportModuleNav({
             <p className="mt-0.5 text-xs font-normal text-slate-500 dark:text-slate-400">
               {module.description}
             </p>
-          </button>
+          </Link>
         ))}
       </div>
     </aside>

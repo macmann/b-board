@@ -21,6 +21,16 @@ const REPORT_MODULE_KEYS: ReportModuleKey[] = [
   "blocker-themes",
 ];
 
+export const normalizeModule = (
+  input: string | null | undefined
+): ReportModuleKey => {
+  const moduleKey = input ?? DEFAULT_REPORT_MODULE;
+
+  return REPORT_MODULE_KEYS.includes(moduleKey as ReportModuleKey)
+    ? (moduleKey as ReportModuleKey)
+    : DEFAULT_REPORT_MODULE;
+};
+
 const isIsoDate = (value: string) => {
   const date = new Date(value);
   return !Number.isNaN(date.getTime()) && value.length === 10;
@@ -70,13 +80,6 @@ export const getDefaultReportFilters = (): ReportFilters => {
   };
 };
 
-const getModuleFromSearch = (params: URLSearchParams): ReportModuleKey => {
-  const moduleKey = params.get("module") ?? DEFAULT_REPORT_MODULE;
-  return REPORT_MODULE_KEYS.includes(moduleKey as ReportModuleKey)
-    ? (moduleKey as ReportModuleKey)
-    : DEFAULT_REPORT_MODULE;
-};
-
 const getDateValue = (
   params: URLSearchParams,
   key: "from" | "to",
@@ -92,7 +95,7 @@ export const parseReportSearchParams = (
   const params = normalizeSearchParams(searchParams);
   const defaults = getDefaultReportFilters();
 
-  const module = getModuleFromSearch(params);
+  const module = normalizeModule(params.get("module"));
   const dateFrom = getDateValue(params, "from", defaults.dateFrom);
   const dateTo = getDateValue(params, "to", defaults.dateTo);
   const sprintIdValue = params.get("sprintId");
