@@ -1,22 +1,21 @@
 "use client";
 
-import Link from "next/link";
-import { useMemo, useState } from "react";
+import type { ChangeEvent, FormEvent, KeyboardEvent } from "react";
+import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import ProjectTeamSettings from "@/components/projects/ProjectTeamSettings";
-import ProjectStandupSettings from "@/components/projects/ProjectStandupSettings";
-import ProjectEmailSettings from "@/components/projects/ProjectEmailSettings";
-import Button from "@/components/ui/Button";
-import AuditLogList from "@/components/audit/AuditLogList";
 import { Role } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
 import { routes } from "@/lib/routes";
 
-const inputClasses =
-  "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50";
-
-const labelClasses = "text-sm font-medium text-slate-700 dark:text-slate-200";
+const GeneralTab = lazy(() => import("./tabs/GeneralTab"));
+const FeaturesTab = lazy(() => import("./tabs/FeaturesTab"));
+const TeamPermissionsTab = lazy(
+  () => import("./tabs/TeamPermissionsTab")
+);
+const AIAutomationTab = lazy(() => import("./tabs/AIAutomationTab"));
+const AuditSecurityTab = lazy(() => import("./tabs/AuditSecurityTab"));
+const DangerZoneTab = lazy(() => import("./tabs/DangerZoneTab"));
 
 type ProjectSettingsPageClientProps = {
   project: {
@@ -45,6 +44,25 @@ type ProjectSettingsPageClientProps = {
   };
 };
 
+type TabKey =
+  | "general"
+  | "features"
+  | "team"
+  | "ai"
+  | "audit"
+  | "danger";
+
+type TabConfig = { id: TabKey; label: string };
+
+const tabs: TabConfig[] = [
+  { id: "general", label: "General" },
+  { id: "features", label: "Features" },
+  { id: "team", label: "Team & Permissions" },
+  { id: "ai", label: "AI & Automation" },
+  { id: "audit", label: "Audit & Security" },
+  { id: "danger", label: "Danger Zone" },
+];
+
 export default function ProjectSettingsPageClient({
   project,
   members,
@@ -53,6 +71,7 @@ export default function ProjectSettingsPageClient({
 }: ProjectSettingsPageClientProps) {
   const router = useRouter();
 
+  const [activeTab, setActiveTab] = useState<TabKey>("general");
   const [name, setName] = useState(project.name);
   const [key, setKey] = useState(project.key);
   const [description, setDescription] = useState(project.description);
@@ -62,11 +81,18 @@ export default function ProjectSettingsPageClient({
   const [backlogGroomingEnabled, setBacklogGroomingEnabled] = useState(
     aiSettings.backlogGroomingEnabled
   );
-  const [isSaving, setIsSaving] = useState(false);
+  const [aiSuggestionScope, setAiSuggestionScope] = useState<
+    "backlog" | "sprint" | "research"
+  >("backlog");
+
+  const [isSavingGeneral, setIsSavingGeneral] = useState(false);
+  const [isSavingFeatures, setIsSavingFeatures] = useState(false);
   const [isSavingAISettings, setIsSavingAISettings] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [featureStatus, setFeatureStatus] = useState<string | null>(null);
   const [aiStatus, setAIStatus] = useState<string | null>(null);
+  const [dangerStatus, setDangerStatus] = useState<string | null>(null);
   const [confirmKey, setConfirmKey] = useState("");
   const [iconUrl, setIconUrl] = useState(project.iconUrl ?? "");
   const [iconError, setIconError] = useState<string | null>(null);
@@ -90,30 +116,87 @@ export default function ProjectSettingsPageClient({
     return source ? source.charAt(0).toUpperCase() : "?";
   }, [project.key, project.name]);
 
-  const handleUpdateProject = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const patchProject = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name, key, description, enableResearchBoard }),
+      });
+
+      if (!response.ok) {
+        return false;
+      }
+
+      router.refresh();
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }, [description, enableResearchBoard, key, name, project.id, router]);
+
+  const persistAISettings = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/projects/${project.id}/ai-settings`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          backlogGroomingEnabled,
+          model: null,
+          temperature: null,
+        }),
+      });
+
+      if (!response.ok) {
+        return { success: false, enabled: backlogGroomingEnabled };
+      }
+
+      const data = await response.json().catch(() => null);
+      const isEnabled = Boolean(
+        data?.backlogGroomingEnabled ?? backlogGroomingEnabled
+      );
+      setBacklogGroomingEnabled(isEnabled);
+      router.refresh();
+      return { success: true, enabled: isEnabled };
+    } catch (err) {
+      return { success: false, enabled: backlogGroomingEnabled };
+    }
+  }, [backlogGroomingEnabled, project.id, router]);
+
+  const handleSaveGeneral = async (event: FormEvent) => {
+    event.preventDefault();
     if (!isAdmin) return;
 
-    setIsSaving(true);
+    setIsSavingGeneral(true);
     setStatus(null);
 
-    const response = await fetch(`/api/projects/${project.id}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ name, key, description, enableResearchBoard }),
-    });
+    const success = await patchProject();
 
-    setIsSaving(false);
+    setIsSavingGeneral(false);
+    setStatus(
+      success ? "Project updated successfully." : "Failed to update project."
+    );
+  };
 
-    if (!response.ok) {
-      setStatus("Failed to update project. Please try again.");
-      return;
-    }
+  const handleSaveFeatureSettings = async () => {
+    if (!isAdmin) return;
 
-    setStatus("Project updated successfully.");
-    router.refresh();
+    setIsSavingFeatures(true);
+    setFeatureStatus(null);
+
+    const projectSuccess = await patchProject();
+    const { success: aiSuccess } = await persistAISettings();
+
+    setIsSavingFeatures(false);
+    setFeatureStatus(
+      projectSuccess && aiSuccess
+        ? "Feature settings saved."
+        : "Failed to save feature settings."
+    );
   };
 
   const handleUpdateAISettings = async () => {
@@ -122,41 +205,23 @@ export default function ProjectSettingsPageClient({
     setIsSavingAISettings(true);
     setAIStatus(null);
 
-    const response = await fetch(`/api/projects/${project.id}/ai-settings`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        backlogGroomingEnabled,
-        model: null,
-        temperature: null,
-      }),
-    });
+    const { success, enabled } = await persistAISettings();
 
     setIsSavingAISettings(false);
-
-    if (!response.ok) {
-      setAIStatus("Failed to update AI settings. Please try again.");
-      return;
-    }
-
-    const data = await response.json().catch(() => null);
-    const isEnabled = Boolean(data?.backlogGroomingEnabled ?? backlogGroomingEnabled);
-    setBacklogGroomingEnabled(isEnabled);
     setAIStatus(
-      isEnabled
-        ? "Backlog grooming AI enabled for this project."
-        : "Backlog grooming AI disabled for this project."
+      success
+        ? enabled
+          ? "Backlog grooming AI enabled for this project."
+          : "Backlog grooming AI disabled for this project."
+        : "Failed to update AI settings. Please try again."
     );
-    router.refresh();
   };
 
   const handleDeleteProject = async () => {
     if (!isAdmin || confirmKey !== key) return;
 
     setIsDeleting(true);
-    setStatus(null);
+    setDangerStatus(null);
 
     const response = await fetch(`/api/projects/${project.id}`, {
       method: "DELETE",
@@ -165,16 +230,14 @@ export default function ProjectSettingsPageClient({
     setIsDeleting(false);
 
     if (!response.ok) {
-      setStatus("Failed to delete project. Please try again.");
+      setDangerStatus("Failed to delete project. Please try again.");
       return;
     }
 
     router.push(routes.myProjects());
   };
 
-  const handleIconUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleIconUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     if (!isAdmin) return;
 
     const file = event.target.files?.[0];
@@ -254,8 +317,27 @@ export default function ProjectSettingsPageClient({
     }
   };
 
+  const focusTab = (tabId: TabKey) => {
+    const button = document.getElementById(`settings-tab-${tabId}`);
+    button?.focus();
+  };
+
+  const handleTabKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    index: number
+  ) => {
+    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+
+    event.preventDefault();
+    const direction = event.key === "ArrowRight" ? 1 : -1;
+    const nextIndex = (index + direction + tabs.length) % tabs.length;
+    const nextTab = tabs[nextIndex];
+    setActiveTab(nextTab.id);
+    focusTab(nextTab.id);
+  };
+
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-4 pb-12">
       <header>
         <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
           Project settings
@@ -268,358 +350,125 @@ export default function ProjectSettingsPageClient({
         </p>
       </header>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-              General
-            </h2>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Update the project name, key, and description.
-            </p>
-          </div>
-          {status && (
-            <p className="text-xs text-slate-500 dark:text-slate-400">{status}</p>
-          )}
-        </div>
-
-        <form onSubmit={handleUpdateProject} className="space-y-6">
-          <div className="space-y-1.5">
-            <label className={labelClasses} htmlFor="project-icon">
-              Project icon
-            </label>
-            <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
-                {iconUrl && !iconPreviewError ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={iconUrl}
-                    alt={`${project.name} icon`}
-                    className="h-full w-full object-cover"
-                    onError={() => setIconPreviewError(true)}
-                  />
-                ) : (
-                  <span>{iconInitial}</span>
-                )}
-              </div>
-              <div className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
-                <input
-                  id="project-icon"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleIconUpload}
-                  disabled={!isAdmin || isUploadingIcon}
-                  className="text-xs text-slate-700 file:mr-3 file:rounded-md file:border-none file:bg-primary file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-primary/90 disabled:cursor-not-allowed"
-                />
-                <p>PNG, JPG, or GIF up to 2MB.</p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={handleIconRemove}
-                    disabled={!iconUrl || isUploadingIcon || !isAdmin}
-                    className="px-3 py-1 text-xs"
-                  >
-                    Remove icon
-                  </Button>
-                  {isUploadingIcon && (
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Saving...
-                    </span>
-                  )}
-                </div>
-                {iconMessage && (
-                  <p className="text-[11px] text-emerald-600">{iconMessage}</p>
-                )}
-                {iconError && <p className="text-[11px] text-red-600">{iconError}</p>}
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className={labelClasses} htmlFor="project-name">
-              Name
-            </label>
-            <input
-              id="project-name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={!isAdmin}
-              className={inputClasses}
-              required
-            />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <label className={labelClasses} htmlFor="project-key">
-                Key
-              </label>
-              <input
-                id="project-key"
-                type="text"
-                value={key}
-                onChange={(e) => setKey(e.target.value)}
-                disabled={!isAdmin}
-                className={inputClasses}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className={labelClasses} htmlFor="project-created">
-                Created
-              </label>
-              <input
-                id="project-created"
-                type="text"
-                value={formattedCreatedAt}
-                readOnly
-                className={`${inputClasses} cursor-not-allowed bg-slate-50 dark:bg-slate-800`}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className={labelClasses} htmlFor="project-description">
-              Description
-            </label>
-            <textarea
-              id="project-description"
-              rows={4}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              disabled={!isAdmin}
-              className={inputClasses}
-            />
-          </div>
-
-          {isAdmin && (
-            <div className="flex justify-end border-t border-slate-200 pt-4 dark:border-slate-700">
-              <button
-                type="submit"
-                className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={isSaving}
-              >
-                {isSaving ? "Saving..." : "Save changes"}
-              </button>
-            </div>
-          )}
-        </form>
-      </section>
-
-      <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-              Backlog grooming AI
-            </h2>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Control whether AI-powered grooming suggestions are available for this project.
-            </p>
-          </div>
-          {aiStatus && (
-            <p className="text-xs text-slate-500 dark:text-slate-400">{aiStatus}</p>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-600 dark:text-slate-300">
-              {backlogGroomingEnabled ? "Enabled" : "Disabled"}
-            </span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={backlogGroomingEnabled}
-              aria-label="Toggle backlog grooming AI"
-              disabled={!isAdmin}
-              onClick={() =>
-                isAdmin && setBacklogGroomingEnabled((prev) => !prev)
-              }
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${
-                backlogGroomingEnabled
-                  ? "bg-primary"
-                  : "bg-slate-200 dark:bg-slate-700"
-              } ${!isAdmin ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
-            >
-              <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ${
-                  backlogGroomingEnabled ? "translate-x-5" : "translate-x-1"
-                }`}
-              />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              onClick={handleUpdateAISettings}
-              disabled={!isAdmin || isSavingAISettings}
-            >
-              {isSavingAISettings ? "Saving..." : "Save AI settings"}
-            </Button>
-          </div>
-        </div>
-
-        {!isAdmin && (
-          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-            Only admins and product owners can change this setting.
-          </p>
-        )}
-      </section>
-
-      <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-              Research Board
-            </h2>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Allow research items to be created and managed for this project.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-600 dark:text-slate-300">
-              {enableResearchBoard ? "Enabled" : "Disabled"}
-            </span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={enableResearchBoard}
-              aria-label="Toggle research board"
-              disabled={!isAdmin}
-              onClick={() => isAdmin && setEnableResearchBoard((prev) => !prev)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${
-                enableResearchBoard
-                  ? "bg-primary"
-                  : "bg-slate-200 dark:bg-slate-700"
-              } ${!isAdmin ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
-            >
-              <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ${
-                  enableResearchBoard ? "translate-x-5" : "translate-x-1"
-                }`}
-              />
-            </button>
-          </div>
-        </div>
-        {!isAdmin && (
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Only admins and product owners can change this setting.
-          </p>
-        )}
-      </section>
-
-      <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Audit Log</h2>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Track changes across this project with before/after context.
-            </p>
-          </div>
-        </div>
-        {isAdmin ? (
-          <AuditLogList
-            fetchUrl={`/api/projects/${project.id}/audit-logs`}
-            emptyMessage="No audit entries yet for this project."
-          />
-        ) : (
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Only admins and product owners can view the audit log.
-          </p>
-        )}
-      </section>
-
-      {isAdmin && (
-        <section
-          id="import"
-          className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900"
+      <nav className="sticky top-16 z-20 -mx-4 border-b border-slate-200 bg-white/80 px-4 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+        <div
+          className="flex items-center gap-1 overflow-x-auto py-2"
+          role="tablist"
+          aria-label="Project settings sections"
         >
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-                Import from Jira
-              </h2>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Move your backlog into B Board with a CSV export from Jira.
-              </p>
-            </div>
-            <Button asChild>
-              <Link href={`/projects/${project.id}/settings/import`}>Open import</Link>
-            </Button>
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Available to workspace admins and product owners.
-          </p>
-        </section>
-      )}
+          {tabs.map((tab, index) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                id={`settings-tab-${tab.id}`}
+                role="tab"
+                aria-selected={isActive}
+                aria-controls={`settings-panel-${tab.id}`}
+                tabIndex={isActive ? 0 : -1}
+                onClick={() => setActiveTab(tab.id)}
+                onKeyDown={(event) => handleTabKeyDown(event, index)}
+                className={`whitespace-nowrap rounded-md px-3 py-2 text-sm font-semibold transition ${
+                  isActive
+                    ? "bg-primary/10 text-primary shadow-sm"
+                    : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
 
-      <ProjectEmailSettings projectId={project.id} projectRole={projectRole} />
-
-      <ProjectStandupSettings projectId={project.id} projectRole={projectRole} />
-
-      <section
-        id="team"
-        className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900"
+      <div
+        className="pt-2"
+        role="tabpanel"
+        id={`settings-panel-${activeTab}`}
+        aria-labelledby={`settings-tab-${activeTab}`}
       >
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-              Team
-            </h2>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Manage who can access this project and their roles.
-            </p>
-          </div>
-        </div>
+        <Suspense fallback={<div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm dark:border-slate-700 dark:bg-slate-900">Loading settings...</div>}>
+          {activeTab === "general" && (
+            <GeneralTab
+              name={name}
+              keyValue={key}
+              description={description}
+              createdAt={formattedCreatedAt}
+              iconUrl={iconUrl}
+              iconInitial={iconInitial}
+              iconMessage={iconMessage}
+              iconError={iconError}
+              iconPreviewError={iconPreviewError}
+              isAdmin={isAdmin}
+              isSaving={isSavingGeneral}
+              status={status}
+              isUploadingIcon={isUploadingIcon}
+              onNameChange={setName}
+              onKeyChange={setKey}
+              onDescriptionChange={setDescription}
+              onSubmit={handleSaveGeneral}
+              onIconUpload={handleIconUpload}
+              onIconRemove={handleIconRemove}
+              onPreviewError={() => setIconPreviewError(true)}
+            />
+          )}
 
-        <ProjectTeamSettings
-          projectId={project.id}
-          projectRole={projectRole}
-          showHeader={false}
-          initialMembers={members}
-        />
-      </section>
+          {activeTab === "features" && (
+            <FeaturesTab
+              isAdmin={isAdmin}
+              backlogGroomingEnabled={backlogGroomingEnabled}
+              setBacklogGroomingEnabled={setBacklogGroomingEnabled}
+              enableResearchBoard={enableResearchBoard}
+              setEnableResearchBoard={setEnableResearchBoard}
+              isSaving={isSavingFeatures}
+              status={featureStatus}
+              onSave={handleSaveFeatureSettings}
+              projectId={project.id}
+              projectRole={projectRole}
+            />
+          )}
 
-      {isAdmin && (
-        <section
-          id="danger-zone"
-          className="rounded-xl border border-red-200 bg-red-50/60 p-6 shadow-sm dark:border-red-900/60 dark:bg-red-950/40"
-        >
-          <h2 className="text-sm font-semibold text-red-800 dark:text-red-200">
-            Danger zone
-          </h2>
-          <p className="mt-1 text-xs text-red-700 dark:text-red-300">
-            Deleting this project will permanently remove all its sprints, issues, and settings.
-            This action cannot be undone.
-          </p>
+          {activeTab === "team" && (
+            <TeamPermissionsTab
+              isAdmin={isAdmin}
+              members={members}
+              projectId={project.id}
+              projectRole={projectRole}
+            />
+          )}
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
-            <div className="text-xs text-red-700 dark:text-red-300">
-              Type the project key (<span className="font-semibold">{key}</span>) to confirm.
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={confirmKey}
-                onChange={(e) => setConfirmKey(e.target.value)}
-                placeholder={key}
-                className="w-32 rounded-md border border-red-300 bg-white px-2 py-1 text-xs text-red-900 shadow-sm outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 dark:border-red-800 dark:bg-red-950 dark:text-red-50"
-              />
-              <button
-                type="button"
-                disabled={confirmKey !== key || isDeleting}
-                onClick={handleDeleteProject}
-                className="inline-flex items-center rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isDeleting ? "Deleting..." : "Delete project"}
-              </button>
-            </div>
-          </div>
-        </section>
-      )}
+          {activeTab === "ai" && (
+            <AIAutomationTab
+              isAdmin={isAdmin}
+              backlogGroomingEnabled={backlogGroomingEnabled}
+              setBacklogGroomingEnabled={setBacklogGroomingEnabled}
+              aiSuggestionScope={aiSuggestionScope}
+              setAiSuggestionScope={setAiSuggestionScope}
+              isSaving={isSavingAISettings}
+              status={aiStatus}
+              onSave={handleUpdateAISettings}
+            />
+          )}
+
+          {activeTab === "audit" && (
+            <AuditSecurityTab
+              isAdmin={isAdmin}
+              projectId={project.id}
+            />
+          )}
+
+          {activeTab === "danger" && isAdmin && (
+            <DangerZoneTab
+              keyValue={key}
+              confirmKey={confirmKey}
+              onConfirmKeyChange={setConfirmKey}
+              onDelete={handleDeleteProject}
+              isDeleting={isDeleting}
+              status={dangerStatus}
+            />
+          )}
+        </Suspense>
+      </div>
     </div>
   );
 }
