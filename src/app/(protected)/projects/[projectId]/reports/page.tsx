@@ -1,9 +1,17 @@
 import { notFound, redirect } from "next/navigation";
 
-import ReportCard, { reportModules } from "@/components/reports/ReportCard";
 import ProjectHeader from "@/components/projects/ProjectHeader";
 import ProjectTabs from "@/components/projects/ProjectTabs";
+import ReportModulePlaceholder from "@/components/reports/project/ReportModulePlaceholder";
+import ReportPageLayout from "@/components/reports/project/ReportPageLayout";
+import CycleTimeModule from "@/components/reports/project/CycleTimeModule";
+import BlockerThemesModule from "@/components/reports/project/BlockerThemesModule";
+import StandupInsightsModule from "@/components/reports/project/StandupInsightsModule";
+import SprintBurndownModule from "@/components/reports/project/SprintBurndownModule";
+import VelocityTrendModule from "@/components/reports/project/VelocityTrendModule";
+import prisma from "@/lib/db";
 import { getCurrentProjectContext } from "@/lib/projectContext";
+import { DEFAULT_REPORT_MODULE, parseReportSearchParams } from "@/lib/reports/filters";
 import { Role as UserRole } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
 
@@ -17,6 +25,54 @@ const mapRole = (
 
 type ServerProps = {
   params: { projectId: string } | Promise<{ projectId: string }>;
+  searchParams?: unknown;
+};
+
+const reportModules = [
+  {
+    key: "sprint-burndown",
+    title: "Sprint Burndown",
+    description: "Track remaining scope against time to spot at-risk sprints early.",
+    requiresSprintScope: true,
+  },
+  {
+    key: "velocity-trend",
+    title: "Velocity Trend",
+    description: "See delivery momentum across recent sprints to forecast capacity.",
+    requiresSprintScope: true,
+  },
+  {
+    key: "cycle-time",
+    title: "Cycle Time",
+    description: "Measure how long issues take from start to finish to surface bottlenecks.",
+    requiresSprintScope: true,
+  },
+  {
+    key: "standup-insights",
+    title: "Standup Insights",
+    description: "Summarize daily standup updates to highlight risks and progress.",
+    requiresSprintScope: false,
+  },
+  {
+    key: "blocker-themes",
+    title: "Blocker Themes",
+    description: "Aggregate blockers to understand recurring impediments across the team.",
+    requiresSprintScope: false,
+  },
+] as const;
+
+type ReportModuleKey = (typeof reportModules)[number]["key"];
+
+type SprintOption = {
+  id: string;
+  name: string;
+  startDate: string | null;
+  endDate: string | null;
+};
+
+const getActiveModule = (moduleKey: string | null): (typeof reportModules)[number] => {
+  const resolvedKey = moduleKey ?? DEFAULT_REPORT_MODULE;
+  return reportModules.find((module) => module.key === resolvedKey) ?? reportModules[0];
 };
 
 export default async function ProjectReportsPage(props: ServerProps) {
@@ -42,6 +98,94 @@ export default async function ProjectReportsPage(props: ServerProps) {
   const projectRole = mapRole((membership?.role as ProjectRole | null) ?? null, user.role ?? null);
   const roleLabel = projectRole ?? "Member";
 
+  const parsedSearchParams = parseReportSearchParams(props.searchParams ?? null);
+  const activeModule = getActiveModule(parsedSearchParams.module as ReportModuleKey);
+
+  const sprints: SprintOption[] = (
+    await prisma.sprint.findMany({
+      where: { projectId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        startDate: true,
+        endDate: true,
+      },
+    })
+  ).map((sprint) => ({
+    id: sprint.id,
+    name: sprint.name,
+    startDate: sprint.startDate ? sprint.startDate.toISOString().slice(0, 10) : null,
+    endDate: sprint.endDate ? sprint.endDate.toISOString().slice(0, 10) : null,
+  }));
+
+  const renderModule = () => {
+    switch (activeModule.key) {
+      case "sprint-burndown":
+        return (
+          <SprintBurndownModule
+            projectId={projectId}
+            initialFilters={parsedSearchParams.filters}
+            sprints={sprints}
+          />
+        );
+      case "velocity-trend":
+        return (
+          <VelocityTrendModule
+            projectId={projectId}
+            initialFilters={parsedSearchParams.filters}
+            sprints={sprints}
+          />
+        );
+      case "cycle-time":
+        return (
+          <CycleTimeModule
+            projectId={projectId}
+            initialFilters={parsedSearchParams.filters}
+          />
+        );
+      case "standup-insights":
+        return (
+          <StandupInsightsModule
+            projectId={projectId}
+            initialFilters={parsedSearchParams.filters}
+          />
+        );
+      case "blocker-themes":
+        return (
+          <BlockerThemesModule
+            projectId={projectId}
+            initialFilters={parsedSearchParams.filters}
+          />
+        );
+      default:
+        {
+          const moduleInfo = reportModules[0];
+          return (
+            <ReportModulePlaceholder
+              title={moduleInfo.title}
+              description={moduleInfo.description}
+              helper={
+                moduleInfo.requiresSprintScope && sprints.length === 0 ? (
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Add your first sprint to unlock velocity and burndown insights. Visit the
+                    <a className="text-primary underline" href={`/projects/${projectId}/sprints`}>
+                      {" "}Sprints tab
+                    </a>{" "}
+                    to create one.
+                  </p>
+                ) : (
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Use the filters above to focus the report before we add visualizations.
+                  </p>
+                )
+              }
+            />
+          );
+        }
+    }
+  };
+
   return (
     <div className="space-y-4">
       <ProjectHeader
@@ -56,34 +200,16 @@ export default async function ProjectReportsPage(props: ServerProps) {
 
       <ProjectTabs projectId={projectId} active="reports" />
 
-      <div className="grid gap-6 lg:grid-cols-[240px,1fr]">
-        <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Report modules</p>
-          <div className="mt-4 space-y-2">
-            {reportModules.map((module) => (
-              <a
-                key={module.key}
-                href={`#${module.key}`}
-                className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
-              >
-                {module.title}
-              </a>
-            ))}
-          </div>
-        </aside>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          {reportModules.map((module) => (
-            <div key={module.key} id={module.key} className="scroll-mt-24">
-              <ReportCard
-                module={module}
-                scope="project"
-                footer="Project-scoped reporting will surface sprint, velocity, and delivery insights tailored to this project."
-              />
-            </div>
-          ))}
-        </div>
-      </div>
+      <ReportPageLayout
+        projectId={projectId}
+        modules={reportModules}
+        activeModule={activeModule}
+        sprints={sprints}
+        filters={parsedSearchParams.filters}
+        showSprintSelect={activeModule.requiresSprintScope}
+      >
+        {renderModule()}
+      </ReportPageLayout>
     </div>
   );
 }
