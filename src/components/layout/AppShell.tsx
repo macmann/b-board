@@ -149,8 +149,8 @@ export default function AppShell({
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto px-8 py-6">
-          <div className="mx-auto max-w-6xl">{children}</div>
+        <main className="flex-1 overflow-y-auto px-8 pb-6 pt-0">
+          <div className="w-full">{children}</div>
         </main>
       </div>
     </div>
