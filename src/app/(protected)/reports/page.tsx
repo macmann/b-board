@@ -23,7 +23,8 @@ export default async function ReportsPage() {
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-50">Reports</h1>
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-          Cross-project reporting for admins and product owners. Choose a module to explore workspace-level analytics.
+          Workspace and portfolio reporting for admins and product owners. Explore adoption, governance, and delivery health
+          without assuming synchronized sprints.
         </p>
       </div>
 
