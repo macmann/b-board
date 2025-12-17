@@ -7,10 +7,11 @@ export const runtime = "nodejs";
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { path: string[] } }
+  context: { params: Promise<{ path: string[] }> }
 ) {
+  const { path: pathParts } = await context.params;
   const uploadsDir = path.resolve(process.cwd(), "public", "uploads");
-  const relativePath = (params.path ?? []).join("/");
+  const relativePath = (pathParts ?? []).join("/");
 
   if (!relativePath) {
     return NextResponse.json({ message: "File not found" }, { status: 404 });
