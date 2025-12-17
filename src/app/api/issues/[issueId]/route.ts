@@ -158,6 +158,22 @@ export async function PATCH(
       }
 
       if (assigneeId !== undefined) {
+        if (assigneeId) {
+          const assigneeMembership = await prisma.projectMember.findUnique({
+            where: {
+              projectId_userId: {
+                projectId: existingIssue.projectId,
+                userId: assigneeId,
+              },
+            },
+            select: { userId: true },
+          });
+
+          if (!assigneeMembership) {
+            return jsonError("Assignee must be a member of this project", 400);
+          }
+        }
+
         data.assigneeId = assigneeId || null;
       }
 
