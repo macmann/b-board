@@ -1,4 +1,3 @@
-import BlockerAggregationReport from "@/components/reports/BlockerAggregationReport";
 import ReportPageLayout from "@/components/reports/ReportPageLayout";
 
 import { requireLeadershipUser } from "../reportAccess";
@@ -12,7 +11,7 @@ export default async function BlockerAggregationPage() {
       description="Portfolio-level blocker themes to guide leadership intervention and sequencing."
       placeholderLabel="Blocker aggregation"
       placeholderDetail="Aggregate blockers across projects to identify systemic impediments."
-      renderContent={(filters) => <BlockerAggregationReport filters={filters} />}
+      reportKey="blockerAggregation"
     />
   );
 }
