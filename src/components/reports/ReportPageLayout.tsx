@@ -1,10 +1,30 @@
 "use client";
 
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import AgingIssuesReport from "./AgingIssuesReport";
+import BlockerAggregationReport from "./BlockerAggregationReport";
+import CrossProjectIssueStatusReport from "./CrossProjectIssueStatusReport";
+import DeliveryHealthSummaryReport from "./DeliveryHealthSummaryReport";
+import InactiveProjectsReport from "./InactiveProjectsReport";
+import OrphanedWorkReport from "./OrphanedWorkReport";
+import ProjectStatusOverviewReport from "./ProjectStatusOverviewReport";
+import RoleDistributionReport from "./RoleDistributionReport";
+import UserAdoptionMetricsReport from "./UserAdoptionMetricsReport";
 import ReportsFilters, { ReportsFilterValue } from "./ReportsFilters";
 import { Card, CardContent, CardHeader } from "../ui/Card";
+
+export type ReportPageKey =
+  | "projectStatusOverview"
+  | "userAdoption"
+  | "roleDistribution"
+  | "blockerAggregation"
+  | "inactiveProjects"
+  | "agingIssues"
+  | "orphanedWork"
+  | "crossProjectIssues"
+  | "deliveryHealthSummary";
 
 type ReportPageLayoutProps = {
   title: string;
@@ -12,7 +32,7 @@ type ReportPageLayoutProps = {
   showSprintSelect?: boolean;
   placeholderLabel: string;
   placeholderDetail: string;
-  renderContent?: (filters: ReportsFilterValue) => ReactNode;
+  reportKey: ReportPageKey;
 };
 
 const ALL_PROJECTS_VALUE = "all";
@@ -53,7 +73,7 @@ export default function ReportPageLayout({
   showSprintSelect = false,
   placeholderLabel,
   placeholderDetail,
-  renderContent,
+  reportKey,
 }: ReportPageLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -88,6 +108,52 @@ export default function ReportPageLayout({
     router.replace(`${pathname}${search}`);
   }, [pathname, queryStringFromFilters, router]);
 
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production") return;
+
+    const values = {
+      title,
+      description,
+      placeholderLabel,
+      placeholderDetail,
+    };
+
+    const hasFunctionProp = Object.values(values).some(
+      (value) => typeof value === "function"
+    );
+
+    if (hasFunctionProp) {
+      console.warn(
+        "[ReportPageLayout] Function props detected. Ensure only serializable props are passed from the server."
+      );
+    }
+  }, [description, placeholderDetail, placeholderLabel, title]);
+
+  const renderContent = () => {
+    switch (reportKey) {
+      case "projectStatusOverview":
+        return <ProjectStatusOverviewReport filters={filters} />;
+      case "userAdoption":
+        return <UserAdoptionMetricsReport filters={filters} />;
+      case "roleDistribution":
+        return <RoleDistributionReport filters={filters} />;
+      case "blockerAggregation":
+        return <BlockerAggregationReport filters={filters} />;
+      case "inactiveProjects":
+        return <InactiveProjectsReport filters={filters} />;
+      case "agingIssues":
+        return <AgingIssuesReport filters={filters} />;
+      case "orphanedWork":
+        return <OrphanedWorkReport filters={filters} />;
+      case "crossProjectIssues":
+        return <CrossProjectIssueStatusReport filters={filters} />;
+      case "deliveryHealthSummary":
+        return <DeliveryHealthSummaryReport filters={filters} />;
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="space-y-6">
       <header className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -110,9 +176,7 @@ export default function ReportPageLayout({
           />
         </CardHeader>
         <CardContent>
-          {renderContent ? (
-            renderContent(filters)
-          ) : (
+          {renderContent() ?? (
             <div className="flex flex-col gap-3">
               <div className="flex h-80 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
                 {placeholderLabel}
