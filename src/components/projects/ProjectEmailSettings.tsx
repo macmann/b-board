@@ -77,6 +77,7 @@ export default function ProjectEmailSettings({
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [inviteStatus, setInviteStatus] = useState<string | null>(null);
+  const [inviteErrorToast, setInviteErrorToast] = useState<string | null>(null);
 
   const canManage = useMemo(
     () => projectRole === "ADMIN" || projectRole === "PO",
@@ -120,6 +121,13 @@ export default function ProjectEmailSettings({
     loadSettings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, canManage]);
+
+  useEffect(() => {
+    if (!inviteErrorToast) return;
+
+    const timeout = window.setTimeout(() => setInviteErrorToast(null), 6000);
+    return () => window.clearTimeout(timeout);
+  }, [inviteErrorToast]);
 
   const handleProviderChange = (value: string) => {
     const providerType = (value as ProviderType | "") || null;
@@ -239,6 +247,8 @@ export default function ProjectEmailSettings({
       console.info("[send-invite] start", { email: targetEmail, requestStartedAt });
     }
 
+    let responseData: { message?: string; requestId?: string } | null = null;
+
     try {
       const response = await fetch(
         `/api/projects/${projectId}/email/send-invite`,
@@ -250,23 +260,28 @@ export default function ProjectEmailSettings({
         }
       );
 
+      responseData = await response.json().catch(() => null);
+
       if (!response.ok) {
-        const data = await response.json().catch(() => null);
-        const message = data?.message ?? "Failed to send invite email.";
-        const requestIdText = data?.requestId
-          ? ` Request ID: ${data.requestId}.`
+        const message =
+          responseData?.message ??
+          `Failed to send invite email (status ${response.status}).`;
+        const requestIdText = responseData?.requestId
+          ? ` Request ID: ${responseData.requestId}.`
           : "";
         throw new Error(`${message}${requestIdText}`);
       }
 
-      const data = await response.json();
-      const requestIdText = data?.requestId ? ` Request ID: ${data.requestId}.` : "";
+      const requestIdText = responseData?.requestId
+        ? ` Request ID: ${responseData.requestId}.`
+        : "";
       setInviteStatus(
-        data?.message
-          ? `${data.message}${requestIdText}`
+        responseData?.message
+          ? `${responseData.message}${requestIdText}`
           : `Invite sent successfully.${requestIdText}`
       );
       setInviteEmail("");
+      setInviteErrorToast(null);
 
       if (process.env.NODE_ENV !== "production") {
         console.info("[send-invite] completed", {
@@ -276,20 +291,26 @@ export default function ProjectEmailSettings({
       }
     } catch (err) {
       const isAbort = err instanceof DOMException && err.name === "AbortError";
-      const message = isAbort
+      const baseMessage = isAbort
         ? "Request timed out. Check server logs."
         : err instanceof Error
           ? err.message
           : "An unexpected error occurred while sending the invite.";
 
+      const requestIdText = responseData?.requestId
+        ? ` Request ID: ${responseData.requestId}.`
+        : "";
+
       if (process.env.NODE_ENV !== "production") {
         console.error("[send-invite] error", {
           email: targetEmail,
           error: err,
+          requestId: responseData?.requestId,
         });
       }
 
-      setInviteStatus(message);
+      setInviteStatus(null);
+      setInviteErrorToast(`${baseMessage}${requestIdText}`);
     } finally {
       clearTimeout(timeoutId);
       setIsSending(false);
@@ -557,6 +578,12 @@ export default function ProjectEmailSettings({
           </div>
         )}
       </div>
+
+      {inviteErrorToast && (
+        <div className="fixed bottom-4 right-4 z-50 max-w-sm rounded-lg border border-red-200 bg-white px-4 py-3 text-sm text-red-700 shadow-lg dark:border-red-900 dark:bg-slate-900 dark:text-red-200">
+          {inviteErrorToast}
+        </div>
+      )}
     </section>
   );
 }

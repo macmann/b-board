@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { resolveAppUrl } from "../../../../../lib/appUrl";
 import { Role } from "../../../../../lib/prismaEnums";
 
 import { getUserFromRequest } from "../../../../../lib/auth";
@@ -142,8 +143,17 @@ export async function POST(
     },
   });
 
-  const appUrl =
-    process.env.APP_URL || `${request.nextUrl.protocol}//${request.nextUrl.host}`;
+  let appUrl: string;
+  try {
+    appUrl = resolveAppUrl(request);
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Unable to resolve application URL.";
+    return NextResponse.json({ message }, { status: 500 });
+  }
+
   const inviteUrl = `${appUrl}/register?token=${invitation.token}`;
 
   return NextResponse.json({

@@ -57,6 +57,11 @@ const validateSettings = (settings: EmailSettings) => {
 export type SendEmailOptions = {
   requestId?: string;
   enableVerify?: boolean;
+  transportTimeouts?: {
+    connection?: number;
+    greeting?: number;
+    socket?: number;
+  };
 };
 
 export type SendEmailResult = {
@@ -127,14 +132,18 @@ export const sendEmail = async (
 
   if (isSmtpProvider) {
     const port = settings.smtpPort ?? 587;
+    const connectionTimeout = options.transportTimeouts?.connection ?? 10_000;
+    const greetingTimeout = options.transportTimeouts?.greeting ?? 10_000;
+    const socketTimeout = options.transportTimeouts?.socket ?? 20_000;
+
     const transporter = nodemailer.createTransport({
       host: settings.smtpHost ?? undefined,
       port,
       secure: port === 465,
       requireTLS: port === 587 ? true : undefined,
-      connectionTimeout: 10_000,
-      greetingTimeout: 10_000,
-      socketTimeout: 20_000,
+      connectionTimeout,
+      greetingTimeout,
+      socketTimeout,
       auth:
         settings.smtpUsername && settings.smtpPassword
           ? {
@@ -153,6 +162,9 @@ export const sendEmail = async (
         requireTLS: port === 587,
         user: maskValue(settings.smtpUsername),
         from,
+        connectionTimeout,
+        greetingTimeout,
+        socketTimeout,
       },
     });
 
