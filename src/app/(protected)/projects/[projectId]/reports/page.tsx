@@ -11,7 +11,12 @@ import SprintBurndownModule from "@/components/reports/project/SprintBurndownMod
 import VelocityTrendModule from "@/components/reports/project/VelocityTrendModule";
 import prisma from "@/lib/db";
 import { getCurrentProjectContext } from "@/lib/projectContext";
-import { DEFAULT_REPORT_MODULE, parseReportSearchParams } from "@/lib/reports/filters";
+import {
+  DEFAULT_REPORT_MODULE,
+  normalizeModule,
+  parseReportSearchParams,
+  type ReportModuleKey,
+} from "@/lib/reports/filters";
 import { Role as UserRole } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
 
@@ -28,7 +33,12 @@ type ServerProps = {
   searchParams?: unknown;
 };
 
-const reportModules = [
+const reportModules: ReadonlyArray<{
+  key: ReportModuleKey;
+  title: string;
+  description: string;
+  requiresSprintScope: boolean;
+}> = [
   {
     key: "sprint-burndown",
     title: "Sprint Burndown",
@@ -59,9 +69,7 @@ const reportModules = [
     description: "Aggregate blockers to understand recurring impediments across the team.",
     requiresSprintScope: false,
   },
-] as const;
-
-type ReportModuleKey = (typeof reportModules)[number]["key"];
+];
 
 type SprintOption = {
   id: string;
@@ -71,7 +79,7 @@ type SprintOption = {
 };
 
 const getActiveModule = (moduleKey: string | null): (typeof reportModules)[number] => {
-  const resolvedKey = moduleKey ?? DEFAULT_REPORT_MODULE;
+  const resolvedKey = normalizeModule(moduleKey);
   return reportModules.find((module) => module.key === resolvedKey) ?? reportModules[0];
 };
 
