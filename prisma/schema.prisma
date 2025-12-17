@@ -55,6 +55,21 @@ enum IssuePriority {
   CRITICAL
 }
 
+enum BuildStatus {
+  PLANNED
+  IN_PROGRESS
+  DEPLOYED
+  ROLLED_BACK
+  CANCELLED
+}
+
+enum BuildEnvironment {
+  DEV
+  STAGING
+  UAT
+  PROD
+}
+
 enum ResearchStatus {
   BACKLOG
   IN_PROGRESS
@@ -164,6 +179,7 @@ model User {
   uploadedAttachments   Attachment[]
   aiRuns                AIRun[]             @relation("AIRunCreatedBy")
   aiSuggestionsDecided  AISuggestion[]      @relation("AISuggestionDecisionUser")
+  createdBuilds         Build[]             @relation("BuildCreatedBy")
 }
 
 model Workspace {
@@ -220,13 +236,14 @@ model Project {
   aiSettings         ProjectAISettings?
   aiRuns             AIRun[]
   aiSuggestions      AISuggestion[]
+  builds             Build[]
 
   @@unique([workspaceId, key])
 }
 
 model ProjectSettings {
-  id                 String  @id @default(cuid())
-  projectId          String  @unique
+  id                 String             @id @default(cuid())
+  projectId          String             @unique
   standupWindowStart String?
   standupWindowEnd   String?
   emailProvider      EmailProviderType?
@@ -336,11 +353,48 @@ model Issue {
   researchLinks ResearchItemIssueLink[]
   standupLinks  StandupEntryIssueLink[]
   attachments   Attachment[]
+  buildLinks    BuildIssue[]
 
   @@index([projectId])
   @@index([sprintId])
   @@index([epicId])
   @@index([assigneeId])
+}
+
+model Build {
+  id          String           @id @default(cuid())
+  projectId   String
+  key         String
+  name        String?
+  description String?
+  status      BuildStatus      @default(PLANNED)
+  environment BuildEnvironment @default(DEV)
+  plannedAt   DateTime?
+  deployedAt  DateTime?
+  createdById String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  project    Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy  User?        @relation("BuildCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  issueLinks BuildIssue[]
+
+  @@unique([projectId, key])
+  @@index([projectId, status])
+  @@index([projectId, environment])
+}
+
+model BuildIssue {
+  id        String   @id @default(cuid())
+  buildId   String
+  issueId   String
+  createdAt DateTime @default(now())
+
+  build Build @relation(fields: [buildId], references: [id], onDelete: Cascade)
+  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@unique([buildId, issueId])
+  @@index([issueId])
 }
 
 model Comment {
@@ -535,33 +589,33 @@ model InviteToken {
 }
 
 model ProjectAISettings {
-  id                       String   @id @default(cuid())
-  projectId                String   @unique
-  backlogGroomingEnabled   Boolean  @default(false)
-  model                    String?
-  temperature              Float?
-  projectBrief             String?  @db.Text
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
+  id                     String   @id @default(cuid())
+  projectId              String   @unique
+  backlogGroomingEnabled Boolean  @default(false)
+  model                  String?
+  temperature            Float?
+  projectBrief           String?  @db.Text
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
 model AIRun {
-  id              String       @id @default(cuid())
+  id              String      @id @default(cuid())
   projectId       String
   featureType     FeatureType
   status          AIRunStatus
-  startedAt       DateTime     @default(now())
+  startedAt       DateTime    @default(now())
   finishedAt      DateTime?
   createdByUserId String?
   inputSnapshot   Json
   outputRaw       Json?
   errorMessage    String?
-  createdAt       DateTime     @default(now())
+  createdAt       DateTime    @default(now())
 
-  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdBy  User?   @relation("AIRunCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy User?   @relation("AIRunCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
   @@index([featureType])
@@ -592,18 +646,18 @@ model AISuggestion {
 }
 
 model AuditLog {
-  id        String         @id @default(cuid())
-  projectId String?
-  actorType AuditActorType
-  actorId   String?
-  action    String
+  id         String          @id @default(cuid())
+  projectId  String?
+  actorType  AuditActorType
+  actorId    String?
+  action     String
   entityType AuditEntityType
-  entityId  String?
-  summary   String
-  before    Json?
-  after     Json?
-  metadata  Json?
-  createdAt DateTime       @default(now())
+  entityId   String?
+  summary    String
+  before     Json?
+  after      Json?
+  metadata   Json?
+  createdAt  DateTime        @default(now())
 
   @@index([projectId])
   @@index([entityType, entityId])
