@@ -1,4 +1,9 @@
-import { IssueType, Role } from "../../../../../lib/prismaEnums";
+import {
+  IssuePriority,
+  IssueStatus,
+  IssueType,
+  Role,
+} from "../../../../../lib/prismaEnums";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getUserFromRequest } from "../../../../../lib/auth";
@@ -38,19 +43,66 @@ export async function GET(
     await ensureProjectRole(prisma, user.id, project.id, PROJECT_VIEWER_ROLES);
 
     const searchParams = request.nextUrl.searchParams;
-    const type = searchParams.get("type");
-    const assigneeId = searchParams.get("assigneeId");
-    const epicId = searchParams.get("epicId");
+    const parseListParam = (param: string | null) =>
+      param?.split(",").map((value) => value.trim()).filter(Boolean) ?? [];
+
+    const statusFilter = parseListParam(searchParams.get("status")).filter(
+      (value): value is IssueStatus =>
+        Object.values(IssueStatus).includes(value as IssueStatus)
+    );
+    const typeFilter = parseListParam(searchParams.get("type")).filter(
+      (value): value is IssueType =>
+        Object.values(IssueType).includes(value as IssueType)
+    );
+    const priorityFilter = parseListParam(searchParams.get("priority")).filter(
+      (value): value is IssuePriority =>
+        Object.values(IssuePriority).includes(value as IssuePriority)
+    );
+    const assigneeFilter = parseListParam(
+      searchParams.get("assignee") ?? searchParams.get("assigneeId")
+    );
+    const epicFilter = parseListParam(
+      searchParams.get("epic") ?? searchParams.get("epicId")
+    );
+    const searchQuery = searchParams.get("q")?.trim();
+
+    const andFilters = [
+      { projectId },
+      ...(statusFilter.length > 0 ? [{ status: { in: statusFilter } }] : []),
+      ...(typeFilter.length > 0 ? [{ type: { in: typeFilter } }] : []),
+      ...(priorityFilter.length > 0
+        ? [{ priority: { in: priorityFilter } }]
+        : []),
+      ...(epicFilter.length > 0 ? [{ epicId: { in: epicFilter } }] : []),
+    ];
+
+    const assigneeConditions = [] as Array<{ assigneeId: string | null } | { assigneeId: { in: string[] } }>;
+
+    if (assigneeFilter.includes("unassigned")) {
+      assigneeConditions.push({ assigneeId: null });
+    }
+
+    const assigneeIds = assigneeFilter.filter((value) => value !== "unassigned");
+
+    if (assigneeIds.length > 0) {
+      assigneeConditions.push({ assigneeId: { in: assigneeIds } });
+    }
+
+    if (assigneeConditions.length > 0) {
+      andFilters.push({ OR: assigneeConditions });
+    }
+
+    if (searchQuery) {
+      andFilters.push({
+        OR: [
+          { title: { contains: searchQuery, mode: "insensitive" } },
+          { key: { contains: searchQuery, mode: "insensitive" } },
+        ],
+      });
+    }
 
     const issues = await prisma.issue.findMany({
-      where: {
-        projectId,
-        ...(type && Object.values(IssueType).includes(type as IssueType)
-          ? { type: type as IssueType }
-          : {}),
-        ...(assigneeId ? { assigneeId } : {}),
-        ...(epicId ? { epicId } : {}),
-      },
+      where: { AND: andFilters },
       include: {
         sprint: true,
         epic: true,
