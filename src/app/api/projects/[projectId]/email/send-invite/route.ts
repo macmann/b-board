@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getUserFromRequest } from "@/lib/auth";
 import prisma from "@/lib/db";
-import { sendEmail } from "@/lib/email";
+import { getEmailErrorHint, sendEmail } from "@/lib/email";
 import { Role } from "@/lib/prismaEnums";
 import { resolveProjectId, type ProjectParams } from "@/lib/params";
 import { AuthorizationError, requireProjectRole } from "@/lib/permissions";
@@ -16,16 +16,48 @@ export async function POST(
   request: NextRequest,
   { params }: { params: ProjectParams }
 ) {
+  const requestId = randomUUID();
+  const respond = (status: number, body: Record<string, unknown>) =>
+    NextResponse.json(
+      {
+        ok: status >= 200 && status < 300,
+        requestId,
+        ...body,
+      },
+      { status }
+    );
+
+  const log = (
+    level: "info" | "error",
+    message: string,
+    meta?: Record<string, unknown>
+  ) => {
+    const payload = {
+      level,
+      message,
+      requestId,
+      timestamp: new Date().toISOString(),
+      ...meta,
+    };
+
+    const logger = level === "error" ? console.error : console.info;
+    logger(payload);
+  };
+
+  log("info", "Send invite request received", {
+    route: request.nextUrl.pathname,
+  });
+
   const projectId = await resolveProjectId(params);
 
   if (!projectId) {
-    return NextResponse.json({ message: "projectId is required" }, { status: 400 });
+    return respond(400, { message: "projectId is required" });
   }
 
   const user = await getUserFromRequest(request);
 
   if (!user) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return respond(401, { message: "Unauthorized" });
   }
 
   const project = await prisma.project.findUnique({
@@ -34,39 +66,76 @@ export async function POST(
   });
 
   if (!project) {
-    return NextResponse.json({ message: "Project not found" }, { status: 404 });
+    return respond(404, { message: "Project not found" });
   }
 
   try {
     await requireProjectRole(user.id, projectId, PROJECT_ADMIN_ROLES);
   } catch (error) {
     if (error instanceof AuthorizationError) {
-      return NextResponse.json(
-        { message: error.message },
-        { status: error.status }
-      );
+      return respond(error.status, { message: error.message });
     }
 
-    return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    return respond(403, { message: "Forbidden" });
   }
 
-  const { email } = await request.json();
-  const normalizedEmail = String(email ?? "").trim().toLowerCase();
+  let normalizedEmail = "";
+  try {
+    const { email } = await request.json();
+    normalizedEmail = String(email ?? "").trim().toLowerCase();
+  } catch (error) {
+    log("error", "Failed to parse invite request body", { error });
+    return respond(400, { message: "Invalid request body." });
+  }
+
+  log("info", "Invite request parsed", {
+    email: normalizedEmail,
+  });
 
   if (!normalizedEmail || !validateEmail(normalizedEmail)) {
-    return NextResponse.json(
-      { message: "A valid recipient email is required." },
-      { status: 400 }
-    );
+    return respond(400, { message: "A valid recipient email is required." });
   }
 
   const settings = project.settings;
 
+  log("info", "Email settings loaded", {
+    provider: settings?.emailProvider,
+    fromEmail: settings?.emailFromAddress,
+    smtpHost: settings?.smtpHost,
+    smtpPort: settings?.smtpPort,
+    smtpUsername: settings?.smtpUsername,
+  });
+
   if (!settings?.emailProvider) {
-    return NextResponse.json(
-      { message: "Configure an email provider before sending invites." },
-      { status: 400 }
-    );
+    return respond(400, {
+      message: "Configure an email provider before sending invites.",
+    });
+  }
+
+  if (!settings.emailFromAddress) {
+    return respond(400, {
+      message: "A from email address is required to send invites.",
+    });
+  }
+
+  const isSmtpProvider =
+    settings.emailProvider === "SMTP" ||
+    settings.emailProvider === "MS365" ||
+    settings.emailProvider === "GOOGLE_MAIL";
+
+  if (isSmtpProvider) {
+    const missing: string[] = [];
+    if (!settings.smtpHost) missing.push("SMTP host");
+    if (!settings.smtpPort) missing.push("SMTP port");
+    if (!settings.smtpUsername) missing.push("SMTP username");
+    if (!settings.smtpPassword) missing.push("SMTP password");
+
+    if (missing.length) {
+      return respond(400, {
+        message: "SMTP settings are incomplete.",
+        hint: `Provide ${missing.join(", ")} to send email invites.`,
+      });
+    }
   }
 
   const invite = await prisma.invitation.create({
@@ -85,8 +154,14 @@ export async function POST(
     process.env.APP_URL || `${request.nextUrl.protocol}//${request.nextUrl.host}`;
   const inviteUrl = `${appUrl}/register?token=${invite.token}`;
 
+  log("info", "Attempting to send invite email", {
+    email: normalizedEmail,
+    inviteId: invite.id,
+    inviteUrl,
+  });
+
   try {
-    await sendEmail(
+    const result = await sendEmail(
       {
         providerType: settings.emailProvider,
         fromName: settings.emailFromName,
@@ -103,19 +178,39 @@ export async function POST(
         subject: `${project.name} board invite`,
         text: `You have been invited to join ${project.name}. Use this link to get started: ${inviteUrl}`,
         html: `<p>You have been invited to join <strong>${project.name}</strong>.</p><p><a href="${inviteUrl}">Accept your invite</a> to get started.</p>`,
+      },
+      {
+        requestId,
+        enableVerify: process.env.EMAIL_TRANSPORT_VERIFY === "true",
       }
     );
+
+    log("info", "Invite email sent", {
+      messageId: result.messageId,
+      response: result.response,
+    });
   } catch (error) {
     await prisma.invitation.delete({ where: { id: invite.id } });
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Unable to send invite email. Please try again.";
 
-    return NextResponse.json({ message }, { status: 400 });
+    const hint = getEmailErrorHint(error) ?? undefined;
+    const message =
+      hint ??
+      (error instanceof Error
+        ? error.message
+        : "Unable to send invite email. Please try again.");
+
+    log("error", "Failed to send invite email", {
+      error: error instanceof Error ? error.stack : error,
+      hint,
+    });
+
+    return respond(500, {
+      message,
+      hint,
+    });
   }
 
-  return NextResponse.json({
+  return respond(200, {
     message: "Invite sent successfully",
     inviteUrl,
   });

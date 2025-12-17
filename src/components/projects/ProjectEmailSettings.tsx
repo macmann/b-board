@@ -216,7 +216,6 @@ export default function ProjectEmailSettings({
     event.preventDefault();
     if (!canManage) return;
 
-    setIsSending(true);
     setInviteStatus(null);
     setError(null);
 
@@ -224,8 +223,20 @@ export default function ProjectEmailSettings({
 
     if (!targetEmail || !EMAIL_REGEX.test(targetEmail)) {
       setInviteStatus("Enter a valid recipient email.");
-      setIsSending(false);
       return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(
+      () => controller.abort(),
+      25_000
+    );
+
+    setIsSending(true);
+
+    const requestStartedAt = new Date().toISOString();
+    if (process.env.NODE_ENV !== "production") {
+      console.info("[send-invite] start", { email: targetEmail, requestStartedAt });
     }
 
     try {
@@ -235,24 +246,52 @@ export default function ProjectEmailSettings({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: targetEmail }),
+          signal: controller.signal,
         }
       );
 
       if (!response.ok) {
         const data = await response.json().catch(() => null);
-        throw new Error(data?.message ?? "Failed to send invite email.");
+        const message = data?.message ?? "Failed to send invite email.";
+        const requestIdText = data?.requestId
+          ? ` Request ID: ${data.requestId}.`
+          : "";
+        throw new Error(`${message}${requestIdText}`);
       }
 
       const data = await response.json();
-      setInviteStatus(data?.message ?? "Invite sent successfully.");
-      setInviteEmail("");
-    } catch (err) {
+      const requestIdText = data?.requestId ? ` Request ID: ${data.requestId}.` : "";
       setInviteStatus(
-        err instanceof Error
-          ? err.message
-          : "An unexpected error occurred while sending the invite."
+        data?.message
+          ? `${data.message}${requestIdText}`
+          : `Invite sent successfully.${requestIdText}`
       );
+      setInviteEmail("");
+
+      if (process.env.NODE_ENV !== "production") {
+        console.info("[send-invite] completed", {
+          email: targetEmail,
+          status: response.status,
+        });
+      }
+    } catch (err) {
+      const isAbort = err instanceof DOMException && err.name === "AbortError";
+      const message = isAbort
+        ? "Request timed out. Check server logs."
+        : err instanceof Error
+          ? err.message
+          : "An unexpected error occurred while sending the invite.";
+
+      if (process.env.NODE_ENV !== "production") {
+        console.error("[send-invite] error", {
+          email: targetEmail,
+          error: err,
+        });
+      }
+
+      setInviteStatus(message);
     } finally {
+      clearTimeout(timeoutId);
       setIsSending(false);
     }
   };
