@@ -2,6 +2,7 @@
 
 import {
   ChangeEvent,
+  Fragment,
   FormEvent,
   ReactNode,
   useCallback,
@@ -1028,13 +1029,11 @@ export default function IssueDetailsPageClient({
             ) : error && !issue ? (
               <p className="text-sm text-red-500">{error}</p>
             ) : issue ? (
-              <>
-                <form
-                  onSubmit={handleUpdate}
-                  className="grid gap-6 md:grid-cols-[minmax(0,7fr)_minmax(280px,3fr)]"
-                >
-                <div className="space-y-6">
-                  <div className="rounded-2xl border border-slate-200 bg-white/60 p-6 shadow-inner dark:border-slate-800 dark:bg-slate-900">
+              <Fragment>
+                <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+                  <div className="space-y-6">
+                    <form onSubmit={handleUpdate} className="space-y-6">
+                      <div className="rounded-2xl border border-slate-200 bg-white/60 p-6 shadow-inner dark:border-slate-800 dark:bg-slate-900">
                     <div className="space-y-2">
                       <label
                         className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
@@ -1170,184 +1169,9 @@ export default function IssueDetailsPageClient({
                     </div>
 
                   </div>
-                </div>
+                </form>
 
-                <div className="space-y-5">
-                  <div className="rounded-2xl border border-slate-200 bg-white/70 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                      Status & Workflow
-                    </p>
-                    <div className="mt-3 space-y-4">
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-3">
-                          <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="type">
-                            Type
-                          </label>
-                          <span
-                            className={`${pillBaseClasses} border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100`}
-                          >
-                            <IssueTypeIcon type={type} showLabel />
-                          </span>
-                        </div>
-                        <select
-                          id="type"
-                          name="type"
-                          value={type}
-                          onChange={(event) => setType(event.target.value as IssueType)}
-                          disabled={disableEditing}
-                          className={baseFieldClasses}
-                        >
-                          {(Object.keys(ISSUE_TYPE_METADATA) as IssueType[]).map((option) => {
-                            const { icon, label } = ISSUE_TYPE_METADATA[option];
-                            return (
-                              <option key={option} value={option}>
-                                {icon} {label}
-                              </option>
-                            );
-                          })}
-                        </select>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-3">
-                          <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="status">
-                            Status
-                          </label>
-                          <span className={`${pillBaseClasses} ${statusPillStyles[status]}`}>{status}</span>
-                        </div>
-                        <select
-                          id="status"
-                          name="status"
-                          value={status}
-                          onChange={(event) => setStatus(event.target.value as IssueStatus)}
-                          disabled={disableEditing}
-                          className={baseFieldClasses}
-                        >
-                          {Object.values(IssueStatus).map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-3">
-                          <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="priority">
-                            Priority
-                          </label>
-                          <span className={`${pillBaseClasses} ${priorityPillStyles[priority]}`}>{priority}</span>
-                        </div>
-                        <select
-                          id="priority"
-                          name="priority"
-                          value={priority}
-                          onChange={(event) => setPriority(event.target.value as IssuePriority)}
-                          disabled={disableEditing}
-                          className={baseFieldClasses}
-                        >
-                          {Object.values(IssuePriority).map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="sprint">
-                          Sprint
-                        </label>
-                        <select
-                          id="sprint"
-                          name="sprint"
-                          value={sprintId}
-                          onChange={(event) => setSprintId(event.target.value)}
-                          disabled={disableEditing}
-                          className={baseFieldClasses}
-                        >
-                          <option value="">No sprint</option>
-                          {sprintOptions.map((option) => (
-                            <option key={option.id} value={option.id}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-white/70 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Assignment</p>
-                    <div className="mt-3 space-y-4">
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="assignee">
-                          Assignee
-                        </label>
-                        <select
-                          id="assignee"
-                          name="assignee"
-                          value={assigneeId}
-                          onChange={(event) => setAssigneeId(event.target.value)}
-                          disabled={disableEditing}
-                          className={baseFieldClasses}
-                        >
-                          <option value="">Unassigned</option>
-                          {assigneeOptions.map((option) => (
-                            <option key={option.id} value={option.id}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="epic">
-                          Epic
-                        </label>
-                        <select
-                          id="epic"
-                          name="epic"
-                          value={epicId}
-                          onChange={(event) => setEpicId(event.target.value)}
-                          disabled={disableEditing}
-                          className={baseFieldClasses}
-                        >
-                          <option value="">No epic</option>
-                          {epicOptions.map((option) => (
-                            <option key={option.id} value={option.id}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-white/70 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Estimation</p>
-                    <div className="mt-3 space-y-4">
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="storyPoints">
-                          Story Points
-                        </label>
-                        <input
-                          id="storyPoints"
-                          name="storyPoints"
-                          type="number"
-                          min="0"
-                          value={storyPoints}
-                          onChange={(event) => setStoryPoints(event.target.value)}
-                          disabled={disableEditing}
-                          className={baseFieldClasses}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </form>
-
-              <div className="mt-6 space-y-6">
+              <div className="space-y-6">
                 <div className="rounded-2xl border border-slate-200 bg-white/70 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -1377,7 +1201,7 @@ export default function IssueDetailsPageClient({
                     )}
                     {isLoadingSuggestions ? (
                       <p className="text-sm text-slate-600 dark:text-slate-300">Loading suggestions...</p>
-                    ) : suggestionError ? (
+                ) : suggestionError ? (
                       <p className="text-sm text-red-500">{suggestionError}</p>
                     ) : suggestions.length === 0 ? (
                       <p className="text-sm text-slate-600 dark:text-slate-300">
@@ -1462,157 +1286,328 @@ export default function IssueDetailsPageClient({
                   </div>
                 </div>
 
-                <div className="grid gap-6 md:grid-cols-[minmax(0,7fr)_minmax(280px,3fr)]">
-                  <div className="space-y-4">
-                  <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">Activity</h2>
-                        <p className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Conversation & audit trail</p>
-                      </div>
-                      <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800">
-                        <button
-                          type="button"
-                          onClick={() => setActivityTab("comments")}
-                          className={activityTabButton("comments")}
-                        >
-                          Comments
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setActivityTab("audit")}
-                          className={activityTabButton("audit")}
-                        >
-                          Audit
-                        </button>
-                      </div>
+                <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">Activity</h2>
+                      <p className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Conversation & audit trail</p>
                     </div>
-                    {activityTab === "comments" ? (
-                      <>
-                        <div className="mt-4">
-                          {comments.length === 0 ? (
-                            <p className="text-sm text-slate-600 dark:text-slate-300">No comments yet.</p>
-                          ) : (
-                            <ul className="space-y-3">
-                              {comments.map((comment) => (
-                              <li
-                                key={comment.id}
-                                className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 shadow-sm dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100"
-                              >
-                                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-300">
-                                  <span>{comment.author?.name ?? "Unknown"}</span>
-                                  <span>{new Date(comment.createdAt).toLocaleString()}</span>
-                                </div>
-                                <div className="markdown-content mt-2 text-slate-900 dark:text-slate-100">
-                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{comment.body}</ReactMarkdown>
-                                </div>
-                                {comment.attachments?.length ? (
-                                  <ul className="mt-2 space-y-1 text-xs">
-                                    {comment.attachments.map((attachment) => (
-                                      <li
-                                        key={attachment.id}
-                                        className="flex items-center justify-between rounded-md border border-slate-200 px-2 py-1 text-slate-700 dark:border-slate-700 dark:text-slate-100"
-                                      >
-                                        <a
-                                          className="truncate font-medium text-primary hover:underline"
-                                          href={attachment.url}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                        >
-                                          {attachment.fileName}
-                                        </a>
-                                        <button
-                                          type="button"
-                                          className="text-[11px] font-semibold text-red-500 hover:text-red-600"
-                                          onClick={() => handleAttachmentDelete(attachment.id)}
-                                        >
-                                          Delete
-                                        </button>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                ) : null}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-
-                        <form className="mt-6 space-y-3" onSubmit={handleCommentSubmit}>
-                          <div className="space-y-1.5">
-                            <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="newComment">
-                              Add a comment
-                            </label>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">Use Markdown to add emphasis, lists, and links.</p>
-                            <textarea
-                              id="newComment"
-                              name="newComment"
-                              value={commentBody}
-                              onChange={(event) => setCommentBody(event.target.value)}
-                              rows={3}
-                              className={baseFieldClasses}
-                            />
-                          </div>
-
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Comment attachments</p>
-                              <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100">
-                                <input
-                                  type="file"
-                                  multiple
-                                  className="hidden"
-                                  onChange={handleCommentAttachmentChange}
-                                  disabled={isUploadingCommentFiles}
-                                />
-                                {isUploadingCommentFiles ? "Uploading..." : "Add files"}
-                              </label>
-                            </div>
-                            {commentAttachments.length > 0 && (
-                              <ul className="space-y-1 text-xs">
-                                {commentAttachments.map((attachment) => (
-                                  <li
-                                    key={attachment.id}
-                                    className="flex items-center justify-between rounded-md border border-slate-200 px-2 py-1 text-slate-700 dark:border-slate-800 dark:text-slate-100"
-                                  >
-                                    <span className="truncate font-medium">{attachment.fileName}</span>
-                                    <button
-                                      type="button"
-                                      className="text-[11px] font-semibold text-red-500 hover:text-red-600"
-                                      onClick={() => handleAttachmentDelete(attachment.id)}
-                                    >
-                                      Remove
-                                    </button>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-
-                          <button
-                            type="submit"
-                            disabled={isSubmittingComment || !commentBody.trim()}
-                            className="inline-flex items-center rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
-                          >
-                            {isSubmittingComment ? "Posting..." : "Post comment"}
-                          </button>
-                        </form>
-                      </>
-                    ) : (
+                    <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => setActivityTab("comments")}
+                        className={activityTabButton("comments")}
+                      >
+                        Comments
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActivityTab("audit")}
+                        className={activityTabButton("audit")}
+                      >
+                        Audit
+                      </button>
+                    </div>
+                  </div>
+                  {activityTab === "comments" ? (
+                    <>
                       <div className="mt-4">
-                        <AuditLogList
-                          fetchUrl={`/api/issues/${issueId}/audit-logs`}
-                          emptyMessage="No audit entries yet for this issue."
-                        />
+                        {comments.length === 0 ? (
+                          <p className="text-sm text-slate-600 dark:text-slate-300">No comments yet.</p>
+                        ) : (
+                          <ul className="space-y-3">
+                            {comments.map((comment) => (
+                            <li
+                              key={comment.id}
+                              className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 shadow-sm dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100"
+                            >
+                              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-300">
+                                <span>{comment.author?.name ?? "Unknown"}</span>
+                                <span>{new Date(comment.createdAt).toLocaleString()}</span>
+                              </div>
+                              <div className="markdown-content mt-2 text-slate-900 dark:text-slate-100">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{comment.body}</ReactMarkdown>
+                              </div>
+                              {comment.attachments?.length ? (
+                                <ul className="mt-2 space-y-1 text-xs">
+                                  {comment.attachments.map((attachment) => (
+                                    <li
+                                      key={attachment.id}
+                                      className="flex items-center justify-between rounded-md border border-slate-200 px-2 py-1 text-slate-700 dark:border-slate-700 dark:text-slate-100"
+                                    >
+                                      <a
+                                        className="truncate font-medium text-primary hover:underline"
+                                        href={attachment.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                      >
+                                        {attachment.fileName}
+                                      </a>
+                                      <button
+                                        type="button"
+                                        className="text-[11px] font-semibold text-red-500 hover:text-red-600"
+                                        onClick={() => handleAttachmentDelete(attachment.id)}
+                                      >
+                                        Delete
+                                      </button>
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
+                      <form className="mt-6 space-y-3" onSubmit={handleCommentSubmit}>
+                        <div className="space-y-1.5">
+                          <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="newComment">
+                            Add a comment
+                          </label>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">Use Markdown to add emphasis, lists, and links.</p>
+                          <textarea
+                            id="newComment"
+                            name="newComment"
+                            value={commentBody}
+                            onChange={(event) => setCommentBody(event.target.value)}
+                            rows={3}
+                            className={baseFieldClasses}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Comment attachments</p>
+                            <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100">
+                              <input
+                                type="file"
+                                multiple
+                                className="hidden"
+                                onChange={handleCommentAttachmentChange}
+                                disabled={isUploadingCommentFiles}
+                              />
+                              {isUploadingCommentFiles ? "Uploading..." : "Add files"}
+                            </label>
+                          </div>
+                          {commentAttachments.length > 0 && (
+                            <ul className="space-y-1 text-xs">
+                              {commentAttachments.map((attachment) => (
+                                <li
+                                  key={attachment.id}
+                                  className="flex items-center justify-between rounded-md border border-slate-200 px-2 py-1 text-slate-700 dark:border-slate-800 dark:text-slate-100"
+                                >
+                                  <span className="truncate font-medium">{attachment.fileName}</span>
+                                  <button
+                                    type="button"
+                                    className="text-[11px] font-semibold text-red-500 hover:text-red-600"
+                                    onClick={() => handleAttachmentDelete(attachment.id)}
+                                  >
+                                    Remove
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={isSubmittingComment || !commentBody.trim()}
+                          className="inline-flex items-center rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
+                        >
+                          {isSubmittingComment ? "Posting..." : "Post comment"}
+                        </button>
+                      </form>
+                    </>
+                  ) : (
+                    <div className="mt-4">
+                      <AuditLogList
+                        fetchUrl={`/api/issues/${issueId}/audit-logs`}
+                        emptyMessage="No audit entries yet for this issue."
+                      />
+                    </div>
+                  )}
+                </section>
+              </div>
+
+              </div>
+
+              <aside className="space-y-5">
+                <div className="rounded-2xl border border-slate-200 bg-white/70 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Status & Workflow
+                  </p>
+                  <div className="mt-3 space-y-4">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="type">
+                          Type
+                        </label>
+                        <span
+                          className={`${pillBaseClasses} border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100`}
+                        >
+                          <IssueTypeIcon type={type} showLabel />
+                        </span>
                       </div>
-                    )}
-                  </section>
+                      <select
+                        id="type"
+                        name="type"
+                        value={type}
+                        onChange={(event) => setType(event.target.value as IssueType)}
+                        disabled={disableEditing}
+                        className={baseFieldClasses}
+                      >
+                        {(Object.keys(ISSUE_TYPE_METADATA) as IssueType[]).map((option) => {
+                          const { icon, label } = ISSUE_TYPE_METADATA[option];
+                          return (
+                            <option key={option} value={option}>
+                              {icon} {label}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="status">
+                          Status
+                        </label>
+                        <span className={`${pillBaseClasses} ${statusPillStyles[status]}`}>{status}</span>
+                      </div>
+                      <select
+                        id="status"
+                        name="status"
+                        value={status}
+                        onChange={(event) => setStatus(event.target.value as IssueStatus)}
+                        disabled={disableEditing}
+                        className={baseFieldClasses}
+                      >
+                        {Object.values(IssueStatus).map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="priority">
+                          Priority
+                        </label>
+                        <span className={`${pillBaseClasses} ${priorityPillStyles[priority]}`}>{priority}</span>
+                      </div>
+                      <select
+                        id="priority"
+                        name="priority"
+                        value={priority}
+                        onChange={(event) => setPriority(event.target.value as IssuePriority)}
+                        disabled={disableEditing}
+                        className={baseFieldClasses}
+                      >
+                        {Object.values(IssuePriority).map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="sprint">
+                        Sprint
+                      </label>
+                      <select
+                        id="sprint"
+                        name="sprint"
+                        value={sprintId}
+                        onChange={(event) => setSprintId(event.target.value)}
+                        disabled={disableEditing}
+                        className={baseFieldClasses}
+                      >
+                        <option value="">No sprint</option>
+                        {sprintOptions.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
 
-                  <div className="hidden md:block" />
+                <div className="rounded-2xl border border-slate-200 bg-white/70 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Assignment</p>
+                  <div className="mt-3 space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="assignee">
+                        Assignee
+                      </label>
+                      <select
+                        id="assignee"
+                        name="assignee"
+                        value={assigneeId}
+                        onChange={(event) => setAssigneeId(event.target.value)}
+                        disabled={disableEditing}
+                        className={baseFieldClasses}
+                      >
+                        <option value="">Unassigned</option>
+                        {assigneeOptions.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="epic">
+                        Epic
+                      </label>
+                      <select
+                        id="epic"
+                        name="epic"
+                        value={epicId}
+                        onChange={(event) => setEpicId(event.target.value)}
+                        disabled={disableEditing}
+                        className={baseFieldClasses}
+                      >
+                        <option value="">No epic</option>
+                        {epicOptions.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </>
+
+                <div className="rounded-2xl border border-slate-200 bg-white/70 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Estimation</p>
+                  <div className="mt-3 space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="storyPoints">
+                        Story Points
+                      </label>
+                      <input
+                        id="storyPoints"
+                        name="storyPoints"
+                        type="number"
+                        min="0"
+                        value={storyPoints}
+                        onChange={(event) => setStoryPoints(event.target.value)}
+                        disabled={disableEditing}
+                        className={baseFieldClasses}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </aside>
+            </div>
+            </Fragment>
           ) : (
             <p className="text-sm text-slate-700 dark:text-slate-200">Issue not found.</p>
           )}
