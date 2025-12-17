@@ -17,9 +17,21 @@ import {
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 
 import BacklogTable, { type BacklogTableIssue } from "@/components/issues/BacklogTable";
+import BacklogFilterBar from "@/components/issues/BacklogFilterBar";
+import {
+  BacklogFilters,
+  defaultBacklogFilters,
+  issueMatchesFilters,
+  UNASSIGNED_FILTER_VALUE,
+} from "@/components/issues/backlogFilters";
 import CreateIssueDrawer from "@/components/issues/CreateIssueDrawer";
 import ResearchBacklogContainer from "@/components/research/ResearchBacklogContainer";
-import { SprintStatus } from "@/lib/prismaEnums";
+import {
+  IssuePriority,
+  IssueStatus,
+  IssueType,
+  SprintStatus,
+} from "@/lib/prismaEnums";
 
 import { type ResearchBacklogItem } from "@/components/research/types";
 
@@ -120,6 +132,9 @@ export default function BacklogPageClient({
     initialResearchItems.length > 0
   );
   const [toastMessage, setToastMessage] = useState<string>("");
+  const [filters, setFilters] = useState<BacklogFilters>(defaultBacklogFilters);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [hasInitializedFilters, setHasInitializedFilters] = useState(false);
 
   const INCOMPLETE_STORY_FLAG = "INCOMPLETE_STORY_FLAG";
 
@@ -179,21 +194,82 @@ export default function BacklogPageClient({
   }, [backlogGroups]);
 
   const filteredBacklogGroups = useMemo(() => {
-    if (!aiOnly) return backlogGroups;
+    let baseGroups = backlogGroups;
 
-    const suggestedIds = new Set(
-      suggestionGroups.map((group) => group.targetId)
-    );
+    if (aiOnly) {
+      const suggestedIds = new Set(
+        suggestionGroups.map((group) => group.targetId)
+      );
 
-    return backlogGroups
-      .map((group) => ({
-        ...group,
-        issues: group.issues.filter((issue) => suggestedIds.has(issue.id)),
-      }))
-      .filter((group) => group.issues.length > 0);
-  }, [aiOnly, backlogGroups, suggestionGroups]);
+      baseGroups = backlogGroups
+        .map((group) => ({
+          ...group,
+          issues: group.issues.filter((issue) => suggestedIds.has(issue.id)),
+        }))
+        .filter((group) => group.issues.length > 0);
+    }
+
+    const scopedGroups = baseGroups.map((group) => ({
+      ...group,
+      issues: group.issues.filter((issue) =>
+        issueMatchesFilters(issue, filters, debouncedSearch)
+      ),
+    }));
+
+    if (aiOnly) {
+      return scopedGroups.filter((group) => group.issues.length > 0);
+    }
+
+    return scopedGroups;
+  }, [aiOnly, backlogGroups, debouncedSearch, filters, suggestionGroups]);
+
+  const hasFilteredIssues = useMemo(
+    () => filteredBacklogGroups.some((group) => group.issues.length > 0),
+    [filteredBacklogGroups]
+  );
 
   useEffect(() => {
+    if (hasInitializedFilters) return;
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const statusParam = searchParams.get("status");
+    const assigneeParam = searchParams.get("assignee") ?? searchParams.get("assigneeId");
+    const typeParam = searchParams.get("type");
+    const priorityParam = searchParams.get("priority");
+    const epicParam = searchParams.get("epic");
+    const searchParam = searchParams.get("q") ?? "";
+
+    const parseList = (value: string | null) =>
+      value?.split(",").map((item) => item.trim()).filter(Boolean) ?? [];
+
+    const nextFilters: BacklogFilters = {
+      statuses: parseList(statusParam).filter((status): status is IssueStatus =>
+        Object.values(IssueStatus).includes(status as IssueStatus)
+      ),
+      assignees: parseList(assigneeParam),
+      types: parseList(typeParam).filter((type): type is IssueType =>
+        Object.values(IssueType).includes(type as IssueType)
+      ),
+      priorities: parseList(priorityParam).filter((priority): priority is IssuePriority =>
+        Object.values(IssuePriority).includes(priority as IssuePriority)
+      ),
+      epics: parseList(epicParam),
+      search: searchParam,
+    };
+
+    setFilters(nextFilters);
+    setDebouncedSearch(searchParam ?? "");
+    setHasInitializedFilters(true);
+  }, [hasInitializedFilters]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedSearch(filters.search.trim()), 250);
+    return () => clearTimeout(timeout);
+  }, [filters.search]);
+
+  useEffect(() => {
+    if (!hasInitializedFilters) return;
+
     const searchParams = new URLSearchParams(window.location.search);
     if (activeSegment === "research") {
       searchParams.set("view", "research");
@@ -201,10 +277,49 @@ export default function BacklogPageClient({
       searchParams.delete("view");
     }
 
+    if (filters.statuses.length > 0) {
+      searchParams.set("status", filters.statuses.join(","));
+    } else {
+      searchParams.delete("status");
+    }
+
+    if (filters.assignees.length > 0) {
+      searchParams.set("assignee", filters.assignees.join(","));
+    } else {
+      searchParams.delete("assignee");
+      searchParams.delete("assigneeId");
+    }
+
+    if (filters.types.length > 0) {
+      searchParams.set("type", filters.types.join(","));
+    } else {
+      searchParams.delete("type");
+    }
+
+    if (filters.priorities.length > 0) {
+      searchParams.set("priority", filters.priorities.join(","));
+    } else {
+      searchParams.delete("priority");
+    }
+
+    if (filters.epics.length > 0) {
+      searchParams.set("epic", filters.epics.join(","));
+    } else {
+      searchParams.delete("epic");
+    }
+
+    if (debouncedSearch) {
+      searchParams.set("q", debouncedSearch);
+    } else {
+      searchParams.delete("q");
+    }
+
     const queryString = searchParams.toString();
-    const nextUrl = queryString ? `${window.location.pathname}?${queryString}` : window.location.pathname;
+    const nextUrl = queryString
+      ? `${window.location.pathname}?${queryString}`
+      : window.location.pathname;
     router.replace(nextUrl);
-  }, [activeSegment, router]);
+  }, [activeSegment, debouncedSearch, filters, hasInitializedFilters, router]);
 
   useEffect(() => {
     if (!toastMessage) return;
@@ -643,7 +758,7 @@ export default function BacklogPageClient({
     <div className="space-y-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-semibold text-slate-900">Backlog</h2>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-1 flex-wrap items-center justify-end gap-3">
           <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 p-1 text-xs font-medium text-slate-600 shadow-inner dark:border-slate-800 dark:bg-slate-900">
             <button
               type="button"
@@ -670,6 +785,24 @@ export default function BacklogPageClient({
               </button>
             )}
           </div>
+
+          {activeSegment === "product" && (
+            <BacklogFilterBar
+              filters={filters}
+              onFiltersChange={(next) => {
+                setFilters(next);
+                setHasInitializedFilters(true);
+              }}
+              onClearFilters={() => {
+                setFilters(defaultBacklogFilters);
+                setDebouncedSearch("");
+                setHasInitializedFilters(true);
+              }}
+              assigneeOptions={assigneeSelectOptions}
+              epicOptions={epicSelectOptions}
+            />
+          )}
+
           {activeSegment === "product" && (
             <CreateIssueDrawer
               projectId={projectId}
@@ -680,7 +813,6 @@ export default function BacklogPageClient({
               onForbidden={() => setHasAccess(false)}
             />
           )}
-
         </div>
       </div>
 
@@ -833,9 +965,11 @@ export default function BacklogPageClient({
                   return <BacklogGroupSection key={group.id} group={group} />;
                 })}
 
-                {aiOnly && filteredBacklogGroups.length === 0 && (
+                {!hasFilteredIssues && (
                   <div className="rounded-xl border border-dashed border-slate-200 bg-white px-6 py-4 text-sm text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                    No issues with AI drafts yet.
+                    {aiOnly
+                      ? "No issues with AI drafts yet."
+                      : "No issues match the current filters."}
                   </div>
                 )}
               </div>
