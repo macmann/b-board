@@ -11,7 +11,7 @@ import {
   PROJECT_CONTRIBUTOR_ROLES,
   PROJECT_VIEWER_ROLES,
 } from "../../../../../../lib/roles";
-import { resolveProjectId, type ProjectParams } from "../../../../../../lib/params";
+import { resolveProjectId } from "../../../../../../lib/params";
 import { logError, logInfo } from "@/lib/logger";
 import { setRequestContextUser, withRequestContext } from "@/lib/requestContext";
 
@@ -89,11 +89,12 @@ const findBuildForProject = async (projectId: string, buildId: string) => {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: ProjectParams & { buildId: string } }
+  context: { params: Promise<{ projectId: string; buildId: string }> }
 ) {
   return withRequestContext(request, async () => {
+    const params = await context.params;
     const projectId = await resolveProjectId(params);
-    const buildId = params.buildId;
+    const { buildId } = params;
 
     if (!projectId) {
       return jsonError("projectId is required", 400);
@@ -131,11 +132,12 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: ProjectParams & { buildId: string } }
+  context: { params: Promise<{ projectId: string; buildId: string }> }
 ) {
   return withRequestContext(request, async () => {
+    const params = await context.params;
     const projectId = await resolveProjectId(params);
-    const buildId = params.buildId;
+    const { buildId } = params;
 
     if (!projectId) {
       return jsonError("projectId is required", 400);
@@ -276,11 +278,12 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: ProjectParams & { buildId: string } }
+  context: { params: Promise<{ projectId: string; buildId: string }> }
 ) {
   return withRequestContext(request, async () => {
+    const params = await context.params;
     const projectId = await resolveProjectId(params);
-    const buildId = params.buildId;
+    const { buildId } = params;
 
     if (!projectId) {
       return jsonError("projectId is required", 400);
