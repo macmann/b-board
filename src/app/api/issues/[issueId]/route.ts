@@ -46,6 +46,22 @@ export async function GET(
           assignee: true,
           reporter: true,
           attachments: { where: { commentId: null } },
+          buildLinks: {
+            include: {
+              build: {
+                select: {
+                  id: true,
+                  key: true,
+                  name: true,
+                  status: true,
+                  environment: true,
+                  plannedAt: true,
+                  deployedAt: true,
+                  projectId: true,
+                },
+              },
+            },
+          },
         },
       });
 

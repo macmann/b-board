@@ -61,6 +61,26 @@ export const IssuePriority = {
 
 export type IssuePriority = (typeof IssuePriority)[keyof typeof IssuePriority];
 
+export const BuildStatus = {
+  PLANNED: "PLANNED",
+  IN_PROGRESS: "IN_PROGRESS",
+  DEPLOYED: "DEPLOYED",
+  ROLLED_BACK: "ROLLED_BACK",
+  CANCELLED: "CANCELLED",
+} as const;
+
+export type BuildStatus = (typeof BuildStatus)[keyof typeof BuildStatus];
+
+export const BuildEnvironment = {
+  DEV: "DEV",
+  STAGING: "STAGING",
+  UAT: "UAT",
+  PROD: "PROD",
+} as const;
+
+export type BuildEnvironment =
+  (typeof BuildEnvironment)[keyof typeof BuildEnvironment];
+
 export const IssueHistoryField = {
   STATUS: "STATUS",
   ASSIGNEE: "ASSIGNEE",
