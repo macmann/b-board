@@ -2,21 +2,11 @@ import { notFound, redirect } from "next/navigation";
 
 import ProjectHeader from "@/components/projects/ProjectHeader";
 import ProjectTabs from "@/components/projects/ProjectTabs";
-import ReportModulePlaceholder from "@/components/reports/project/ReportModulePlaceholder";
-import ReportPageLayout from "@/components/reports/project/ReportPageLayout";
-import CycleTimeModule from "@/components/reports/project/CycleTimeModule";
-import BlockerThemesModule from "@/components/reports/project/BlockerThemesModule";
-import StandupInsightsModule from "@/components/reports/project/StandupInsightsModule";
-import SprintBurndownModule from "@/components/reports/project/SprintBurndownModule";
-import VelocityTrendModule from "@/components/reports/project/VelocityTrendModule";
+import ProjectReportsClient from "@/components/reports/project/ProjectReportsClient";
+import type { ReportModuleNavItem } from "@/components/reports/project/ReportModuleNav";
 import prisma from "@/lib/db";
 import { getCurrentProjectContext } from "@/lib/projectContext";
-import {
-  DEFAULT_REPORT_MODULE,
-  normalizeModule,
-  parseReportSearchParams,
-  type ReportModuleKey,
-} from "@/lib/reports/filters";
+import { parseReportSearchParams } from "@/lib/reports/filters";
 import { Role as UserRole } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
 
@@ -33,12 +23,7 @@ type ServerProps = {
   searchParams?: unknown;
 };
 
-const reportModules: ReadonlyArray<{
-  key: ReportModuleKey;
-  title: string;
-  description: string;
-  requiresSprintScope: boolean;
-}> = [
+const reportModules: ReadonlyArray<ReportModuleNavItem & { requiresSprintScope: boolean }> = [
   {
     key: "sprint-burndown",
     title: "Sprint Burndown",
@@ -78,11 +63,6 @@ type SprintOption = {
   endDate: string | null;
 };
 
-const getActiveModule = (moduleKey: string | null): (typeof reportModules)[number] => {
-  const resolvedKey = normalizeModule(moduleKey);
-  return reportModules.find((module) => module.key === resolvedKey) ?? reportModules[0];
-};
-
 export default async function ProjectReportsPage(props: ServerProps) {
   const resolvedParams = await props.params;
   const projectId = resolvedParams?.projectId;
@@ -107,7 +87,6 @@ export default async function ProjectReportsPage(props: ServerProps) {
   const roleLabel = projectRole ?? "Member";
 
   const parsedSearchParams = parseReportSearchParams(props.searchParams ?? null);
-  const activeModule = getActiveModule(parsedSearchParams.module as ReportModuleKey);
 
   const sprints: SprintOption[] = (
     await prisma.sprint.findMany({
@@ -127,73 +106,6 @@ export default async function ProjectReportsPage(props: ServerProps) {
     endDate: sprint.endDate ? sprint.endDate.toISOString().slice(0, 10) : null,
   }));
 
-  const renderModule = () => {
-    switch (activeModule.key) {
-      case "sprint-burndown":
-        return (
-          <SprintBurndownModule
-            projectId={projectId}
-            initialFilters={parsedSearchParams.filters}
-            sprints={sprints}
-          />
-        );
-      case "velocity-trend":
-        return (
-          <VelocityTrendModule
-            projectId={projectId}
-            initialFilters={parsedSearchParams.filters}
-            sprints={sprints}
-          />
-        );
-      case "cycle-time":
-        return (
-          <CycleTimeModule
-            projectId={projectId}
-            initialFilters={parsedSearchParams.filters}
-          />
-        );
-      case "standup-insights":
-        return (
-          <StandupInsightsModule
-            projectId={projectId}
-            initialFilters={parsedSearchParams.filters}
-          />
-        );
-      case "blocker-themes":
-        return (
-          <BlockerThemesModule
-            projectId={projectId}
-            initialFilters={parsedSearchParams.filters}
-          />
-        );
-      default:
-        {
-          const moduleInfo = reportModules[0];
-          return (
-            <ReportModulePlaceholder
-              title={moduleInfo.title}
-              description={moduleInfo.description}
-              helper={
-                moduleInfo.requiresSprintScope && sprints.length === 0 ? (
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
-                    Add your first sprint to unlock velocity and burndown insights. Visit the
-                    <a className="text-primary underline" href={`/projects/${projectId}/sprints`}>
-                      {" "}Sprints tab
-                    </a>{" "}
-                    to create one.
-                  </p>
-                ) : (
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
-                    Use the filters above to focus the report before we add visualizations.
-                  </p>
-                )
-              }
-            />
-          );
-        }
-    }
-  };
-
   return (
     <div className="space-y-4">
       <ProjectHeader
@@ -208,16 +120,12 @@ export default async function ProjectReportsPage(props: ServerProps) {
 
       <ProjectTabs projectId={projectId} active="reports" />
 
-      <ReportPageLayout
+      <ProjectReportsClient
         projectId={projectId}
         modules={reportModules}
-        activeModule={activeModule}
         sprints={sprints}
-        filters={parsedSearchParams.filters}
-        showSprintSelect={activeModule.requiresSprintScope}
-      >
-        {renderModule()}
-      </ReportPageLayout>
+        initialFilters={parsedSearchParams.filters}
+      />
     </div>
   );
 }
