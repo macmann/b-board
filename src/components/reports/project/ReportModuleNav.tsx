@@ -16,6 +16,7 @@ export type ReportModuleNavItem = {
   key: ReportModuleKey;
   title: string;
   description: string;
+  requiresSprintScope?: boolean;
 };
 
 type ReportModuleNavProps = {
