@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, type ReactElement } from "react";
 import { useSearchParams } from "next/navigation";
 
 import ReportPageLayout from "./ReportPageLayout";
@@ -17,10 +17,13 @@ import {
   type ReportModuleKey,
 } from "@/lib/reports/filters";
 
-const REPORT_COMPONENTS: Record<
-  ReportModuleKey,
-  (props: { projectId: string; initialFilters: ReportFilters; sprints: SprintOption[] }) => JSX.Element
-> = {
+type ReportComponent = (props: {
+  projectId: string;
+  initialFilters: ReportFilters;
+  sprints: SprintOption[];
+}) => ReactElement;
+
+const REPORT_COMPONENTS: Record<ReportModuleKey, ReportComponent> = {
   "sprint-burndown": ({ projectId, initialFilters, sprints }) => (
     <SprintBurndownModule
       projectId={projectId}
@@ -69,7 +72,7 @@ export default function ProjectReportsClient({
   initialFilters,
 }: ProjectReportsClientProps) {
   const searchParams = useSearchParams();
-  const moduleParam = searchParams.get("module");
+  const moduleParam = searchParams!.get("module");
 
   const activeModuleKey = useMemo(
     () => resolveActiveModuleKey(moduleParam),
