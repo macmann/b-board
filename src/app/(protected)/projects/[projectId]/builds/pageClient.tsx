@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import * as Dialog from "@radix-ui/react-dialog";
 
 import Badge from "@/components/ui/Badge";
@@ -8,6 +9,7 @@ import Button from "@/components/ui/Button";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { BuildEnvironment, BuildStatus } from "@/lib/prismaEnums";
 import { PROJECT_ADMIN_ROLES, type ProjectRole } from "@/lib/roles";
+import { routes } from "@/lib/routes";
 
 type BuildItem = {
   id: string;
@@ -376,7 +378,12 @@ export default function BuildsPageClient({
           <div key={build.id} className="grid grid-cols-2 gap-3 px-4 py-4 sm:grid-cols-7">
             <div className="col-span-2 space-y-1 sm:col-span-2">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                <span>{build.key}</span>
+                <Link
+                  href={routes.project.build(projectId, build.id)}
+                  className="text-primary hover:underline"
+                >
+                  {build.key}
+                </Link>
                 {build.createdById === currentUserId && <Badge variant="outline">Mine</Badge>}
               </div>
               <div className="text-sm text-slate-700 dark:text-slate-300">{build.name || "Untitled build"}</div>
