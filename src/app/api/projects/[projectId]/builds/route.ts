@@ -102,6 +102,7 @@ export async function GET(
     const search = searchParams.get("search");
     const from = searchParams.get("from");
     const to = searchParams.get("to");
+    const createdByParam = searchParams.get("createdBy");
 
     const where: Parameters<typeof prisma.build.findMany>[0]["where"] = {
       projectId,
@@ -125,6 +126,16 @@ export async function GET(
       }
 
       where.environment = parsedEnvironment.data;
+    }
+
+    if (createdByParam) {
+      const createdById = createdByParam === "me" ? user.id : createdByParam;
+
+      if (!createdById || typeof createdById !== "string") {
+        return jsonError("Invalid createdBy filter", 400);
+      }
+
+      where.createdById = createdById;
     }
 
     if (search) {
@@ -163,7 +174,11 @@ export async function GET(
 
     const builds = await prisma.build.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: [
+        { deployedAt: "desc" },
+        { plannedAt: "desc" },
+        { createdAt: "desc" },
+      ],
       include: { issueLinks: { select: { issueId: true } } },
     });
 

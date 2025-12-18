@@ -42,7 +42,11 @@ export default async function ProjectBuildsPage(props: Props) {
 
   const builds = await prisma.build.findMany({
     where: { projectId },
-    orderBy: { createdAt: "desc" },
+    orderBy: [
+      { deployedAt: "desc" },
+      { plannedAt: "desc" },
+      { createdAt: "desc" },
+    ],
     include: { issueLinks: { select: { issueId: true } } },
   });
 
@@ -75,10 +79,12 @@ export default async function ProjectBuildsPage(props: Props) {
           environment: build.environment as BuildEnvironment,
           plannedAt: build.plannedAt ? build.plannedAt.toISOString() : null,
           deployedAt: build.deployedAt ? build.deployedAt.toISOString() : null,
+          createdById: build.createdById,
           createdAt: build.createdAt.toISOString(),
           updatedAt: build.updatedAt.toISOString(),
           issueCount: build.issueLinks.length,
         }))}
+        currentUserId={user.id}
       />
     </div>
   );

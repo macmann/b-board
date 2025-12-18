@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/Card";
+import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { BuildEnvironment, BuildStatus } from "@/lib/prismaEnums";
 import { PROJECT_ADMIN_ROLES, type ProjectRole } from "@/lib/roles";
 
@@ -17,6 +17,7 @@ type BuildItem = {
   environment: (typeof BuildEnvironment)[keyof typeof BuildEnvironment];
   plannedAt: string | null;
   deployedAt: string | null;
+  createdById: string | null;
   createdAt: string;
   updatedAt: string;
   issueCount: number;
@@ -28,10 +29,18 @@ type Draft = {
   description: string;
 };
 
+type Filters = {
+  status: string;
+  environment: string;
+  search: string;
+  onlyMine: boolean;
+};
+
 type Props = {
   projectId: string;
   projectRole: ProjectRole | null;
   builds: BuildItem[];
+  currentUserId: string;
 };
 
 type ApiBuild = BuildItem & { issueIds?: string[] };
@@ -80,14 +89,27 @@ const toDraftMap = (builds: BuildItem[]): Record<string, Draft> =>
     return acc;
   }, {});
 
-export default function BuildsPageClient({ projectId, projectRole, builds }: Props) {
+export default function BuildsPageClient({
+  projectId,
+  projectRole,
+  builds,
+  currentUserId,
+}: Props) {
+  const initialBuilds = useMemo(() => builds.map(normalizeBuild), [builds]);
   const canEdit = useMemo(
     () => (projectRole ? PROJECT_ADMIN_ROLES.includes(projectRole) : false),
     [projectRole]
   );
 
-  const [items, setItems] = useState<BuildItem[]>(builds);
-  const [drafts, setDrafts] = useState<Record<string, Draft>>(() => toDraftMap(builds));
+  const [items, setItems] = useState<BuildItem[]>(initialBuilds);
+  const [drafts, setDrafts] = useState<Record<string, Draft>>(() => toDraftMap(initialBuilds));
+  const [filters, setFilters] = useState<Filters>({
+    status: "",
+    environment: "",
+    search: "",
+    onlyMine: false,
+  });
+  const [showCreate, setShowCreate] = useState(false);
   const [formState, setFormState] = useState({
     key: "",
     name: "",
@@ -99,17 +121,73 @@ export default function BuildsPageClient({ projectId, projectRole, builds }: Pro
   });
   const [submitting, setSubmitting] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [itemsError, setItemsError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    setItems(builds);
-    setDrafts(toDraftMap(builds));
-  }, [builds]);
+    setItems(initialBuilds);
+    setDrafts(toDraftMap(initialBuilds));
+  }, [initialBuilds]);
+
+  const buildQuery = useCallback(() => {
+    const params = new URLSearchParams();
+
+    if (filters.status) params.set("status", filters.status);
+    if (filters.environment) params.set("environment", filters.environment);
+    if (filters.search.trim()) params.set("search", filters.search.trim());
+    if (filters.onlyMine) params.set("createdBy", "me");
+
+    return params.toString();
+  }, [filters]);
+
+  const loadBuilds = useCallback(
+    async (options?: { signal?: AbortSignal; silent?: boolean }) => {
+      if (!options?.silent) {
+        setLoading(true);
+      }
+      setItemsError(null);
+
+      try {
+        const query = buildQuery();
+        const response = await fetch(
+          `/api/projects/${projectId}/builds${query ? `?${query}` : ""}`,
+          { signal: options?.signal }
+        );
+
+        if (!response.ok) {
+          const body = await response.json().catch(() => null);
+          setItemsError(body?.message ?? "Unable to load builds");
+          return;
+        }
+
+        const data = (await response.json()) as ApiBuild[];
+        const normalized = data.map(normalizeBuild);
+        setItems(normalized);
+        setDrafts(toDraftMap(normalized));
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setItemsError("Unable to load builds");
+      } finally {
+        if (!options?.silent) {
+          setLoading(false);
+        }
+      }
+    },
+    [buildQuery, projectId]
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadBuilds({ signal: controller.signal });
+
+    return () => controller.abort();
+  }, [loadBuilds]);
 
   const handleCreate = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubmitting(true);
-    setError(null);
+    setActionError(null);
 
     const payload = {
       key: formState.key.trim(),
@@ -130,22 +208,10 @@ export default function BuildsPageClient({ projectId, projectRole, builds }: Pro
 
       if (!response.ok) {
         const body = await response.json().catch(() => null);
-        setError(body?.message ?? "Unable to create build");
+        setActionError(body?.message ?? "Unable to create build");
         return;
       }
 
-      const data = (await response.json()) as ApiBuild;
-      const build = normalizeBuild(data);
-
-      setItems((prev) => [build, ...prev]);
-      setDrafts((prev) => ({
-        ...prev,
-        [build.id]: {
-          status: build.status,
-          environment: build.environment,
-          description: build.description,
-        },
-      }));
       setFormState({
         key: "",
         name: "",
@@ -155,6 +221,8 @@ export default function BuildsPageClient({ projectId, projectRole, builds }: Pro
         plannedAt: "",
         deployedAt: "",
       });
+      setShowCreate(false);
+      await loadBuilds({ silent: true });
     } finally {
       setSubmitting(false);
     }
@@ -175,7 +243,7 @@ export default function BuildsPageClient({ projectId, projectRole, builds }: Pro
     if (!draft) return;
 
     setSavingId(buildId);
-    setError(null);
+    setActionError(null);
 
     try {
       const response = await fetch(`/api/projects/${projectId}/builds/${buildId}`, {
@@ -190,7 +258,7 @@ export default function BuildsPageClient({ projectId, projectRole, builds }: Pro
 
       if (!response.ok) {
         const body = await response.json().catch(() => null);
-        setError(body?.message ?? "Unable to update build");
+        setActionError(body?.message ?? "Unable to update build");
         return;
       }
 
@@ -211,23 +279,228 @@ export default function BuildsPageClient({ projectId, projectRole, builds }: Pro
     }
   };
 
+  const renderSkeleton = () => (
+    <div className="space-y-2">
+      {[...Array(3)].map((_, index) => (
+        <div
+          key={index}
+          className="animate-pulse rounded-lg border border-slate-200 bg-white px-4 py-4 dark:border-slate-800 dark:bg-slate-900"
+        >
+          <div className="flex flex-wrap gap-3">
+            <div className="h-4 w-28 rounded bg-slate-200 dark:bg-slate-800" />
+            <div className="h-4 w-16 rounded bg-slate-200 dark:bg-slate-800" />
+            <div className="h-4 w-16 rounded bg-slate-200 dark:bg-slate-800" />
+            <div className="h-4 w-20 rounded bg-slate-200 dark:bg-slate-800" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   const renderEmptyState = () => (
     <Card>
-      <CardContent className="py-6 text-sm text-slate-600 dark:text-slate-300">
-        No builds yet. {canEdit ? "Create the first build to track releases." : "Builds will appear here once created."}
+      <CardContent className="flex flex-col gap-3 py-6 text-sm text-slate-600 dark:text-slate-300">
+        <div className="font-medium text-slate-800 dark:text-slate-100">No builds yet</div>
+        <p>Track releases here. {canEdit ? "Create the first build to get started." : "Builds will appear once created."}</p>
+        {canEdit && (
+          <div>
+            <Button onClick={() => setShowCreate(true)}>Create build</Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
 
+  const renderRows = () => (
+    <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
+      <div className="grid grid-cols-2 gap-2 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:bg-slate-900/40 dark:text-slate-300 sm:grid-cols-6">
+        <div className="col-span-1 sm:col-span-2">Build</div>
+        <div>Status</div>
+        <div>Environment</div>
+        <div className="hidden sm:block">Planned</div>
+        <div className="hidden sm:block">Deployed</div>
+        <div className="col-span-1 sm:col-span-1 sm:text-right">Issues</div>
+      </div>
+      <div className="divide-y divide-slate-200 dark:divide-slate-800">
+        {items.map((build) => {
+          const draft = drafts[build.id];
+          const isSaving = savingId === build.id;
+
+          return (
+            <div key={build.id} className="grid grid-cols-2 gap-3 px-4 py-4 sm:grid-cols-6">
+              <div className="col-span-2 space-y-1 sm:col-span-2">
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  <span>{build.key}</span>
+                  {build.createdById === currentUserId && (
+                    <Badge variant="outline">Mine</Badge>
+                  )}
+                </div>
+                <div className="text-sm text-slate-700 dark:text-slate-300">{build.name || "Untitled build"}</div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
+                  {build.description || "No description provided."}
+                </p>
+                <div className="text-xs text-slate-500 dark:text-slate-400 sm:hidden">
+                  <span className="font-medium">Planned:</span> {formatDate(build.plannedAt)}
+                </div>
+                <div className="text-xs text-slate-500 dark:text-slate-400 sm:hidden">
+                  <span className="font-medium">Deployed:</span> {formatDate(build.deployedAt)}
+                </div>
+              </div>
+
+              <div className="flex items-center">
+                <Badge variant={badgeVariants[build.status] ?? "neutral"}>{statusLabels[build.status]}</Badge>
+              </div>
+
+              <div className="flex items-center">
+                <Badge variant="outline">{environmentLabels[build.environment]}</Badge>
+              </div>
+
+              <div className="hidden items-center sm:flex">{formatDate(build.plannedAt)}</div>
+              <div className="hidden items-center sm:flex">{formatDate(build.deployedAt)}</div>
+
+              <div className="col-span-2 flex items-center justify-between sm:col-span-1 sm:justify-end">
+                <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">{build.issueCount}</div>
+              </div>
+
+              {canEdit && draft && (
+                <div className="col-span-2 space-y-3 sm:col-span-6">
+                  <div className="flex flex-wrap gap-3">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-slate-600 dark:text-slate-300">Status</label>
+                      <select
+                        value={draft.status}
+                        onChange={(e) => handleDraftChange(build.id, "status", e.target.value)}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50"
+                      >
+                        {Object.values(BuildStatus).map((value) => (
+                          <option key={value} value={value}>
+                            {statusLabels[value]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-slate-600 dark:text-slate-300">Environment</label>
+                      <select
+                        value={draft.environment}
+                        onChange={(e) => handleDraftChange(build.id, "environment", e.target.value)}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50"
+                      >
+                        {Object.values(BuildEnvironment).map((value) => (
+                          <option key={value} value={value}>
+                            {environmentLabels[value]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="flex-1 min-w-[200px]">
+                      <label className="text-xs font-medium text-slate-600 dark:text-slate-300">Description</label>
+                      <textarea
+                        value={draft.description}
+                        onChange={(e) => handleDraftChange(build.id, "description", e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50"
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
+                    <span>Updated {formatDate(build.updatedAt)}</span>
+                    <div className="flex items-center gap-3">
+                      {actionError && <span className="text-rose-600 dark:text-rose-400">{actionError}</span>}
+                      <Button variant="primary" onClick={() => handleUpdate(build.id)} disabled={isSaving}>
+                        {isSaving ? "Saving..." : "Save changes"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-4">
-      {canEdit && (
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Builds</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Monitor releases across environments.</p>
+        </div>
+        {canEdit && (
+          <Button onClick={() => setShowCreate((prev) => !prev)}>
+            {showCreate ? "Hide form" : "Create build"}
+          </Button>
+        )}
+      </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap gap-3">
+              <select
+                value={filters.status}
+                onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50"
+              >
+                <option value="">All statuses</option>
+                {Object.values(BuildStatus).map((value) => (
+                  <option key={value} value={value}>
+                    {statusLabels[value]}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={filters.environment}
+                onChange={(e) => setFilters((prev) => ({ ...prev, environment: e.target.value }))}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50"
+              >
+                <option value="">All environments</option>
+                {Object.values(BuildEnvironment).map((value) => (
+                  <option key={value} value={value}>
+                    {environmentLabels[value]}
+                  </option>
+                ))}
+              </select>
+
+              <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                  checked={filters.onlyMine}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, onlyMine: e.target.checked }))}
+                />
+                Only my builds
+              </label>
+            </div>
+            <div className="flex flex-1 items-center gap-2 sm:justify-end">
+              <input
+                type="search"
+                value={filters.search}
+                onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
+                placeholder="Search by key or name"
+                className="w-full max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50"
+              />
+              <Button variant="secondary" onClick={() => setFilters({ status: "", environment: "", search: "", onlyMine: false })}>
+                Reset
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+
+      {showCreate && canEdit && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Builds</h2>
-                <p className="text-sm text-slate-600 dark:text-slate-400">Track project releases and deployments.</p>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Create build</h2>
+                <p className="text-sm text-slate-600 dark:text-slate-400">Add a new release for this project.</p>
               </div>
               <Badge variant="outline">Admin/PM only</Badge>
             </div>
@@ -320,8 +593,8 @@ export default function BuildsPageClient({ projectId, projectRole, builds }: Pro
                 />
               </div>
 
-              {error && (
-                <div className="md:col-span-2 text-sm text-rose-600 dark:text-rose-400">{error}</div>
+              {actionError && (
+                <div className="md:col-span-2 text-sm text-rose-600 dark:text-rose-400">{actionError}</div>
               )}
 
               <div className="md:col-span-2 flex justify-end">
@@ -334,104 +607,18 @@ export default function BuildsPageClient({ projectId, projectRole, builds }: Pro
         </Card>
       )}
 
-      {items.length === 0 ? (
-        renderEmptyState()
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {items.map((build) => {
-            const draft = drafts[build.id];
-            const isSaving = savingId === build.id;
-
-            return (
-              <Card key={build.id} className="flex flex-col">
-                <CardHeader className="flex flex-col gap-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{build.key}</div>
-                      <div className="text-base font-semibold text-slate-800 dark:text-slate-200">{build.name || "Untitled build"}</div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant={badgeVariants[build.status] ?? "neutral"}>{statusLabels[build.status]}</Badge>
-                      <Badge variant="outline">{environmentLabels[build.environment]}</Badge>
-                    </div>
-                  </div>
-                  <p className="text-sm text-slate-600 dark:text-slate-300 line-clamp-3">
-                    {build.description || "No description provided."}
-                  </p>
-                </CardHeader>
-                <CardContent className="flex-1 space-y-2 text-sm text-slate-600 dark:text-slate-300">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500 dark:text-slate-400">Planned</span>
-                    <span className="font-medium text-slate-800 dark:text-slate-100">{formatDate(build.plannedAt)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500 dark:text-slate-400">Deployed</span>
-                    <span className="font-medium text-slate-800 dark:text-slate-100">{formatDate(build.deployedAt)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500 dark:text-slate-400">Issues linked</span>
-                    <span className="font-medium text-slate-800 dark:text-slate-100">{build.issueCount}</span>
-                  </div>
-                </CardContent>
-                {canEdit && draft && (
-                  <CardFooter className="flex flex-col gap-3">
-                    <div className="grid w-full gap-3 sm:grid-cols-2">
-                      <div className="flex flex-col gap-2">
-                        <label className="text-xs font-medium text-slate-600 dark:text-slate-300">Status</label>
-                        <select
-                          value={draft.status}
-                          onChange={(e) => handleDraftChange(build.id, "status", e.target.value)}
-                          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50"
-                        >
-                          {Object.values(BuildStatus).map((value) => (
-                            <option key={value} value={value}>
-                              {statusLabels[value]}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="flex flex-col gap-2">
-                        <label className="text-xs font-medium text-slate-600 dark:text-slate-300">Environment</label>
-                        <select
-                          value={draft.environment}
-                          onChange={(e) => handleDraftChange(build.id, "environment", e.target.value)}
-                          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50"
-                        >
-                          {Object.values(BuildEnvironment).map((value) => (
-                            <option key={value} value={value}>
-                              {environmentLabels[value]}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="sm:col-span-2 flex flex-col gap-2">
-                        <label className="text-xs font-medium text-slate-600 dark:text-slate-300">Description</label>
-                        <textarea
-                          value={draft.description}
-                          onChange={(e) => handleDraftChange(build.id, "description", e.target.value)}
-                          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50"
-                          rows={2}
-                        />
-                      </div>
-                    </div>
-                    <div className="flex w-full items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                      <span>Updated {formatDate(build.updatedAt)}</span>
-                      <div className="flex items-center gap-2">
-                        {error && <span className="text-rose-600 dark:text-rose-400">{error}</span>}
-                        <Button variant="primary" onClick={() => handleUpdate(build.id)} disabled={isSaving}>
-                          {isSaving ? "Saving..." : "Save changes"}
-                        </Button>
-                      </div>
-                    </div>
-                  </CardFooter>
-                )}
-              </Card>
-            );
-          })}
-        </div>
+      {itemsError && (
+        <Card>
+          <CardContent className="flex items-center justify-between gap-3 py-4 text-sm text-rose-600 dark:text-rose-400">
+            <span>{itemsError}</span>
+            <Button variant="secondary" onClick={() => loadBuilds()}>
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
       )}
+
+      {loading ? renderSkeleton() : items.length === 0 ? renderEmptyState() : renderRows()}
     </div>
   );
 }
