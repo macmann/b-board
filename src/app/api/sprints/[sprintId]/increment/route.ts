@@ -51,7 +51,7 @@ export async function GET(
           status: true,
           environment: true,
           deployedAt: true,
-          _count: { issueLinks: true },
+          _count: { select: { issueLinks: true } },
         },
         orderBy: [
           { deployedAt: "desc" },
