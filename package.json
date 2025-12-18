@@ -9,6 +9,7 @@
     "start": "next start -p ${PORT:-3000}",
     "postinstall": "prisma generate",
     "seed": "ts-node prisma/seed.ts",
+    "seed:builds": "ts-node prisma/seedBuilds.ts",
     "test": "vitest run",
     "lint": "eslint . --ext .ts,.tsx,.mjs",
     "typecheck": "tsc --noEmit"

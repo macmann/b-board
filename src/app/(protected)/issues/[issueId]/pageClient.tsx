@@ -12,9 +12,12 @@ import {
 } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import {
+  BuildEnvironment,
+  BuildStatus,
   IssuePriority,
   IssueStatus,
   IssueType,
@@ -24,6 +27,9 @@ import IssueTypeIcon, {
   ISSUE_TYPE_METADATA,
 } from "../../../../components/issues/IssueTypeIcon";
 
+import Badge from "@/components/ui/Badge";
+import { routes } from "@/lib/routes";
+import { PROJECT_CONTRIBUTOR_ROLES } from "@/lib/roles";
 import { ProjectRole } from "../../../../lib/roles";
 import { canDeleteIssue, canEditIssue } from "../../../../lib/uiPermissions";
 import AuditLogList from "@/components/audit/AuditLogList";
@@ -46,6 +52,7 @@ type IssueDetails = {
   assignee: UserSummary;
   reporter: UserSummary;
   attachments: Attachment[];
+  buildLinks?: IssueBuildLink[];
 };
 
 type AssigneeOption = { id: string; label: string };
@@ -66,6 +73,19 @@ type Attachment = {
   size: number;
   createdAt: string;
 };
+
+type BuildSummary = {
+  id: string;
+  key: string;
+  name: string | null;
+  status: BuildStatus;
+  environment: BuildEnvironment;
+  plannedAt: string | null;
+  deployedAt: string | null;
+  projectId: string;
+};
+
+type IssueBuildLink = { build: BuildSummary | null };
 
 type UserStoryDraft = {
   userStory?: string;
@@ -275,6 +295,13 @@ export default function IssueDetailsPageClient({
   const [assigneeOptions, setAssigneeOptions] = useState<AssigneeOption[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [commentAttachments, setCommentAttachments] = useState<Attachment[]>([]);
+  const [linkedBuilds, setLinkedBuilds] = useState<BuildSummary[]>([]);
+  const [buildSearch, setBuildSearch] = useState("");
+  const [buildResults, setBuildResults] = useState<BuildSummary[]>([]);
+  const [isSearchingBuilds, setIsSearchingBuilds] = useState(false);
+  const [linkingBuildId, setLinkingBuildId] = useState<string | null>(null);
+  const [removingBuildId, setRemovingBuildId] = useState<string | null>(null);
+  const [buildActionMessage, setBuildActionMessage] = useState("");
   const [isUploadingIssueFiles, setIsUploadingIssueFiles] = useState(false);
   const [isUploadingCommentFiles, setIsUploadingCommentFiles] = useState(false);
   const [suggestions, setSuggestions] = useState<AISuggestion[]>([]);
@@ -349,6 +376,14 @@ export default function IssueDetailsPageClient({
   const isViewer = projectRole === "VIEWER";
   const disableEditing = isViewer || !allowEditing;
   const allowDelete = canDeleteIssue(projectRole);
+  const canEditBuildLinks = useMemo(
+    () => (projectRole ? PROJECT_CONTRIBUTOR_ROLES.includes(projectRole) : false),
+    [projectRole]
+  );
+  const linkedBuildIds = useMemo(
+    () => new Set(linkedBuilds.map((build) => build.id)),
+    [linkedBuilds]
+  );
 
   const baseFieldClasses =
     "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 disabled:cursor-not-allowed disabled:opacity-60";
@@ -378,6 +413,26 @@ export default function IssueDetailsPageClient({
     ? new Date(issue.updatedAt).toLocaleString()
     : "Recently";
   const issueKey = issue?.key ?? issue?.id ?? issueId;
+
+  const buildStatusLabels: Record<BuildStatus, string> = {
+    [BuildStatus.PLANNED]: "Planned",
+    [BuildStatus.IN_PROGRESS]: "In progress",
+    [BuildStatus.DEPLOYED]: "Deployed",
+    [BuildStatus.ROLLED_BACK]: "Rolled back",
+    [BuildStatus.CANCELLED]: "Cancelled",
+  };
+
+  const buildEnvironmentLabels: Record<BuildEnvironment, string> = {
+    [BuildEnvironment.DEV]: "Dev",
+    [BuildEnvironment.STAGING]: "Staging",
+    [BuildEnvironment.UAT]: "UAT",
+    [BuildEnvironment.PROD]: "Prod",
+  };
+
+  const buildBadgeVariants: Partial<Record<BuildStatus, "neutral" | "success" | "info">> = {
+    [BuildStatus.DEPLOYED]: "success",
+    [BuildStatus.IN_PROGRESS]: "info",
+  };
   const projectKey = issue?.project?.key ?? issue?.project?.name ?? "Project";
   const autofillSuggestion = useMemo(
     () =>
@@ -396,6 +451,30 @@ export default function IssueDetailsPageClient({
     }`;
   const hasApplySelection =
     applySelection.title || applySelection.description || applySelection.criteria;
+
+  const mapBuild = useCallback(
+    (build: any, projectIdOverride?: string): BuildSummary => ({
+      id: build.id,
+      key: build.key ?? build.id,
+      name: build.name ?? null,
+      status: build.status as BuildStatus,
+      environment: build.environment as BuildEnvironment,
+      plannedAt: build.plannedAt ?? null,
+      deployedAt: build.deployedAt ?? null,
+      projectId: build.projectId ?? projectIdOverride ?? issue?.project?.id ?? "",
+    }),
+    [issue?.project?.id]
+  );
+
+  const sortedLinkedBuilds = useMemo(() => {
+    const latestTimestamp = (build: BuildSummary) => {
+      const deployed = build.deployedAt ? new Date(build.deployedAt).getTime() : -Infinity;
+      const planned = build.plannedAt ? new Date(build.plannedAt).getTime() : -Infinity;
+      return Math.max(deployed, planned);
+    };
+
+    return [...linkedBuilds].sort((a, b) => latestTimestamp(b) - latestTimestamp(a));
+  }, [linkedBuilds]);
 
   const fetchAssignees = useCallback(
     async (projectId: string) => {
@@ -428,6 +507,138 @@ export default function IssueDetailsPageClient({
     [issue?.assignee]
   );
 
+  const refreshBuildLinks = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/issues/${issueId}`);
+
+      if (!response.ok) {
+        return;
+      }
+
+      const data = (await response.json()) as IssueDetails;
+      const mappedBuilds = (data.buildLinks ?? [])
+        .map((link) => (link.build ? mapBuild(link.build, data.project?.id) : null))
+        .filter((build): build is BuildSummary => Boolean(build));
+      setLinkedBuilds(mappedBuilds);
+    } catch (error) {
+      // ignore refresh errors
+    }
+  }, [issueId, mapBuild]);
+
+  const fetchBuildSuggestions = useCallback(
+    async (query: string) => {
+      if (!issue?.project?.id) return;
+
+      const trimmed = query.trim();
+      if (!trimmed) {
+        setBuildResults([]);
+        return;
+      }
+
+      setIsSearchingBuilds(true);
+      setBuildActionMessage("");
+
+      try {
+        const params = new URLSearchParams();
+        params.set("search", trimmed);
+
+        const response = await fetch(
+          `/api/projects/${issue.project.id}/builds?${params.toString()}`
+        );
+
+        if (!response.ok) {
+          const body = await response.json().catch(() => null);
+          setBuildActionMessage(body?.message ?? "Unable to search builds");
+          return;
+        }
+
+        const data = (await response.json()) as any[];
+        const mapped = data
+          .map((build) => mapBuild(build, issue.project.id))
+          .filter((build) => !linkedBuildIds.has(build.id));
+        setBuildResults(mapped.slice(0, 8));
+      } catch (error) {
+        setBuildActionMessage("Unable to search builds");
+      } finally {
+        setIsSearchingBuilds(false);
+      }
+    },
+    [issue?.project?.id, linkedBuildIds, mapBuild]
+  );
+
+  const handleLinkBuild = useCallback(
+    async (buildId: string) => {
+      if (!buildId) return;
+
+      setLinkingBuildId(buildId);
+      setBuildActionMessage("");
+
+      try {
+        const response = await fetch(`/api/builds/${buildId}/issues`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ issueIds: [issueId] }),
+        });
+
+        if (!response.ok) {
+          const body = await response.json().catch(() => null);
+          setBuildActionMessage(body?.message ?? "Unable to link build");
+          return;
+        }
+
+        const candidateBuild =
+          linkedBuilds.find((build) => build.id === buildId) ||
+          buildResults.find((build) => build.id === buildId);
+
+        if (candidateBuild) {
+          setLinkedBuilds((prev) =>
+            prev.some((build) => build.id === candidateBuild.id)
+              ? prev
+              : [...prev, candidateBuild]
+          );
+          setBuildResults((prev) => prev.filter((build) => build.id !== buildId));
+        } else {
+          await refreshBuildLinks();
+        }
+      } catch (error) {
+        setBuildActionMessage("Unable to link build");
+      } finally {
+        setLinkingBuildId(null);
+      }
+    },
+    [buildResults, issueId, linkedBuilds, refreshBuildLinks]
+  );
+
+  const handleRemoveBuild = useCallback(
+    async (buildId: string) => {
+      if (!buildId) return;
+
+      setRemovingBuildId(buildId);
+      setBuildActionMessage("");
+
+      try {
+        const response = await fetch(`/api/builds/${buildId}/issues`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ issueIds: [issueId] }),
+        });
+
+        if (!response.ok) {
+          const body = await response.json().catch(() => null);
+          setBuildActionMessage(body?.message ?? "Unable to remove build");
+          return;
+        }
+
+        setLinkedBuilds((prev) => prev.filter((build) => build.id !== buildId));
+      } catch (error) {
+        setBuildActionMessage("Unable to remove build");
+      } finally {
+        setRemovingBuildId(null);
+      }
+    },
+    [issueId]
+  );
+
   const fetchIssue = async () => {
     setIsLoading(true);
     setError("");
@@ -453,6 +664,10 @@ export default function IssueDetailsPageClient({
       setSprintId(data.sprint?.id ?? "");
       setDescription(data.description ?? "");
       setAttachments(data.attachments ?? []);
+      const mappedBuilds = (data.buildLinks ?? [])
+        .map((link) => (link.build ? mapBuild(link.build, data.project?.id) : null))
+        .filter((build): build is BuildSummary => Boolean(build));
+      setLinkedBuilds(mappedBuilds);
       if (data.project?.id) {
         void fetchAssignees(data.project.id);
       }
@@ -593,6 +808,16 @@ export default function IssueDetailsPageClient({
     if (!issue?.project?.id || !issue?.id) return;
     void fetchSuggestions(issue.project.id, issue.id);
   }, [fetchSuggestions, issue?.id, issue?.project?.id]);
+
+  useEffect(() => {
+    if (!canEditBuildLinks) return undefined;
+
+    const handler = window.setTimeout(() => {
+      void fetchBuildSuggestions(buildSearch);
+    }, 250);
+
+    return () => window.clearTimeout(handler);
+  }, [buildSearch, canEditBuildLinks, fetchBuildSuggestions]);
 
   const handleUpdate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1582,6 +1807,124 @@ export default function IssueDetailsPageClient({
                         ))}
                       </select>
                     </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white/70 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Builds</p>
+                      <p className="text-sm text-slate-600 dark:text-slate-300">Link this issue to project builds.</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 space-y-3">
+                    {sortedLinkedBuilds.length === 0 ? (
+                      <p className="text-sm text-slate-600 dark:text-slate-300">No builds linked.</p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {sortedLinkedBuilds.map((build) => (
+                          <li
+                            key={build.id}
+                            className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800"
+                          >
+                            <div className="space-y-1">
+                              <Link
+                                href={routes.project.build(build.projectId, build.id)}
+                                className="text-sm font-semibold text-primary hover:underline"
+                              >
+                                {build.key}
+                              </Link>
+                              {build.name ? (
+                                <p className="text-xs text-slate-500 dark:text-slate-400">{build.name}</p>
+                              ) : null}
+                              <div className="flex flex-wrap gap-2 text-xs">
+                                <Badge variant={buildBadgeVariants[build.status] ?? "neutral"}>
+                                  {buildStatusLabels[build.status] ?? build.status}
+                                </Badge>
+                                <Badge variant="outline">
+                                  {buildEnvironmentLabels[build.environment] ?? build.environment}
+                                </Badge>
+                              </div>
+                            </div>
+
+                            {canEditBuildLinks ? (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveBuild(build.id)}
+                                disabled={removingBuildId === build.id}
+                                className="text-xs font-semibold text-red-500 hover:text-red-600 disabled:opacity-60"
+                              >
+                                {removingBuildId === build.id ? "Removing..." : "Remove"}
+                              </button>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {buildActionMessage ? (
+                      <p className="text-sm text-red-500">{buildActionMessage}</p>
+                    ) : null}
+
+                    {canEditBuildLinks ? (
+                      <div className="space-y-2 border-t border-slate-200 pt-3 dark:border-slate-800">
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="build-search">
+                          Link a build
+                        </label>
+                        <input
+                          id="build-search"
+                          type="text"
+                          value={buildSearch}
+                          onChange={(event) => setBuildSearch(event.target.value)}
+                          placeholder="Search builds by key or name"
+                          className={baseFieldClasses}
+                        />
+
+                        <div className="space-y-2 text-sm">
+                          {isSearchingBuilds ? (
+                            <p className="text-slate-600 dark:text-slate-300">Searching builds...</p>
+                          ) : buildSearch.trim() && buildResults.length === 0 ? (
+                            <p className="text-slate-600 dark:text-slate-300">No builds found for this search.</p>
+                          ) : buildResults.length > 0 ? (
+                            <ul className="space-y-2">
+                              {buildResults.map((build) => (
+                                <li
+                                  key={build.id}
+                                  className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800"
+                                >
+                                  <div className="space-y-0.5">
+                                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{build.key}</p>
+                                    {build.name ? (
+                                      <p className="text-xs text-slate-500 dark:text-slate-400">{build.name}</p>
+                                    ) : null}
+                                    <div className="flex flex-wrap gap-2 text-xs">
+                                      <Badge variant={buildBadgeVariants[build.status] ?? "neutral"}>
+                                        {buildStatusLabels[build.status] ?? build.status}
+                                      </Badge>
+                                      <Badge variant="outline">
+                                        {buildEnvironmentLabels[build.environment] ?? build.environment}
+                                      </Badge>
+                                    </div>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleLinkBuild(build.id)}
+                                    disabled={linkingBuildId === build.id}
+                                    className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
+                                  >
+                                    {linkingBuildId === build.id ? "Linking..." : "Link"}
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-slate-600 dark:text-slate-300">Start typing to search project builds.</p>
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 
