@@ -73,10 +73,12 @@ const issueStatusLabels: Record<IssueStatus, string> = {
 
 const issueTypeOrder: IssueType[] = [IssueType.STORY, IssueType.BUG, IssueType.TASK];
 
-const buildBadgeVariants: Partial<Record<BuildStatus, "success" | "info" | "neutral" | "warning">> = {
+type BadgeVariant = "info" | "neutral" | "success" | "outline";
+
+const buildBadgeVariants: Partial<Record<BuildStatus, BadgeVariant>> = {
   [BuildStatus.DEPLOYED]: "success",
   [BuildStatus.IN_PROGRESS]: "info",
-  [BuildStatus.ROLLED_BACK]: "warning",
+  [BuildStatus.ROLLED_BACK]: "outline",
 };
 
 const formatDate = (value: string | null) => {
