@@ -36,10 +36,10 @@ const getBuildForAccess = async (buildId: string) => {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { buildId: string } }
+  context: { params: Promise<{ buildId: string }> }
 ) {
   return withRequestContext(request, async () => {
-    const buildId = params.buildId;
+    const { buildId } = await context.params;
 
     if (!buildId) {
       return jsonError("buildId is required", 400);
@@ -115,7 +115,7 @@ export async function POST(
         return jsonError(error.message, 400);
       }
 
-      logError("Failed to link issues to build", { buildId: params.buildId, error });
+      logError("Failed to link issues to build", { buildId, error });
 
       return jsonError("Internal server error", 500);
     }
@@ -124,10 +124,10 @@ export async function POST(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { buildId: string } }
+  context: { params: Promise<{ buildId: string }> }
 ) {
   return withRequestContext(request, async () => {
-    const buildId = params.buildId;
+    const { buildId } = await context.params;
 
     if (!buildId) {
       return jsonError("buildId is required", 400);
@@ -202,7 +202,7 @@ export async function DELETE(
         return jsonError(error.message, 400);
       }
 
-      logError("Failed to unlink issues from build", { buildId: params.buildId, error });
+      logError("Failed to unlink issues from build", { buildId, error });
 
       return jsonError("Internal server error", 500);
     }
