@@ -13,6 +13,9 @@ import {
 import { resolveProjectId, type ProjectParams } from "../../../../../lib/params";
 import { logDebug, logError, logInfo } from "@/lib/logger";
 import { setRequestContextUser, withRequestContext } from "@/lib/requestContext";
+import { Prisma } from "@prisma/client";
+
+type BuildFindManyArgs = NonNullable<Parameters<typeof prisma.build.findMany>[0]>;
 
 const buildStatusEnum = z.enum([
   BuildStatus.PLANNED,
@@ -109,7 +112,7 @@ export async function GET(
       const to = searchParams.get("to");
       const createdByParam = searchParams.get("createdBy");
 
-      const where: Parameters<typeof prisma.build.findMany>[0]["where"] = {
+      const where: BuildFindManyArgs["where"] = {
         projectId,
       };
 
@@ -161,7 +164,7 @@ export async function GET(
         return jsonError("Invalid to date", 400);
       }
 
-      const dateFilters: { plannedAt?: {}; deployedAt?: {} }[] = [];
+      const dateFilters: Prisma.BuildWhereInput[] = [];
 
       if (fromDate) {
         dateFilters.push({ plannedAt: { gte: fromDate } });
@@ -174,7 +177,13 @@ export async function GET(
       }
 
       if (dateFilters.length) {
-        where.AND = [...(where.AND ?? []), { OR: dateFilters }];
+        const existingAnd: Prisma.BuildWhereInput[] = Array.isArray(where.AND)
+          ? where.AND
+          : where.AND
+            ? [where.AND]
+            : [];
+
+        where.AND = [...existingAnd, { OR: dateFilters }];
       }
 
       logDebug("Listing builds", {
