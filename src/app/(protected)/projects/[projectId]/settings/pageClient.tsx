@@ -339,7 +339,7 @@ export default function ProjectSettingsPageClient({
   };
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4 pb-12">
+    <div className="w-full space-y-4 px-6 pb-12 lg:px-8">
       <header>
         <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
           Project settings
@@ -352,9 +352,9 @@ export default function ProjectSettingsPageClient({
         </p>
       </header>
 
-      <nav className="sticky top-16 z-20 -mx-4 border-b border-slate-200 bg-white/80 px-4 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+      <nav className="sticky top-16 z-20 w-full border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
         <div
-          className="flex items-center gap-1 overflow-x-auto py-2"
+          className="flex w-full flex-row gap-2 overflow-x-auto py-2"
           role="tablist"
           aria-label="Project settings sections"
         >
