@@ -6,6 +6,7 @@ import {
   IssueHistoryField,
   IssueStatus,
   IssueType,
+  IssuePriority,
   Role,
   SprintStatus,
 } from "@/lib/prismaEnums";
@@ -136,6 +137,24 @@ const buildBurndownSeries = (
   return burndown;
 };
 
+const buildPriorityStats = (
+  counts: Array<{ priority: IssuePriority; _count: { _all: number } }>
+) => {
+  const defaultStats: Record<IssuePriority, number> = {
+    [IssuePriority.CRITICAL]: 0,
+    [IssuePriority.HIGH]: 0,
+    [IssuePriority.MEDIUM]: 0,
+    [IssuePriority.LOW]: 0,
+  };
+
+  counts.forEach(({ priority, _count }) => {
+    const count = typeof _count === "number" ? _count : _count?._all ?? 0;
+    defaultStats[priority] = count;
+  });
+
+  return defaultStats;
+};
+
 export default async function DashboardPage() {
   const { user } = await getCurrentProjectContext();
 
@@ -262,7 +281,56 @@ export default async function DashboardPage() {
   const statsByProjectId = buildIssueStats(projectIds, issueCounts);
   const blockersByProjectId = buildBlockerCounts(projectIds, blockerCounts);
 
+  const activeSprintIds = activeSprints.map((sprint) => sprint.id);
   const healthSprints = activeSprints.slice(0, 3);
+
+  const [
+    bugSeverityTodayCounts,
+    bugSeveritySprintCounts,
+    recentBuilds,
+    latestFailedBuild,
+  ] = await Promise.all([
+    projectIds.length
+      ? prisma.issue.groupBy({
+          by: ["priority"],
+          where: {
+            projectId: { in: projectIds },
+            type: IssueType.BUG,
+            createdAt: { gte: todayDate, lt: tomorrowDate },
+          },
+          _count: { _all: true },
+        })
+      : Promise.resolve([] as Array<{ priority: IssuePriority; _count: { _all: number } }>),
+    projectIds.length && activeSprintIds.length
+      ? prisma.issue.groupBy({
+          by: ["priority"],
+          where: {
+            projectId: { in: projectIds },
+            type: IssueType.BUG,
+            sprintId: { in: activeSprintIds },
+          },
+          _count: { _all: true },
+        })
+      : Promise.resolve([] as Array<{ priority: IssuePriority; _count: { _all: number } }>),
+    projectIds.length
+      ? prisma.build.findMany({
+          where: { projectId: { in: projectIds } },
+          include: { project: { select: { name: true, key: true } } },
+          orderBy: { updatedAt: "desc" },
+          take: 5,
+        })
+      : Promise.resolve([] as Awaited<ReturnType<typeof prisma.build.findMany>>),
+    projectIds.length
+      ? prisma.build.findFirst({
+          where: {
+            projectId: { in: projectIds },
+            status: { in: [BuildStatus.ROLLED_BACK, BuildStatus.CANCELLED] },
+          },
+          include: { project: { select: { name: true, key: true } } },
+          orderBy: { updatedAt: "desc" },
+        })
+      : Promise.resolve(null),
+  ]);
   const sprintIssueCounts = healthSprints.length
     ? await prisma.issue.groupBy({
         by: ["sprintId", "status"],
@@ -352,6 +420,48 @@ export default async function DashboardPage() {
     projectName: projectLookup.get(sprint.projectId)?.project.name ?? "Unknown project",
   }));
 
+  const bugsTodayByPriority = buildPriorityStats(bugSeverityTodayCounts);
+  const sprintBugsByPriority = buildPriorityStats(bugSeveritySprintCounts);
+
+  const priorityOrder: IssuePriority[] = [
+    IssuePriority.CRITICAL,
+    IssuePriority.HIGH,
+    IssuePriority.MEDIUM,
+    IssuePriority.LOW,
+  ];
+
+  const priorityLabels: Record<IssuePriority, string> = {
+    [IssuePriority.CRITICAL]: "Critical",
+    [IssuePriority.HIGH]: "High",
+    [IssuePriority.MEDIUM]: "Medium",
+    [IssuePriority.LOW]: "Low",
+  };
+
+  const priorityDots: Record<IssuePriority, string> = {
+    [IssuePriority.CRITICAL]: "bg-rose-500",
+    [IssuePriority.HIGH]: "bg-amber-500",
+    [IssuePriority.MEDIUM]: "bg-sky-500",
+    [IssuePriority.LOW]: "bg-emerald-500",
+  };
+
+  const buildStatusStyles: Record<(typeof BuildStatus)[keyof typeof BuildStatus], string> = {
+    [BuildStatus.PLANNED]: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200",
+    [BuildStatus.IN_PROGRESS]: "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-100",
+    [BuildStatus.DEPLOYED]: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100",
+    [BuildStatus.ROLLED_BACK]: "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-100",
+    [BuildStatus.CANCELLED]: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-100",
+  };
+
+  const bugsTodayTotal = Object.values(bugsTodayByPriority).reduce(
+    (sum, count) => sum + count,
+    0
+  );
+
+  const sprintBugTotal = Object.values(sprintBugsByPriority).reduce(
+    (sum, count) => sum + count,
+    0
+  );
+
   const sprintHealthRows = healthSprints.map((sprint) => ({
     ...sprint,
     projectName: projectLookup.get(sprint.projectId)?.project.name ?? "Unknown project",
@@ -386,6 +496,52 @@ export default async function DashboardPage() {
       description: "Completed and accepted",
     },
   ];
+
+  const renderSeverityList = (
+    counts: Record<IssuePriority, number>,
+    total: number
+  ) => {
+    if (total === 0) {
+      return (
+        <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
+          No bugs in this window.
+        </p>
+      );
+    }
+
+    const maxCount = Math.max(...priorityOrder.map((priority) => counts[priority] ?? 0));
+
+    return (
+      <ul className="mt-4 space-y-3">
+        {priorityOrder.map((priority) => {
+          const value = counts[priority] ?? 0;
+          const barWidth = maxCount ? Math.max((value / maxCount) * 100, 8) : 0;
+
+          return (
+            <li key={priority} className="flex items-center justify-between gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <span className={`h-2 w-2 rounded-full ${priorityDots[priority]}`} />
+                <span className="font-semibold text-slate-900 dark:text-slate-50">
+                  {priorityLabels[priority]}
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="h-2 w-28 rounded-full bg-slate-100 dark:bg-slate-800">
+                  <div
+                    className="h-2 rounded-full bg-primary"
+                    style={{ width: `${barWidth}%` }}
+                  />
+                </div>
+                <span className="w-8 text-right font-semibold text-slate-900 dark:text-slate-50">
+                  {value}
+                </span>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    );
+  };
 
   return (
     <div className="space-y-10">
@@ -478,6 +634,126 @@ export default async function DashboardPage() {
                   ))}
                 </ul>
               )}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Quality
+                </p>
+                <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-50">Quality &amp; Stability</h2>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                  Bug severity snapshots and build reliability across your projects.
+                </p>
+              </div>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                Updated today
+              </span>
+            </div>
+
+            <div className="mt-6 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="space-y-4">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        Bugs by severity
+                      </p>
+                      <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Today</h3>
+                    </div>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200">
+                      {bugsTodayTotal} bug{bugsTodayTotal === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  {renderSeverityList(bugsTodayByPriority, bugsTodayTotal)}
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        Bugs by severity
+                      </p>
+                      <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Current sprint</h3>
+                    </div>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200">
+                      {activeSprintIds.length ? sprintBugTotal : 0} bug{sprintBugTotal === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  {activeSprintIds.length === 0 ? (
+                    <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
+                      No active sprints right now.
+                    </p>
+                  ) : (
+                    renderSeverityList(sprintBugsByPriority, sprintBugTotal)
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Last failed build
+                  </p>
+                  {latestFailedBuild ? (
+                    <div className="mt-3 space-y-2">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+                        {latestFailedBuild.project.name} · {latestFailedBuild.key}
+                      </p>
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                        {latestFailedBuild.status} at {latestFailedBuild.updatedAt.toLocaleString()}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
+                      No failed builds reported recently.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      Build history
+                    </p>
+                    <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Recent deployments</h3>
+                  </div>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200">
+                    Last 5
+                  </span>
+                </div>
+
+                {recentBuilds.length === 0 ? (
+                  <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">
+                    Builds are not configured for your projects yet.
+                  </p>
+                ) : (
+                  <ul className="mt-4 space-y-3">
+                    {recentBuilds.map((build) => (
+                      <li
+                        key={build.id}
+                        className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm dark:border-slate-800 dark:bg-slate-900"
+                      >
+                        <div>
+                          <p className="font-semibold text-slate-900 dark:text-slate-50">
+                            {build.project.name} · {build.key}
+                          </p>
+                          <p className="text-xs text-slate-600 dark:text-slate-400">
+                            {build.name ?? "Unlabeled build"} • {build.updatedAt.toLocaleString()}
+                          </p>
+                        </div>
+                        <span
+                          className={`rounded-full px-3 py-1 text-[11px] font-semibold ${buildStatusStyles[build.status]}`}
+                        >
+                          {build.status}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
           </div>
 
