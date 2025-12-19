@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentProjectContext } from "@/lib/projectContext";
 import {
   BuildStatus,
+  IssueHistoryField,
   IssueStatus,
   IssueType,
   Role,
@@ -10,6 +11,7 @@ import {
 } from "@/lib/prismaEnums";
 import prisma from "@/lib/db";
 import { routes } from "@/lib/routes";
+import DeliveryHealthSection from "./DeliveryHealthSection";
 
 type IssueCountGroup = { projectId: string; status: IssueStatus; _count: { _all: number } };
 type BlockerCountGroup = { projectId: string; _count: { _all: number } };
@@ -58,6 +60,82 @@ const buildBlockerCounts = (
   return defaultCounts;
 };
 
+const buildSprintIssueStats = (
+  sprintIds: string[],
+  issueCounts: Array<{ sprintId: string | null; status: IssueStatus; _count: { _all: number } }>
+) => {
+  const defaultStats = Object.fromEntries(
+    sprintIds.map((sprintId) => [sprintId, { total: 0, done: 0 }])
+  );
+
+  issueCounts.forEach(({ sprintId, status, _count }) => {
+    if (!sprintId) return;
+
+    const stats = defaultStats[sprintId];
+    if (!stats) return;
+
+    const count = typeof _count === "number" ? _count : _count?._all ?? 0;
+
+    stats.total += count;
+
+    if (status === IssueStatus.DONE) {
+      stats.done += count;
+    }
+  });
+
+  return defaultStats;
+};
+
+const buildBurndownSeries = (
+  startDate: Date | null | undefined,
+  endDate: Date | null | undefined,
+  issues: Array<{
+    storyPoints: number | null;
+    status: IssueStatus;
+    history: Array<{ newValue: IssueStatus; createdAt: Date }>;
+  }>
+) => {
+  if (!startDate || !endDate) {
+    return [] as { date: string; remainingPoints: number }[];
+  }
+
+  const totalPoints = issues.reduce((sum, issue) => sum + (issue.storyPoints ?? 0), 0);
+
+  const completionDates = issues.map((issue) => {
+    const doneChange = issue.history.find((entry) => entry.newValue === IssueStatus.DONE);
+
+    return {
+      points: issue.storyPoints ?? 0,
+      completion: doneChange
+        ? (doneChange.createdAt as Date | null)
+        : issue.status === IssueStatus.DONE
+          ? endDate
+          : null,
+    };
+  });
+
+  const burndown: { date: string; remainingPoints: number }[] = [];
+
+  const currentDate = new Date(startDate);
+  while (currentDate <= endDate) {
+    const completedByDay = completionDates.reduce((sum, issue) => {
+      if (issue.completion !== null && issue.completion <= currentDate) {
+        return sum + issue.points;
+      }
+      return sum;
+    }, 0);
+
+    burndown.push({
+      date: currentDate.toISOString().split("T")[0],
+      remainingPoints: Math.max(totalPoints - completedByDay, 0),
+    });
+
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  return burndown;
+};
+
 export default async function DashboardPage() {
   const { user } = await getCurrentProjectContext();
 
@@ -102,7 +180,13 @@ export default async function DashboardPage() {
     overdueIssues,
   ]: [
     IssueCountGroup[],
-    Array<{ id: string; name: string; projectId: string }>,
+    Array<{
+      id: string;
+      name: string;
+      projectId: string;
+      startDate: Date | null;
+      endDate: Date | null;
+    }>,
     BlockerCountGroup[],
     number,
     number,
@@ -118,10 +202,22 @@ export default async function DashboardPage() {
     projectIds.length
       ? prisma.sprint.findMany({
           where: { projectId: { in: projectIds }, status: SprintStatus.ACTIVE },
-          select: { id: true, name: true, projectId: true },
+          select: {
+            id: true,
+            name: true,
+            projectId: true,
+            startDate: true,
+            endDate: true,
+          },
           orderBy: { createdAt: "desc" },
         })
-      : Promise.resolve([] as Array<{ id: string; name: string; projectId: string }>),
+      : Promise.resolve([] as Array<{
+          id: string;
+          name: string;
+          projectId: string;
+          startDate: Date | null;
+          endDate: Date | null;
+        }>),
     projectIds.length
       ? prisma.dailyStandupEntry.groupBy({
           by: ["projectId"],
@@ -166,6 +262,66 @@ export default async function DashboardPage() {
   const statsByProjectId = buildIssueStats(projectIds, issueCounts);
   const blockersByProjectId = buildBlockerCounts(projectIds, blockerCounts);
 
+  const healthSprints = activeSprints.slice(0, 3);
+  const sprintIssueCounts = healthSprints.length
+    ? await prisma.issue.groupBy({
+        by: ["sprintId", "status"],
+        where: { sprintId: { in: healthSprints.map((sprint) => sprint.id) } },
+        _count: { _all: true },
+      })
+    : [];
+
+  const scopeChangesBySprint: Record<string, number> = Object.fromEntries(
+    await Promise.all(
+      healthSprints.map(async (sprint) => {
+        if (!sprint.startDate) {
+          return [sprint.id, 0];
+        }
+
+        const scopeChanges = await prisma.issue.count({
+          where: {
+            sprintId: sprint.id,
+            createdAt: { gt: sprint.startDate },
+          },
+        });
+
+        return [sprint.id, scopeChanges];
+      })
+    )
+  );
+
+  const burndownBySprint: Record<string, { date: string; remainingPoints: number }[]> = Object.fromEntries(
+    await Promise.all(
+      healthSprints.map(async (sprint) => {
+        const issues = await prisma.issue.findMany({
+          where: { sprintId: sprint.id },
+          select: {
+            storyPoints: true,
+            status: true,
+            history: {
+              where: { field: IssueHistoryField.STATUS },
+              orderBy: { createdAt: "asc" },
+              select: {
+                newValue: true,
+                createdAt: true,
+              },
+            },
+          },
+        });
+
+        return [
+          sprint.id,
+          buildBurndownSeries(sprint.startDate ?? null, sprint.endDate ?? null, issues),
+        ];
+      })
+    )
+  );
+
+  const sprintIssueStats = buildSprintIssueStats(
+    healthSprints.map((sprint) => sprint.id),
+    sprintIssueCounts
+  );
+
   const totalStats = Object.values(statsByProjectId).reduce(
     (totals, stats) => ({
       todo: totals.todo + stats.todo,
@@ -194,6 +350,15 @@ export default async function DashboardPage() {
   const sprintRows = activeSprints.map((sprint) => ({
     ...sprint,
     projectName: projectLookup.get(sprint.projectId)?.project.name ?? "Unknown project",
+  }));
+
+  const sprintHealthRows = healthSprints.map((sprint) => ({
+    ...sprint,
+    projectName: projectLookup.get(sprint.projectId)?.project.name ?? "Unknown project",
+    totalIssues: sprintIssueStats[sprint.id]?.total ?? 0,
+    doneIssues: sprintIssueStats[sprint.id]?.done ?? 0,
+    scopeChanges: scopeChangesBySprint[sprint.id] ?? 0,
+    burndown: burndownBySprint[sprint.id] ?? [],
   }));
 
   const kpis = [
@@ -315,6 +480,8 @@ export default async function DashboardPage() {
               )}
             </div>
           </div>
+
+          <DeliveryHealthSection sprints={sprintHealthRows} />
 
           <div className="grid gap-6 lg:grid-cols-2">
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
