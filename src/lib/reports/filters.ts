@@ -1,3 +1,5 @@
+import type { ReportFilter } from "./types";
+
 export type ReportModuleKey =
   | "sprint-burndown"
   | "velocity-trend"
@@ -12,6 +14,23 @@ export type ReportFilters = {
 };
 
 export const DEFAULT_REPORT_MODULE: ReportModuleKey = "sprint-burndown";
+
+const DEFAULT_RANGE_DAYS = 30;
+const formatDate = (date: Date) => date.toISOString().slice(0, 10);
+const normalizeDate = (value: string | null, fallback: Date) => {
+  if (!value) return fallback;
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? fallback : parsed;
+};
+
+const getDefaultDateRange = (projectId?: string | null): ReportFilter => {
+  const to = new Date();
+  const from = new Date(to);
+  from.setDate(from.getDate() - (DEFAULT_RANGE_DAYS - 1));
+
+  return { from, to, projectId: projectId ?? null };
+};
 
 const REPORT_MODULE_KEYS: ReportModuleKey[] = [
   "sprint-burndown",
@@ -29,11 +48,6 @@ export const normalizeModule = (
   return REPORT_MODULE_KEYS.includes(moduleKey as ReportModuleKey)
     ? (moduleKey as ReportModuleKey)
     : DEFAULT_REPORT_MODULE;
-};
-
-const isIsoDate = (value: string) => {
-  const date = new Date(value);
-  return !Number.isNaN(date.getTime()) && value.length === 10;
 };
 
 const normalizeSearchParams = (searchParams: unknown | null) => {
@@ -66,45 +80,52 @@ const normalizeSearchParams = (searchParams: unknown | null) => {
   return new URLSearchParams(String(searchParams));
 };
 
+export const parseReportFilter = (
+  searchParams: unknown | null,
+  defaults?: Partial<ReportFilter>
+): ReportFilter => {
+  const params = normalizeSearchParams(searchParams);
+  const baseDefaults = getDefaultDateRange(defaults?.projectId ?? null);
+
+  const from = normalizeDate(
+    params.get("from"),
+    defaults?.from ?? baseDefaults.from
+  );
+  const to = normalizeDate(params.get("to"), defaults?.to ?? baseDefaults.to);
+  const projectId = params.get("projectId") ?? defaults?.projectId ?? null;
+
+  if (from.getTime() > to.getTime()) {
+    return baseDefaults;
+  }
+
+  return { from, to, projectId };
+};
+
 export const getDefaultReportFilters = (): ReportFilters => {
-  const today = new Date();
-  const to = today.toISOString().slice(0, 10);
-  const fromDate = new Date(today);
-  fromDate.setDate(fromDate.getDate() - 13);
-  const dateFrom = fromDate.toISOString().slice(0, 10);
+  const defaults = getDefaultDateRange();
 
   return {
-    dateFrom,
-    dateTo: to,
+    dateFrom: formatDate(defaults.from),
+    dateTo: formatDate(defaults.to),
     sprintId: null,
   };
 };
 
-const getDateValue = (
-  params: URLSearchParams,
-  key: "from" | "to",
-  fallback: string
-) => {
-  const value = params.get(key);
-  return value && isIsoDate(value) ? value : fallback;
-};
+export const formatReportDate = formatDate;
 
 export const parseReportSearchParams = (
   searchParams: unknown | null
 ): { module: ReportModuleKey; filters: ReportFilters } => {
   const params = normalizeSearchParams(searchParams);
-  const defaults = getDefaultReportFilters();
-
   const module = normalizeModule(params.get("module"));
-  const dateFrom = getDateValue(params, "from", defaults.dateFrom);
-  const dateTo = getDateValue(params, "to", defaults.dateTo);
+  const { from, to } = parseReportFilter(params);
   const sprintIdValue = params.get("sprintId");
 
   return {
     module,
     filters: {
-      dateFrom,
-      dateTo,
+      dateFrom: formatDate(from),
+      dateTo: formatDate(to),
       sprintId: sprintIdValue && sprintIdValue.trim() !== "" ? sprintIdValue : null,
     },
   };
