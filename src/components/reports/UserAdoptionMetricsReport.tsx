@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Card, CardContent } from "../ui/Card";
+import EmptyReportState from "./EmptyReportState";
 import type { ReportsFilterValue } from "./ReportsFilters";
 
 type UserSummary = {
@@ -161,12 +162,10 @@ export default function UserAdoptionMetricsReport({
             <div className="px-4 py-3 text-sm text-rose-600 dark:text-rose-400">{error}</div>
           )}
           {!isLoading && !error && !hasUpdates && (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
-              <p className="font-semibold text-slate-900 dark:text-slate-50">No standups in this range</p>
-              <p className="text-slate-600 dark:text-slate-400">
-                Try expanding the date range or choosing a different project to see activity.
-              </p>
-            </div>
+            <EmptyReportState
+              title="No standups in this range"
+              description="Try expanding the date range or choosing a different project to see activity."
+            />
           )}
 
           {!isLoading && !error && hasUpdates && (

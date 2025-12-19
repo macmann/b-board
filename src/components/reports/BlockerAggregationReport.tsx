@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Card, CardContent } from "../ui/Card";
+import EmptyReportState from "./EmptyReportState";
 import type { ReportsFilterValue } from "./ReportsFilters";
 
 type BlockerAggregationResponse = {
@@ -145,12 +146,10 @@ export default function BlockerAggregationReport({
           )}
 
           {showEmptyState && (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
-              <p className="font-semibold text-slate-900 dark:text-slate-50">No blockers reported</p>
-              <p className="text-slate-600 dark:text-slate-400">
-                Adjust the timeframe or pick another project to surface blocker themes and repeats.
-              </p>
-            </div>
+            <EmptyReportState
+              title="No blockers reported"
+              description="Adjust the timeframe or pick another project to surface blocker themes and repeats."
+            />
           )}
 
           {!isLoading && !error && !showEmptyState && data && (
