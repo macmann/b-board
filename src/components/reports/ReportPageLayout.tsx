@@ -23,8 +23,8 @@ export type ReportPageKey =
   | "inactiveProjects"
   | "agingIssues"
   | "orphanedWork"
-  | "crossProjectIssues"
-  | "deliveryHealthSummary";
+  | "crossProjectStatus"
+  | "deliveryHealth";
 
 type ReportPageLayoutProps = {
   title: string;
@@ -145,9 +145,9 @@ export default function ReportPageLayout({
         return <AgingIssuesReport filters={filters} />;
       case "orphanedWork":
         return <OrphanedWorkReport filters={filters} />;
-      case "crossProjectIssues":
+      case "crossProjectStatus":
         return <CrossProjectIssueStatusReport filters={filters} />;
-      case "deliveryHealthSummary":
+      case "deliveryHealth":
         return <DeliveryHealthSummaryReport filters={filters} />;
       default:
         return null;
