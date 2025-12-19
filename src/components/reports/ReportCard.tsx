@@ -60,10 +60,10 @@ export const reportModules: ReportModule[] = [
     href: "/reports/project-status-overview",
   },
   {
-    key: "delivery-health-summary",
-    title: "Delivery health summary",
+    key: "delivery-health",
+    title: "Delivery health",
     description: "Aggregate throughput, predictability, and lead time trends.",
-    href: "/reports/delivery-health-summary",
+    href: "/reports/delivery-health",
   },
   {
     key: "user-adoption",
@@ -78,10 +78,10 @@ export const reportModules: ReportModule[] = [
     href: "/reports/role-distribution",
   },
   {
-    key: "cross-project-issues",
+    key: "cross-project-status",
     title: "Cross-project issue status",
     description: "Status distribution across projects without sprint coupling.",
-    href: "/reports/cross-project-issues",
+    href: "/reports/cross-project-status",
   },
   {
     key: "blocker-aggregation",

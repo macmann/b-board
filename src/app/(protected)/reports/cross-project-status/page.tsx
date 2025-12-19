@@ -2,7 +2,7 @@ import ReportPageLayout from "@/components/reports/ReportPageLayout";
 
 import { requireLeadershipUser } from "../reportAccess";
 
-export default async function CrossProjectIssuesPage() {
+export default async function CrossProjectStatusPage() {
   await requireLeadershipUser();
 
   return (
@@ -11,7 +11,7 @@ export default async function CrossProjectIssuesPage() {
       description="Status mix across projects to spotlight flow risk and throughput without sprint coupling."
       placeholderLabel="Cross-project issue status"
       placeholderDetail="Stacked distribution of backlog, in progress, blocked, and done work across your portfolio."
-      reportKey="crossProjectIssues"
+      reportKey="crossProjectStatus"
     />
   );
 }
