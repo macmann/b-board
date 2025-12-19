@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 
-import Button from "../ui/Button";
+import { Button } from "../ui/Button";
 
 type CreateSprintDrawerProps = {
   projectId: string;

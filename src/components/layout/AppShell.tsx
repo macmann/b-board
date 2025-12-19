@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { Role } from "@/lib/prismaEnums";
 import { routes } from "@/lib/routes";
 
-import Button from "../ui/Button";
+import { Button } from "../ui/Button";
 import ThemeToggle from "../theme/ThemeToggle";
 import Logo from "../branding/Logo";
 import ProjectSwitcher from "./ProjectSwitcher";

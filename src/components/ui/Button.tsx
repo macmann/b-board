@@ -27,7 +27,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 const classNames = (...classes: Array<string | null | false | undefined>) =>
   classes.filter(Boolean).join(" ");
 
-export default function Button({
+export function Button({
   children,
   variant = "primary",
   size = "md",

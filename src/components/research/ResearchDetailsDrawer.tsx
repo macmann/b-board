@@ -6,7 +6,7 @@ import { ResearchDecision, ResearchObservationType, ResearchPriority } from "@pr
 
 import { ResearchStatus } from "@/lib/prismaEnums";
 import type { BacklogTableIssue } from "../issues/BacklogTable";
-import Button from "../ui/Button";
+import { Button } from "../ui/Button";
 import ResearchItemDrawer from "./ResearchItemDrawer";
 
 type ResearchObservation = {

@@ -5,7 +5,7 @@ import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import AuthLayout from "@/components/auth/AuthLayout";
-import Button from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { routes } from "@/lib/routes";
 
 const inputClasses =

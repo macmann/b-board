@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
 import AIStandupAssistant from "@/components/standup/AIStandupAssistant";
-import Button from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import { ProjectRole } from "@/lib/roles";
 

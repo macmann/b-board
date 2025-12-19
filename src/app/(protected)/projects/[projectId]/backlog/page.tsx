@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import ProjectHeader from "@/components/projects/ProjectHeader";
 import ProjectTabs from "@/components/projects/ProjectTabs";
-import Button from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { getCurrentProjectContext } from "@/lib/projectContext";
 import { ResearchStatus, UserRole } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";

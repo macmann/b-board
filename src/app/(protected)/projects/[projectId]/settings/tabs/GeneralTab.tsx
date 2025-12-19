@@ -1,5 +1,5 @@
 import type { ChangeEvent, FormEvent } from "react";
-import Button from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 
 const inputClasses =
   "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary dark:border-slate-600 dark:bg-slate-800 dark:text-slate-50";

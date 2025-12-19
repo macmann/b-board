@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
 import type { Issue as PrismaIssue, IssueStatus } from "@prisma/client";
 
-import Button from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import IssueTypeIcon from "@/components/issues/IssueTypeIcon";
 import { routes } from "@/lib/routes";
 import {

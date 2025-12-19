@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import Badge from "@/components/ui/Badge";
-import Button from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import IssueTypeIcon, { ISSUE_TYPE_METADATA } from "@/components/issues/IssueTypeIcon";
 import {
