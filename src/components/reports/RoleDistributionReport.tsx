@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Card, CardContent } from "../ui/Card";
+import EmptyReportState from "./EmptyReportState";
 import type { ReportsFilterValue } from "./ReportsFilters";
 
 type RoleBreakdown = {
@@ -148,12 +149,10 @@ export default function RoleDistributionReport({
           )}
 
           {!isLoading && !error && totalMembers === 0 && (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
-              <p className="font-semibold text-slate-900 dark:text-slate-50">No members found</p>
-              <p className="text-slate-600 dark:text-slate-400">
-                Invite teammates or add project memberships to see the role distribution for this scope.
-              </p>
-            </div>
+            <EmptyReportState
+              title="No members found"
+              description="Invite teammates or add project memberships to see the role distribution for this scope."
+            />
           )}
 
           {!isLoading && !error && totalMembers > 0 && (

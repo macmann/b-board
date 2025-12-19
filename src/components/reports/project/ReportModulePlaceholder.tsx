@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import EmptyReportState from "../EmptyReportState";
+
 const badgeClassName =
   "inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300";
 
@@ -26,9 +28,11 @@ export default function ReportModulePlaceholder({
         </div>
         {actions}
       </div>
-      <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
-        Reporting visuals coming soon.
-      </div>
+      <EmptyReportState
+        title="Reporting visuals are not available yet"
+        description="Preview data will appear here once the module is fully configured."
+        className="flex min-h-[220px] flex-col justify-center"
+      />
       {helper}
     </div>
   );

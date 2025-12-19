@@ -7,6 +7,7 @@ import AgingIssuesReport from "./AgingIssuesReport";
 import BlockerAggregationReport from "./BlockerAggregationReport";
 import CrossProjectIssueStatusReport from "./CrossProjectIssueStatusReport";
 import DeliveryHealthSummaryReport from "./DeliveryHealthSummaryReport";
+import EmptyReportState from "./EmptyReportState";
 import InactiveProjectsReport from "./InactiveProjectsReport";
 import OrphanedWorkReport from "./OrphanedWorkReport";
 import ProjectStatusOverviewReport from "./ProjectStatusOverviewReport";
@@ -177,12 +178,11 @@ export default function ReportPageLayout({
         </CardHeader>
         <CardContent>
           {renderContent() ?? (
-            <div className="flex flex-col gap-3">
-              <div className="flex h-80 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
-                {placeholderLabel}
-              </div>
-              <p className="text-sm text-slate-600 dark:text-slate-400">{placeholderDetail}</p>
-            </div>
+            <EmptyReportState
+              title={placeholderLabel}
+              description={placeholderDetail}
+              className="flex h-80 flex-col justify-center text-center"
+            />
           )}
         </CardContent>
       </Card>

@@ -13,6 +13,7 @@ import {
 } from "recharts";
 
 import { Card, CardContent } from "../ui/Card";
+import EmptyReportState from "./EmptyReportState";
 import type { ReportsFilterValue } from "./ReportsFilters";
 
 type TrendPoint = {
@@ -243,9 +244,10 @@ export default function DeliveryHealthSummaryReport({
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
-                  No throughput data for this window.
-                </div>
+                <EmptyReportState
+                  title="No throughput data for this window"
+                  className="flex h-64 flex-col items-center justify-center text-center"
+                />
               )}
             </CardContent>
           </Card>
