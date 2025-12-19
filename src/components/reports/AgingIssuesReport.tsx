@@ -1,111 +1,196 @@
 "use client";
 
-import { useMemo } from "react";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useEffect, useMemo, useState } from "react";
 
 import { Card, CardContent } from "../ui/Card";
 import type { ReportsFilterValue } from "./ReportsFilters";
-import { agingBuckets, portfolioProjects } from "./workspaceSampleData";
+
+type AgingIssue = {
+  key: string;
+  title: string;
+  status: string;
+  assignee: string | null;
+  ageDays: number;
+  project: string;
+  daysSinceUpdate?: number;
+};
+
+type AgingIssuesResponse = {
+  staleCount: number;
+  staleIssues: AgingIssue[];
+};
 
 type AgingIssuesReportProps = {
   filters: ReportsFilterValue;
 };
 
 export default function AgingIssuesReport({ filters }: AgingIssuesReportProps) {
-  const scopedProjects = useMemo(() => {
-    if (filters.projectId && filters.projectId !== "all") {
-      const match = portfolioProjects.find((project) => project.id === filters.projectId);
-      return match ? [match] : portfolioProjects;
-    }
+  const [thresholdDays, setThresholdDays] = useState(14);
+  const [data, setData] = useState<AgingIssuesResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-    return portfolioProjects;
-  }, [filters.projectId]);
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setError(null);
 
-  const agingIssues = useMemo(() => {
-    return scopedProjects
-      .flatMap((project) => project.agingIssues.map((issue) => ({ ...issue, project: project.name })))
-      .sort((a, b) => b.ageDays - a.ageDays);
-  }, [scopedProjects]);
+    const params = new URLSearchParams({
+      from: filters.dateFrom,
+      to: filters.dateTo,
+      projectId: filters.projectId,
+      thresholdDays: thresholdDays.toString(),
+    });
 
-  const totalAging = agingIssues.reduce((sum, issue) => sum + (issue.ageDays > 14 ? 1 : 0), 0);
+    fetch(`/api/reports/aging-issues?${params.toString()}`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error("Failed to load aging issues");
+        }
+        return (await response.json()) as AgingIssuesResponse;
+      })
+      .then(setData)
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Unable to fetch aging issues data"
+        );
+      })
+      .finally(() => setLoading(false));
+
+    return () => controller.abort();
+  }, [filters.dateFrom, filters.dateTo, filters.projectId, thresholdDays]);
+
+  const oldestAge = useMemo(() => data?.staleIssues[0]?.ageDays ?? "–", [data]);
+  const hasResults = (data?.staleIssues.length ?? 0) > 0;
 
   return (
     <div className="space-y-6">
       <div className="grid gap-3 md:grid-cols-3">
         <Card>
           <CardContent className="space-y-1 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Aging work</p>
-            <p className="text-3xl font-semibold text-slate-900 dark:text-slate-50">{totalAging}</p>
-            <p className="text-sm text-slate-600 dark:text-slate-400">Older than two weeks</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Stale issues
+            </p>
+            <p className="text-3xl font-semibold text-slate-900 dark:text-slate-50">
+              {data?.staleCount ?? "–"}
+            </p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Older than {thresholdDays} days
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="space-y-1 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Oldest item</p>
-            <p className="text-3xl font-semibold text-slate-900 dark:text-slate-50">{agingIssues[0]?.ageDays ?? "–"}d</p>
-            <p className="text-sm text-slate-600 dark:text-slate-400">Time since start</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Oldest item
+            </p>
+            <p className="text-3xl font-semibold text-slate-900 dark:text-slate-50">{oldestAge}d</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">Time since created</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="space-y-1 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Owner coverage</p>
-            <p className="text-3xl font-semibold text-slate-900 dark:text-slate-50">{agingIssues.length}</p>
-            <p className="text-sm text-slate-600 dark:text-slate-400">Tracked with accountable owners</p>
+          <CardContent className="space-y-2 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Threshold (days)
+                </p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Adjust stale definition
+                </p>
+              </div>
+              <input
+                type="number"
+                min={1}
+                value={thresholdDays}
+                onChange={(event) => {
+                  const next = Number.parseInt(event.target.value, 10);
+                  setThresholdDays(Number.isNaN(next) ? 1 : Math.max(1, next));
+                }}
+                className="h-10 w-20 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50"
+              />
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      <Card className="border border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <CardContent className="p-4">
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div>
-              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">Aging distribution</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                Cross-project view of items aging regardless of sprint length; helpful for governance reviews.
-              </p>
-            </div>
-            <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-              Delivery risk
-            </div>
-          </div>
+      {error && (
+        <Card>
+          <CardContent className="p-4 text-sm text-red-700 dark:text-red-300">
+            {error}
+          </CardContent>
+        </Card>
+      )}
 
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={agingBuckets} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="label" stroke="#475569" />
-                <YAxis allowDecimals={false} stroke="#475569" />
-                <Tooltip />
-                <Bar dataKey="count" fill="#f59e0b" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+      {loading && !data && (
+        <Card className="border border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <CardContent className="p-4 text-sm text-slate-600 dark:text-slate-300">
+            Loading aging issues…
+          </CardContent>
+        </Card>
+      )}
 
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-700 dark:bg-slate-950 dark:text-slate-300">
-              <p className="font-semibold text-slate-900 dark:text-slate-50">Top aging items</p>
-              <div className="mt-2 space-y-2">
-                {agingIssues.slice(0, 4).map((issue) => (
-                  <div key={issue.key} className="rounded-lg border border-slate-100 bg-white px-3 py-2 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                    <div className="flex items-center justify-between text-sm font-semibold text-slate-900 dark:text-slate-50">
-                      <span className="font-mono text-xs uppercase tracking-wide text-indigo-600 dark:text-indigo-300">{issue.key}</span>
-                      <span>{issue.ageDays}d</span>
-                    </div>
-                    <p className="text-sm text-slate-700 dark:text-slate-200">{issue.title}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">{issue.project} · {issue.owner}</p>
-                  </div>
-                ))}
+      {data && !hasResults && !loading && (
+        <Card className="border border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <CardContent className="p-10 text-center text-sm text-slate-600 dark:text-slate-300">
+            No stale issues for the selected filters.
+          </CardContent>
+        </Card>
+      )}
+
+      {hasResults && data && (
+        <Card className="border border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <CardContent className="p-4">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">
+                  Aging issues table
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Open items sorted by age in descending order.
+                </p>
+              </div>
+              <div className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-900 dark:text-amber-200">
+                Aging risk
               </div>
             </div>
-            <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-700 dark:bg-slate-950 dark:text-slate-300">
-              <p className="font-semibold text-slate-900 dark:text-slate-50">AI recommendation</p>
-              <p className="mt-1">
-                Timebox a dedicated clearance block for billing cleanup (ORI-44) and payment reconciliation (APL-88); both are older than a month and blocking downstream delivery.
-              </p>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-slate-800">
+                <thead>
+                  <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    <th className="px-3 py-2">Key</th>
+                    <th className="px-3 py-2">Title</th>
+                    <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2">Assignee</th>
+                    <th className="px-3 py-2">Age (days)</th>
+                    <th className="px-3 py-2">Project</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                  {data.staleIssues.map((issue) => (
+                    <tr key={`${issue.project}-${issue.key}`} className="text-slate-700 dark:text-slate-200">
+                      <td className="px-3 py-2 font-mono text-xs font-semibold uppercase text-indigo-600 dark:text-indigo-300">
+                        {issue.key}
+                      </td>
+                      <td className="px-3 py-2">{issue.title}</td>
+                      <td className="px-3 py-2">{issue.status.replace(/_/g, " ")}</td>
+                      <td className="px-3 py-2">{issue.assignee ?? "Unassigned"}</td>
+                      <td className="px-3 py-2 font-semibold">{issue.ageDays}</td>
+                      <td className="px-3 py-2">{issue.project}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
