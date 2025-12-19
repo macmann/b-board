@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import type { BacklogTableIssue } from "@/components/issues/BacklogTable";
 import ResearchDetailsDrawer from "@/components/research/ResearchDetailsDrawer";
 import ResearchItemDrawer from "@/components/research/ResearchItemDrawer";
-import Button from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import ResearchBoard from "./ResearchBoard";
 import ResearchList from "./ResearchList";
 import { type ResearchBacklogItem } from "./types";

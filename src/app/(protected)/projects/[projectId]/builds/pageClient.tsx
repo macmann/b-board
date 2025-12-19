@@ -5,7 +5,7 @@ import Link from "next/link";
 import * as Dialog from "@radix-ui/react-dialog";
 
 import Badge from "@/components/ui/Badge";
-import Button from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import { BuildEnvironment, BuildStatus } from "@/lib/prismaEnums";
 import { PROJECT_ADMIN_ROLES, type ProjectRole } from "@/lib/roles";

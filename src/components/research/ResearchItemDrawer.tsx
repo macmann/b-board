@@ -5,7 +5,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { ResearchDecision, ResearchPriority } from "@prisma/client";
 
 import { ResearchStatus } from "@/lib/prismaEnums";
-import Button from "../ui/Button";
+import { Button } from "../ui/Button";
 
 type Attachment = {
   id: string;

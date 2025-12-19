@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
-import Button from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { Role } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
 import { canInviteMembers } from "@/lib/uiPermissions";

@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 
 import { IssuePriority, IssueType } from "@/lib/prismaEnums";
-import Button from "../ui/Button";
+import { Button } from "../ui/Button";
 
 type Option = { id: string; label: string };
 

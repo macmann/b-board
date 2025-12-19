@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-import Button from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { ProjectRole } from "@/lib/roles";
 import { EmailProviderType } from "@/lib/prismaEnums";
 

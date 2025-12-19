@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import ProjectEmailSettings from "@/components/projects/ProjectEmailSettings";
 import ProjectStandupSettings from "@/components/projects/ProjectStandupSettings";
-import Button from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { ProjectRole } from "@/lib/roles";
 
 type FeaturesTabProps = {

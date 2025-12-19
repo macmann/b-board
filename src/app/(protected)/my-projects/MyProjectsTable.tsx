@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
 import Badge from "@/components/ui/Badge";
-import Button from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/Card";
 import { ProjectRole } from "@/lib/roles";
 import { routes } from "@/lib/routes";

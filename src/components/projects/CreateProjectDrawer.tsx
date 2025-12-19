@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 
-import Button from "../ui/Button";
+import { Button } from "../ui/Button";
 
 type CreateProjectDrawerProps = {
   onCreated?: () => Promise<void> | void;

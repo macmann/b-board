@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 
-import Button from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 
 type ImportSummary = { importedCount: number; skippedCount: number; errors: string[] };
 

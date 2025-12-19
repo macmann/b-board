@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import CreateSprintDrawer from "@/components/sprints/CreateSprintDrawer";
-import Button from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { routes } from "../../../../../lib/routes";
 
 import {
