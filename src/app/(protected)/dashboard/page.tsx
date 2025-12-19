@@ -19,6 +19,38 @@ type IssueCountGroup = { projectId: string; status: IssueStatus; _count: { _all:
 type BlockerCountGroup = { projectId: string; _count: { _all: number } };
 type WorkloadGroup = { assigneeId: string | null; _count: { _all: number } };
 
+const getWorkloadGroups = async (projectIds: string[]): Promise<WorkloadGroup[]> => {
+  if (!projectIds.length) {
+    return [];
+  }
+
+  const groups = await prisma.issue.groupBy({
+    by: ["assigneeId"],
+    where: {
+      projectId: { in: projectIds },
+      status: { not: IssueStatus.DONE },
+      assigneeId: { not: null },
+    },
+    _count: { _all: true },
+    orderBy: { _count: { assigneeId: "desc" } },
+    take: 3,
+  });
+
+  return groups.map(({ assigneeId, _count }) => {
+    const total =
+      typeof _count === "number"
+        ? _count
+        : typeof _count === "boolean"
+          ? 0
+          : _count?._all ?? 0;
+
+    return {
+      assigneeId,
+      _count: { _all: total },
+    };
+  });
+};
+
 const buildIssueStats = (
   projectIds: string[],
   issueCounts: Array<{ projectId: string; status: IssueStatus; _count: { _all: number } }>
@@ -292,19 +324,7 @@ export default async function DashboardPage() {
           },
         })
       : Promise.resolve(0),
-    projectIds.length
-      ? prisma.issue.groupBy({
-          by: ["assigneeId"],
-          where: {
-            projectId: { in: projectIds },
-            status: { not: IssueStatus.DONE },
-            assigneeId: { not: null },
-          },
-          _count: { _all: true },
-          orderBy: { _count: { _all: "desc" } },
-          take: 3,
-        })
-      : Promise.resolve([] as WorkloadGroup[]),
+    getWorkloadGroups(projectIds),
   ]);
 
   const statsByProjectId = buildIssueStats(projectIds, issueCounts);
