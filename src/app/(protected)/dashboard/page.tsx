@@ -7,6 +7,7 @@ import {
   IssueStatus,
   IssueType,
   IssuePriority,
+  ResearchStatus,
   Role,
   SprintStatus,
 } from "@/lib/prismaEnums";
@@ -16,6 +17,7 @@ import DeliveryHealthSection from "./DeliveryHealthSection";
 
 type IssueCountGroup = { projectId: string; status: IssueStatus; _count: { _all: number } };
 type BlockerCountGroup = { projectId: string; _count: { _all: number } };
+type WorkloadGroup = { assigneeId: string | null; _count: { _all: number } };
 
 const buildIssueStats = (
   projectIds: string[],
@@ -189,6 +191,7 @@ export default async function DashboardPage() {
   const tomorrowDate = new Date(todayDate);
   tomorrowDate.setDate(tomorrowDate.getDate() + 1);
   const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const staleThreshold = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
 
   const [
     issueCounts,
@@ -197,6 +200,8 @@ export default async function DashboardPage() {
     newBugsToday,
     failedBuildsLastDay,
     overdueIssues,
+    staleIssues,
+    workloadGroups,
   ]: [
     IssueCountGroup[],
     Array<{
@@ -210,6 +215,8 @@ export default async function DashboardPage() {
     number,
     number,
     number,
+    number,
+    WorkloadGroup[],
   ] = await Promise.all([
     projectIds.length
       ? prisma.issue.groupBy({
@@ -276,6 +283,28 @@ export default async function DashboardPage() {
           },
         })
       : Promise.resolve(0),
+    projectIds.length
+      ? prisma.issue.count({
+          where: {
+            projectId: { in: projectIds },
+            status: { not: IssueStatus.DONE },
+            updatedAt: { lt: staleThreshold },
+          },
+        })
+      : Promise.resolve(0),
+    projectIds.length
+      ? prisma.issue.groupBy({
+          by: ["assigneeId"],
+          where: {
+            projectId: { in: projectIds },
+            status: { not: IssueStatus.DONE },
+            assigneeId: { not: null },
+          },
+          _count: { _all: true },
+          orderBy: { _count: { _all: "desc" } },
+          take: 3,
+        })
+      : Promise.resolve([] as WorkloadGroup[]),
   ]);
 
   const statsByProjectId = buildIssueStats(projectIds, issueCounts);
@@ -471,6 +500,49 @@ export default async function DashboardPage() {
     burndown: burndownBySprint[sprint.id] ?? [],
   }));
 
+  const workloadUserIds = workloadGroups
+    .map((group) => group.assigneeId)
+    .filter((id): id is string => Boolean(id));
+
+  const workloadUsers = workloadUserIds.length
+    ? await prisma.user.findMany({
+        where: { id: { in: workloadUserIds } },
+        select: { id: true, name: true, email: true },
+      })
+    : [];
+
+  const workloadByUser = workloadGroups
+    .map((group) => {
+      const count = typeof group._count === "number" ? group._count : group._count?._all ?? 0;
+      const user = workloadUsers.find((candidate) => candidate.id === group.assigneeId);
+
+      if (!user) return null;
+
+      return { user, count };
+    })
+    .filter((entry): entry is { user: { id: string; name: string; email: string }; count: number } =>
+      Boolean(entry)
+    );
+
+  const researchEnabledProjects = projectIds.length
+    ? await prisma.project.findMany({
+        where: { id: { in: projectIds }, enableResearchBoard: true },
+        select: { id: true, name: true, key: true },
+      })
+    : [];
+
+  const researchInProgress = researchEnabledProjects.length
+    ? await prisma.researchItem.findMany({
+        where: {
+          projectId: { in: researchEnabledProjects.map((project) => project.id) },
+          status: ResearchStatus.IN_PROGRESS,
+        },
+        select: { id: true, title: true, key: true, projectId: true },
+        orderBy: { updatedAt: "desc" },
+        take: 5,
+      })
+    : [];
+
   const kpis = [
     { label: "New bugs today", value: newBugsToday },
     { label: "Open blockers", value: totalBlockers },
@@ -634,6 +706,82 @@ export default async function DashboardPage() {
                   ))}
                 </ul>
               )}
+            </div>
+          </div>
+
+          <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Team Signals</p>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-50">Scrum Master insights</h2>
+            <div className="mt-4 grid gap-6 lg:grid-cols-3">
+              <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                <div className="flex items-center justify-between text-sm font-semibold text-slate-900 dark:text-slate-50">
+                  <span>Blockers reported today</span>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm dark:bg-slate-800 dark:text-slate-200">
+                    {totalBlockers}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm font-semibold text-slate-900 dark:text-slate-50">
+                  <span>Stale issues (&gt;3 days no update)</span>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm dark:bg-slate-800 dark:text-slate-200">
+                    {staleIssues}
+                  </span>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Top workload</p>
+                {workloadByUser.length === 0 ? (
+                  <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">No assigned work in progress.</p>
+                ) : (
+                  <ul className="mt-3 space-y-2">
+                    {workloadByUser.map(({ user, count }) => (
+                      <li
+                        key={user.id}
+                        className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-900"
+                      >
+                        <div>
+                          <p className="font-semibold text-slate-900 dark:text-slate-50">{user.name}</p>
+                          <p className="text-xs text-slate-600 dark:text-slate-400">{user.email}</p>
+                        </div>
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm dark:bg-slate-800 dark:text-slate-200">
+                          {count} item{count === 1 ? "" : "s"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Research in progress</p>
+                {researchEnabledProjects.length === 0 ? (
+                  <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">Research board is not enabled for your projects.</p>
+                ) : researchInProgress.length === 0 ? (
+                  <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">No research tasks currently in progress.</p>
+                ) : (
+                  <ul className="mt-3 space-y-2">
+                    {researchInProgress.map((item) => {
+                      const project = researchEnabledProjects.find((project) => project.id === item.projectId);
+                      return (
+                        <li
+                          key={item.id}
+                          className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-900"
+                        >
+                          <div>
+                            <p className="font-semibold text-slate-900 dark:text-slate-50">{item.title}</p>
+                            <p className="text-xs text-slate-600 dark:text-slate-400">
+                              {project ? `${project.name} · ${item.key || "Unkeyed"}` : "Research"}
+                            </p>
+                          </div>
+                          <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100">
+                            In progress
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
             </div>
           </div>
 
