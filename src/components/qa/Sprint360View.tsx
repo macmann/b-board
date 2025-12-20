@@ -218,6 +218,12 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
           linkedBugIssueId: nextState.linkedBugIssueId ?? null,
         };
 
+        console.info("[Sprint360] Saving execution", {
+          endpoint: `/api/projects/${projectId}/qa/sprints/${selectedSprintId}/executions`,
+          method: "PATCH",
+          payload,
+        });
+
         const response = await fetch(
           `/api/projects/${projectId}/qa/sprints/${selectedSprintId}/executions`,
           {
@@ -229,7 +235,15 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
         );
 
         if (!response.ok) {
-          const message = await response.text();
+          let message = "Failed to save execution result. Please try again.";
+
+          try {
+            const errorBody = await response.json();
+            message = (errorBody?.message as string) ?? (errorBody?.error as string) ?? message;
+          } catch (parseError) {
+            message = (await response.text()) || message;
+          }
+
           console.error("[Sprint360] failed to save execution", {
             endpoint: `/api/projects/${projectId}/qa/sprints/${selectedSprintId}/executions`,
             method: "PATCH",
@@ -237,7 +251,7 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
             payload,
             message,
           });
-          window.alert("Failed to save execution result. Please try again.");
+          window.alert(message);
           throw new Error(`Failed to save execution (${response.status})`);
         }
 
