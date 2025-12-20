@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
 import { jsonError } from "@/lib/apiResponse";
 import prisma from "@/lib/db";
-import { resolveProjectId, type ProjectParams } from "@/lib/params";
 import { ensureProjectRole, ForbiddenError } from "@/lib/permissions";
 import { IssueType, Role, TestResultStatus } from "@/lib/prismaEnums";
 
@@ -59,14 +58,17 @@ const validateLinkedBug = async (projectId: string, linkedBugIssueId?: string | 
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: ProjectParams & { sprintId?: string } }
+  { params }: { params?: { projectId?: string; sprintId?: string } }
 ) {
   const requestId = request.headers.get("x-request-id") ?? "n/a";
-  const projectId = await resolveProjectId(params);
-  const sprintId = params?.sprintId;
+  const projectId = params?.projectId ?? null;
+  const sprintId = params?.sprintId ?? null;
 
   if (!projectId || !sprintId) {
-    return jsonError("projectId and sprintId are required", 400);
+    return NextResponse.json(
+      { error: "MISSING_PARAMS", message: "projectId and sprintId are required", params },
+      { status: 422 }
+    );
   }
 
   const user = await getUserFromRequest(request);
