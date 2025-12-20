@@ -5,6 +5,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import type { TestCase } from "@prisma/client";
 
 import { Button } from "@/components/ui/Button";
+import { logClient } from "@/lib/clientLogger";
 import { TestCasePriority, TestCaseStatus, TestCaseType } from "@/lib/prismaEnums";
 
 import type { IssueSummary, TestCaseRow } from "./TestCaseList";
@@ -100,14 +101,28 @@ export default function TestCaseFormDialog({
         storyIssueId: formState.storyIssueId,
       } satisfies Partial<TestCase>;
 
-      const response = await fetch(
-        `/api/projects/${projectId}/qa/testcases${isEditing ? `/${testCase?.id ?? ""}` : ""}`,
-        {
-          method: isEditing ? "PATCH" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
-      );
+      const endpoint = `/api/projects/${projectId}/qa/testcases${isEditing ? `/${testCase?.id ?? ""}` : ""}`;
+
+      logClient("QA Save Test Case", {
+        action: isEditing ? "PATCH_TEST_CASE" : "CREATE_TEST_CASE",
+        method: isEditing ? "PATCH" : "POST",
+        endpoint,
+        projectId,
+        testCaseId: testCase?.id ?? null,
+        payload: {
+          title: payload.title,
+          type: payload.type,
+          priority: payload.priority,
+          status: payload.status,
+          storyIssueId: payload.storyIssueId,
+        },
+      });
+
+      const response = await fetch(endpoint, {
+        method: isEditing ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
       if (!response.ok) {
         const data = await response.json().catch(() => null);

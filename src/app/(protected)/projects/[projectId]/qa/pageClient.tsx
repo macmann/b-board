@@ -9,6 +9,7 @@ import { Sprint360View } from "@/components/qa/Sprint360View";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
 import type { ProjectRole } from "@/lib/roles";
+import { logClient } from "@/lib/clientLogger";
 
 type QAPageClientProps = {
   projectId: string;
@@ -57,9 +58,9 @@ export default function QAPageClient({
       return {} as Record<string, TestCaseRow["story"]>;
     }
 
-      const results = await Promise.allSettled(
-        uniqueIds.map(async (issueId) => {
-          const response = await fetch(`/api/issues/${issueId}`, { credentials: "include" });
+    const results = await Promise.allSettled(
+      uniqueIds.map(async (issueId) => {
+        const response = await fetch(`/api/issues/${issueId}`, { credentials: "include" });
 
         if (!response.ok) {
           throw new Error(`Failed to load issue ${issueId}`);
@@ -84,7 +85,16 @@ export default function QAPageClient({
     setError("");
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/qa/testcases`, {
+      const endpoint = `/api/projects/${projectId}/qa/testcases`;
+
+      logClient("QA Page Refresh Test Cases", {
+        action: "FETCH_TEST_CASES",
+        method: "GET",
+        projectId,
+        endpoint,
+      });
+
+      const response = await fetch(endpoint, {
         credentials: "include",
       });
 
@@ -93,7 +103,7 @@ export default function QAPageClient({
         console.error(
           "[QAPageClient] Error fetching test cases",
           {
-            endpoint: `/api/projects/${projectId}/qa/testcases`,
+            endpoint,
             method: "GET",
             status: response.status,
             payload: null,
@@ -147,13 +157,18 @@ export default function QAPageClient({
       );
 
       try {
-        console.info("[QAPageClient] Sending inline update", {
-          endpoint: `/api/projects/${projectId}/qa/testcases/${testCaseId}`,
+        const endpoint = `/api/projects/${projectId}/qa/testcases/${testCaseId}`;
+
+        logClient("QA Inline Test Case Update", {
+          action: "PATCH_TEST_CASE",
           method: "PATCH",
+          endpoint,
+          projectId,
+          testCaseId,
           payload: patch,
         });
 
-        const response = await fetch(`/api/projects/${projectId}/qa/testcases/${testCaseId}`, {
+        const response = await fetch(endpoint, {
           method: "PATCH",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
@@ -171,7 +186,7 @@ export default function QAPageClient({
           }
 
           console.error("[QAPageClient] Failed inline update", {
-            endpoint: `/api/projects/${projectId}/qa/testcases/${testCaseId}`,
+            endpoint,
             method: "PATCH",
             status: response.status,
             payload: patch,
@@ -226,7 +241,17 @@ export default function QAPageClient({
       setError("");
 
       try {
-        const response = await fetch(`/api/projects/${projectId}/qa/testcases/${testCase.id}`, {
+        const endpoint = `/api/projects/${projectId}/qa/testcases/${testCase.id}`;
+
+        logClient("QA Delete Test Case", {
+          action: "DELETE_TEST_CASE",
+          method: "DELETE",
+          endpoint,
+          projectId,
+          testCaseId: testCase.id,
+        });
+
+        const response = await fetch(endpoint, {
           method: "DELETE",
           credentials: "include",
         });
@@ -242,7 +267,7 @@ export default function QAPageClient({
           }
 
           console.error("[QAPageClient] Failed to delete test case", {
-            endpoint: `/api/projects/${projectId}/qa/testcases/${testCase.id}`,
+            endpoint,
             method: "DELETE",
             status: response.status,
             payload: null,
