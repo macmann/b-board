@@ -57,9 +57,9 @@ export default function QAPageClient({
       return {} as Record<string, TestCaseRow["story"]>;
     }
 
-    const results = await Promise.allSettled(
-      uniqueIds.map(async (issueId) => {
-        const response = await fetch(`/api/issues/${issueId}`);
+      const results = await Promise.allSettled(
+        uniqueIds.map(async (issueId) => {
+          const response = await fetch(`/api/issues/${issueId}`, { credentials: "include" });
 
         if (!response.ok) {
           throw new Error(`Failed to load issue ${issueId}`);
@@ -84,9 +84,22 @@ export default function QAPageClient({
     setError("");
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/qa/testcases`);
+      const response = await fetch(`/api/projects/${projectId}/qa/testcases`, {
+        credentials: "include",
+      });
 
       if (!response.ok) {
+        const message = await response.text();
+        console.error(
+          "[QAPageClient] Error fetching test cases",
+          {
+            endpoint: `/api/projects/${projectId}/qa/testcases`,
+            method: "GET",
+            status: response.status,
+            payload: null,
+            message,
+          }
+        );
         throw new Error(`Failed to fetch test cases (${response.status})`);
       }
 
@@ -136,11 +149,21 @@ export default function QAPageClient({
       try {
         const response = await fetch(`/api/projects/${projectId}/qa/testcases/${testCaseId}`, {
           method: "PATCH",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(patch),
         });
 
         if (!response.ok) {
+          const message = await response.text();
+          console.error("[QAPageClient] Failed inline update", {
+            endpoint: `/api/projects/${projectId}/qa/testcases/${testCaseId}`,
+            method: "PATCH",
+            status: response.status,
+            payload: patch,
+            message,
+          });
+          window.alert("Failed to update test case status. Please try again.");
           throw new Error(`Failed to update test case (${response.status})`);
         }
 
@@ -161,6 +184,8 @@ export default function QAPageClient({
                 : item
             )
           );
+
+          await refreshTestCases();
         } else {
           await refreshTestCases();
         }
@@ -189,13 +214,24 @@ export default function QAPageClient({
       try {
         const response = await fetch(`/api/projects/${projectId}/qa/testcases/${testCase.id}`, {
           method: "DELETE",
+          credentials: "include",
         });
 
         if (!response.ok) {
+          const message = await response.text();
+          console.error("[QAPageClient] Failed to delete test case", {
+            endpoint: `/api/projects/${projectId}/qa/testcases/${testCase.id}`,
+            method: "DELETE",
+            status: response.status,
+            payload: null,
+            message,
+          });
+          window.alert("Failed to delete test case. Please try again.");
           throw new Error(`Failed to delete test case (${response.status})`);
         }
 
         setTestCases((prev) => prev.filter((item) => item.id !== testCase.id));
+        await refreshTestCases();
       } catch (deleteError) {
         console.error("[QAPageClient] Failed to delete test case", deleteError);
         setError("Unable to delete test case right now.");
@@ -203,7 +239,7 @@ export default function QAPageClient({
         setDeletingId(null);
       }
     },
-    [canDelete, projectId]
+    [canDelete, projectId, refreshTestCases]
   );
 
   const handleSaved = useCallback(async () => {
@@ -308,3 +344,7 @@ const tabs: { key: TabKey; label: string }[] = [
   { key: "test-cases", label: "Test Cases" },
   { key: "sprint-360", label: "Sprint 360" },
 ];
+
+// Manual QA checklist:
+// - Change a test case status across multiple values and refresh to ensure persistence.
+// - Delete a test case, confirm it disappears immediately, and remains gone after refresh.

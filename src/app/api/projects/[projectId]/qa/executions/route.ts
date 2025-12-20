@@ -154,6 +154,7 @@ export async function POST(
       testCaseId,
       sprintId,
       result,
+      userId: user.id,
     });
 
     if (!testCaseId || typeof testCaseId !== "string") {
@@ -182,51 +183,37 @@ export async function POST(
       return jsonError("Invalid executedAt", 400);
     }
 
-    const existingExecution = await prisma.testExecution.findFirst({
+    const execution = await prisma.testExecution.upsert({
       where: {
+        testCaseId_sprintId: {
+          testCaseId,
+          sprintId: sprintId ?? null,
+        },
+      },
+      update: {
+        result: resolvedResult,
+        actualResult: actualResult ?? null,
+        executedAt: parsedExecutedAt,
+        linkedBugIssueId: linkedBugIssueId ?? null,
+        executedById: user.id,
+        updatedAt: new Date(),
+      },
+      create: {
         testCaseId,
         sprintId: sprintId ?? null,
+        result: resolvedResult,
+        actualResult: actualResult ?? null,
+        executedAt: parsedExecutedAt,
+        linkedBugIssueId: linkedBugIssueId ?? null,
+        executedById: user.id,
       },
-      orderBy: [
-        { executedAt: "desc" },
-        { createdAt: "desc" },
-      ],
+      include: {
+        testCase: true,
+        sprint: true,
+        linkedBugIssue: true,
+        executedBy: true,
+      },
     });
-
-    const execution = existingExecution
-      ? await prisma.testExecution.update({
-          where: { id: existingExecution.id },
-          data: {
-            result: resolvedResult,
-            actualResult: actualResult ?? null,
-            executedAt: parsedExecutedAt,
-            linkedBugIssueId: linkedBugIssueId ?? null,
-            executedById: user.id,
-          },
-          include: {
-            testCase: true,
-            sprint: true,
-            linkedBugIssue: true,
-            executedBy: true,
-          },
-        })
-      : await prisma.testExecution.create({
-          data: {
-            testCaseId,
-            sprintId: sprintId ?? null,
-            result: resolvedResult,
-            actualResult: actualResult ?? null,
-            executedAt: parsedExecutedAt,
-            linkedBugIssueId: linkedBugIssueId ?? null,
-            executedById: user.id,
-          },
-          include: {
-            testCase: true,
-            sprint: true,
-            linkedBugIssue: true,
-            executedBy: true,
-          },
-        });
 
     return NextResponse.json({ ok: true, data: execution }, { status: 201 });
   } catch (error) {

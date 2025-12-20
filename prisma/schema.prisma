@@ -469,6 +469,7 @@ model TestExecution {
   executedBy     User?    @relation("TestExecutionExecutedBy", fields: [executedById], references: [id], onDelete: SetNull)
   linkedBugIssue Issue?   @relation("BugTestExecutions", fields: [linkedBugIssueId], references: [id], onDelete: SetNull)
 
+  @@unique([testCaseId, sprintId])
   @@index([testCaseId])
   @@index([sprintId])
   @@index([linkedBugIssueId])

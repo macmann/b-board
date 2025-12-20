@@ -160,6 +160,7 @@ export async function PATCH(
       requestId: requestId ?? "n/a",
       testCaseId,
       projectId,
+      userId: user.id,
       body,
     });
 
@@ -240,6 +241,13 @@ export async function DELETE(
     if (!existing || existing.projectId !== projectId) {
       return jsonError("Test case not found", 404);
     }
+
+    console.info("[QA][TestCases][DELETE]", {
+      requestId: requestId ?? "n/a",
+      projectId,
+      testCaseId,
+      userId: user.id,
+    });
 
     await prisma.testCase.delete({ where: { id: testCaseId } });
 

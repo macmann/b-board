@@ -84,9 +84,18 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
     setError("");
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/sprints`);
+      const response = await fetch(`/api/projects/${projectId}/sprints`, {
+        credentials: "include",
+      });
 
       if (!response.ok) {
+        const message = await response.text();
+        console.error("[Sprint360] failed to load sprints", {
+          endpoint: `/api/projects/${projectId}/sprints`,
+          method: "GET",
+          status: response.status,
+          message,
+        });
         throw new Error(`Failed to load sprints (${response.status})`);
       }
 
@@ -130,9 +139,18 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
       setError("");
 
       try {
-        const response = await fetch(`/api/projects/${projectId}/qa/sprint-360?sprintId=${sprintId}`);
+        const response = await fetch(`/api/projects/${projectId}/qa/sprint-360?sprintId=${sprintId}`, {
+          credentials: "include",
+        });
 
         if (!response.ok) {
+          const message = await response.text();
+          console.error("[Sprint360] failed to load data", {
+            endpoint: `/api/projects/${projectId}/qa/sprint-360?sprintId=${sprintId}`,
+            method: "GET",
+            status: response.status,
+            message,
+          });
           throw new Error(`Failed to fetch sprint QA data (${response.status})`);
         }
 
@@ -193,35 +211,33 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
           : null;
 
       try {
-        let response: Response;
+        const payload = {
+          testCaseId: testCase.id,
+          result: nextState.result,
+          notes: nextState.actualResult,
+          linkedBugIssueId: nextState.linkedBugIssueId ?? null,
+        };
 
-        if (nextState.executionId) {
-          response = await fetch(`/api/projects/${projectId}/qa/executions/${nextState.executionId}`, {
+        const response = await fetch(
+          `/api/projects/${projectId}/qa/sprints/${selectedSprintId}/executions`,
+          {
             method: "PATCH",
+            credentials: "include",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              result: nextState.result,
-              actualResult: nextState.actualResult,
-              executedAt,
-              linkedBugIssueId: nextState.linkedBugIssueId ?? null,
-            }),
-          });
-        } else {
-          response = await fetch(`/api/projects/${projectId}/qa/executions`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              testCaseId: testCase.id,
-              sprintId: selectedSprintId,
-              result: nextState.result,
-              actualResult: nextState.actualResult,
-              executedAt,
-              linkedBugIssueId: nextState.linkedBugIssueId ?? null,
-            }),
-          });
-        }
+            body: JSON.stringify(payload),
+          }
+        );
 
         if (!response.ok) {
+          const message = await response.text();
+          console.error("[Sprint360] failed to save execution", {
+            endpoint: `/api/projects/${projectId}/qa/sprints/${selectedSprintId}/executions`,
+            method: "PATCH",
+            status: response.status,
+            payload,
+            message,
+          });
+          window.alert("Failed to save execution result. Please try again.");
           throw new Error(`Failed to save execution (${response.status})`);
         }
 
@@ -243,11 +259,12 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
           if (saved.linkedBugIssue) {
             setBugSearchTerm((prev) => ({ ...prev, [testCase.id]: saved.linkedBugIssue?.key ?? "" }));
           }
+
+          await fetchSprint360(selectedSprintId);
         }
       } catch (saveError) {
         console.error("[Sprint360] failed to save execution", saveError);
         setError("Unable to update test execution right now.");
-        await fetchSprint360(selectedSprintId);
       } finally {
         setSaving((prev) => ({ ...prev, [testCase.id]: false }));
       }
@@ -301,7 +318,8 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
 
       try {
         const response = await fetch(
-          `/api/projects/${projectId}/standup/search-issues?query=${encodeURIComponent(term)}&take=8`
+          `/api/projects/${projectId}/standup/search-issues?query=${encodeURIComponent(term)}&take=8`,
+          { credentials: "include" }
         );
 
         if (!response.ok) {
@@ -345,6 +363,7 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
     try {
       const response = await fetch(`/api/projects/${projectId}/issues`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: `Bug: ${story?.key ?? "Story"} - ${testCase.title}`,
@@ -356,6 +375,14 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
       });
 
       if (!response.ok) {
+        const message = await response.text();
+        console.error("[Sprint360] failed to create bug", {
+          endpoint: `/api/projects/${projectId}/issues`,
+          method: "POST",
+          status: response.status,
+          message,
+        });
+        window.alert("Failed to create bug. Please try again.");
         throw new Error(`Failed to create bug (${response.status})`);
       }
 
@@ -373,11 +400,21 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
     try {
       const response = await fetch(`/api/projects/${projectId}/qa/testcases/${testCaseId}`, {
         method: "PATCH",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ storyIssueId }),
       });
 
       if (!response.ok) {
+        const message = await response.text();
+        console.error("[Sprint360] failed to link story", {
+          endpoint: `/api/projects/${projectId}/qa/testcases/${testCaseId}`,
+          method: "PATCH",
+          status: response.status,
+          payload: { storyIssueId },
+          message,
+        });
+        window.alert("Failed to link story. Please try again.");
         throw new Error(`Failed to link story (${response.status})`);
       }
 
@@ -714,3 +751,7 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
     </div>
   );
 }
+
+// Manual QA checklist:
+// - Update execution results through all states (Pass/Fail/Blocked/Not Run) and refresh to confirm persistence.
+// - Ensure failed saves display alert/toast messaging and console logs include method/endpoint/status.
