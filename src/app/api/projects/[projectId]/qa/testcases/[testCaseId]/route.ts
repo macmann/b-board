@@ -23,6 +23,34 @@ const isValidEnumValue = <T extends string>(value: unknown, values: T[]): value 
   return typeof value === "string" && values.includes(value as T);
 };
 
+const normalizeStatus = (value: unknown): TestCaseStatus | undefined => {
+  if (typeof value !== "string") return undefined;
+
+  const normalized = value.replace(/\s+/g, "_").replace(/-/g, "_").toUpperCase();
+
+  const statusMap: Record<string, TestCaseStatus> = {
+    DRAFT: TestCaseStatus.DRAFT,
+    READY: TestCaseStatus.READY,
+    DEPRECATED: TestCaseStatus.DEPRECATED,
+  };
+
+  return statusMap[normalized];
+};
+
+const normalizePriority = (value: unknown): TestCasePriority | undefined => {
+  if (typeof value !== "string") return undefined;
+
+  const normalized = value.toUpperCase();
+  const priorityMap: Record<string, TestCasePriority> = {
+    LOW: TestCasePriority.LOW,
+    MEDIUM: TestCasePriority.MEDIUM,
+    HIGH: TestCasePriority.HIGH,
+    CRITICAL: TestCasePriority.CRITICAL,
+  };
+
+  return priorityMap[normalized];
+};
+
 const getTestCase = async (testCaseId: string) => {
   return prisma.testCase.findUnique({
     where: { id: testCaseId },
@@ -153,10 +181,19 @@ export async function PATCH(
       expectedResult,
       priority,
       status,
+      readinessStatus,
+      readiness,
+      state,
       storyIssueId,
     } = body ?? {};
 
-    console.info("[QA][TestCases][PATCH]", {
+    const rawStatus = status ?? readinessStatus ?? readiness ?? state;
+    const resolvedStatus = normalizeStatus(rawStatus);
+    const resolvedPriority = normalizePriority(priority);
+
+    console.info("[QA][TestCases][PATCH][Request]", {
+      method: request.method,
+      url: request.nextUrl.pathname,
       requestId: requestId ?? "n/a",
       testCaseId,
       projectId,
@@ -171,21 +208,45 @@ export async function PATCH(
     const resolvedType = isValidEnumValue(type, Object.values(TestCaseType))
       ? type
       : undefined;
-    const resolvedPriority = isValidEnumValue(priority, Object.values(TestCasePriority))
-      ? priority
-      : undefined;
-    const resolvedStatus = isValidEnumValue(status, Object.values(TestCaseStatus))
-      ? status
-      : undefined;
 
-    if (
-      status !== undefined && !resolvedStatus && Object.values(TestCaseStatus).length
-    ) {
-      return jsonError("Invalid status", 400);
+    if (rawStatus !== undefined && !resolvedStatus) {
+      console.warn("[QA][TestCases][PATCH][Validation]", {
+        requestId: requestId ?? "n/a",
+        projectId,
+        testCaseId,
+        receivedStatus: rawStatus,
+        allowed: Object.values(TestCaseStatus),
+      });
+
+      return NextResponse.json(
+        {
+          error: "INVALID_STATUS",
+          message: "Invalid status",
+          allowed: Object.values(TestCaseStatus),
+          received: rawStatus,
+        },
+        { status: 422 }
+      );
     }
 
-    if (priority !== undefined && !resolvedPriority && Object.values(TestCasePriority).length) {
-      return jsonError("Invalid priority", 400);
+    if (priority !== undefined && !resolvedPriority) {
+      console.warn("[QA][TestCases][PATCH][Validation]", {
+        requestId: requestId ?? "n/a",
+        projectId,
+        testCaseId,
+        receivedPriority: priority,
+        allowed: Object.values(TestCasePriority),
+      });
+
+      return NextResponse.json(
+        {
+          error: "INVALID_PRIORITY",
+          message: "Invalid priority",
+          allowed: Object.values(TestCasePriority),
+          received: priority,
+        },
+        { status: 422 }
+      );
     }
 
     const updated = await prisma.testCase.update({
@@ -200,7 +261,7 @@ export async function PATCH(
           ? { expectedResult: expectedResult ?? null }
           : {}),
         ...(priority !== undefined && resolvedPriority ? { priority: resolvedPriority } : {}),
-        ...(status !== undefined && resolvedStatus ? { status: resolvedStatus } : {}),
+        ...(rawStatus !== undefined && resolvedStatus ? { status: resolvedStatus } : {}),
       },
     });
 

@@ -13,6 +13,21 @@ const isValidEnumValue = <T extends string>(value: unknown, values: T[]): value 
   return typeof value === "string" && values.includes(value as T);
 };
 
+const normalizeResult = (value: unknown): TestResultStatus | undefined => {
+  if (typeof value !== "string") return undefined;
+
+  const normalized = value.replace(/\s+/g, "").replace(/-/g, "").toUpperCase();
+
+  const resultMap: Record<string, TestResultStatus> = {
+    PASS: TestResultStatus.PASS,
+    FAIL: TestResultStatus.FAIL,
+    BLOCKED: TestResultStatus.BLOCKED,
+    NOTRUN: TestResultStatus.NOT_RUN,
+  };
+
+  return resultMap[normalized];
+};
+
 const validateTestCaseProject = async (projectId: string, testCaseId: string) => {
   const testCase = await prisma.testCase.findUnique({
     where: { id: testCaseId },
@@ -68,14 +83,30 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { testCaseId, result, notes, linkedBugIssueId } = body ?? {};
+    const {
+      testCaseId,
+      result,
+      executionResult,
+      status,
+      notes,
+      actualResult,
+      linkedBugIssueId,
+    } = body ?? {};
 
-    console.info("[QA][SprintExecutions][PATCH]", {
+    const rawResult = result ?? executionResult ?? status;
+    const normalizedResult = normalizeResult(rawResult);
+    const resolvedResult = normalizedResult ?? TestResultStatus.NOT_RUN;
+    const incomingNotes = notes ?? actualResult ?? null;
+
+    console.info("[QA][SprintExecutions][PATCH][Request]", {
+      method: request.method,
+      url: request.nextUrl.pathname,
       requestId,
       projectId,
       sprintId,
       testCaseId,
-      result,
+      result: rawResult,
+      body,
     });
 
     if (!testCaseId || typeof testCaseId !== "string") {
@@ -90,9 +121,26 @@ export async function PATCH(
       return jsonError("Invalid linkedBugIssueId", 400);
     }
 
-    const resolvedResult = isValidEnumValue(result, Object.values(TestResultStatus))
-      ? result
-      : TestResultStatus.NOT_RUN;
+    if (rawResult !== undefined && !normalizedResult) {
+      console.warn("[QA][SprintExecutions][PATCH][Validation]", {
+        requestId,
+        projectId,
+        sprintId,
+        testCaseId,
+        receivedResult: rawResult,
+        allowed: Object.values(TestResultStatus),
+      });
+
+      return NextResponse.json(
+        {
+          error: "INVALID_RESULT",
+          message: "Invalid execution result",
+          allowed: Object.values(TestResultStatus),
+          received: rawResult,
+        },
+        { status: 422 }
+      );
+    }
 
     const executedAt = resolvedResult === TestResultStatus.NOT_RUN ? null : new Date();
 
@@ -105,7 +153,7 @@ export async function PATCH(
       },
       update: {
         result: resolvedResult,
-        actualResult: notes ?? null,
+        actualResult: incomingNotes ?? null,
         executedAt,
         linkedBugIssueId: linkedBugIssueId ?? null,
         executedById: user.id,
@@ -115,7 +163,7 @@ export async function PATCH(
         testCaseId,
         sprintId,
         result: resolvedResult,
-        actualResult: notes ?? null,
+        actualResult: incomingNotes ?? null,
         executedAt,
         linkedBugIssueId: linkedBugIssueId ?? null,
         executedById: user.id,
