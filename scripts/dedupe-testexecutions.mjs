@@ -2,43 +2,62 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+function buildGroupKey(execution) {
+  const testCaseId = execution.testCaseId ?? "<null>";
+  const sprintId = execution.sprintId ?? "<null>";
+  return `${testCaseId}:${sprintId}`;
+}
+
+function sortExecutionsNewestFirst(a, b) {
+  const updatedDiff = b.updatedAt.getTime() - a.updatedAt.getTime();
+  if (updatedDiff !== 0) return updatedDiff;
+
+  const createdDiff = b.createdAt.getTime() - a.createdAt.getTime();
+  if (createdDiff !== 0) return createdDiff;
+
+  if (b.id > a.id) return 1;
+  if (b.id < a.id) return -1;
+  return 0;
+}
+
 async function dedupeTestExecutions() {
-  const duplicateGroups = await prisma.testExecution.groupBy({
-    by: ["testCaseId", "sprintId"],
-    _count: { _all: true },
-    having: {
-      _count: {
-        _all: {
-          gt: 1,
-        },
-      },
+  const executions = await prisma.testExecution.findMany({
+    select: {
+      id: true,
+      testCaseId: true,
+      sprintId: true,
+      createdAt: true,
+      updatedAt: true,
     },
   });
 
-  console.log(`Found ${duplicateGroups.length} duplicate group(s) by (testCaseId, sprintId).`);
+  console.log(`Scanned ${executions.length} TestExecution row(s).`);
 
+  const groups = new Map();
+
+  for (const execution of executions) {
+    const key = buildGroupKey(execution);
+    const list = groups.get(key) ?? [];
+    list.push(execution);
+    groups.set(key, list);
+  }
+
+  let duplicateGroupCount = 0;
   let totalDeleted = 0;
 
-  for (const group of duplicateGroups) {
-    const executions = await prisma.testExecution.findMany({
-      where: {
-        testCaseId: group.testCaseId,
-        sprintId: group.sprintId,
-      },
-      orderBy: [
-        { updatedAt: "desc" },
-        { createdAt: "desc" },
-        { id: "desc" },
-      ],
-    });
+  for (const [key, list] of groups.entries()) {
+    if (list.length <= 1) continue;
 
-    const [executionToKeep, ...executionsToDelete] = executions;
+    duplicateGroupCount += 1;
+    const [testCaseId, sprintId] = key.split(":");
 
-    if (!executionToKeep || executionsToDelete.length === 0) {
-      continue;
-    }
+    const sorted = [...list].sort(sortExecutionsNewestFirst);
+    const [, ...duplicates] = sorted;
 
-    const idsToDelete = executionsToDelete.map((execution) => execution.id);
+    if (duplicates.length === 0) continue;
+
+    const idsToDelete = duplicates.map((execution) => execution.id);
+
     const deletionResult = await prisma.testExecution.deleteMany({
       where: { id: { in: idsToDelete } },
     });
@@ -46,10 +65,11 @@ async function dedupeTestExecutions() {
     totalDeleted += deletionResult.count;
 
     console.log(
-      `Group ${group.testCaseId}/${group.sprintId ?? "<null>"}: kept ${executionToKeep.id}, deleted ${deletionResult.count}.`,
+      `Group ${testCaseId}/${sprintId}: kept ${sorted[0].id}, deleted ${deletionResult.count}.`,
     );
   }
 
+  console.log(`Found ${duplicateGroupCount} duplicate group(s).`);
   console.log(`Deleted ${totalDeleted} duplicate TestExecution row(s).`);
 }
 
