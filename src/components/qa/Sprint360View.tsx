@@ -68,6 +68,7 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
   const [bugSearch, setBugSearch] = useState<Record<string, BugSearchResult[]>>({});
   const [bugSearchTerm, setBugSearchTerm] = useState<Record<string, string>>({});
   const [bugSearching, setBugSearching] = useState<Record<string, boolean>>({});
+  const [linkedBugCache, setLinkedBugCache] = useState<Record<string, BugSearchResult>>({});
 
   const canUpdateExecutions = useMemo(
     () => projectRole === "ADMIN" || projectRole === "PO" || projectRole === "QA",
@@ -308,9 +309,10 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
   };
 
   const handleLinkBug = (testCase: TestCase, bug: BugSearchResult) => {
-    setLinkedBugCache((prev) => ({ ...prev, [bug.id]: bug }));
+    const bugId = String(bug.id);
+    setLinkedBugCache((prev) => ({ ...prev, [bugId]: bug }));
     updateExecution(testCase, {
-      linkedBugIssueId: bug.id,
+      linkedBugIssueId: bugId,
       linkedBugIssue: { id: bug.id, key: bug.key ?? null, title: bug.title ?? null },
       result: TestResultStatus.FAIL,
     });
@@ -422,6 +424,9 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
 
   const renderResultCell = (testCase: TestCase, story: IssueSummary | null) => {
     const state = executionState[testCase.id];
+    const linkedBug =
+      state?.linkedBugIssue ??
+      (state?.linkedBugIssueId ? linkedBugCache[String(state.linkedBugIssueId)] ?? null : null);
     const disabled = !canUpdateExecutions || saving[testCase.id];
 
     return (
@@ -438,11 +443,11 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
             </option>
           ))}
         </select>
-        {state?.linkedBugIssueId && state.linkedBugIssue ? (
+        {state?.linkedBugIssueId && linkedBug ? (
           <div className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-800">
             <div className="flex items-center justify-between gap-2">
-              <Link href={`/issues/${state.linkedBugIssue.id}`} className="font-semibold hover:underline">
-                {state.linkedBugIssue.key ?? "Bug"}
+              <Link href={`/issues/${linkedBug.id}`} className="font-semibold hover:underline">
+                {linkedBug.key ?? "Bug"}
               </Link>
               <Button
                 variant="ghost"
@@ -453,7 +458,7 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
                 Clear
               </Button>
             </div>
-            {state.linkedBugIssue.title && <p className="mt-1 line-clamp-2">{state.linkedBugIssue.title}</p>}
+            {linkedBug.title && <p className="mt-1 line-clamp-2">{linkedBug.title}</p>}
           </div>
         ) : state?.result === TestResultStatus.FAIL ? (
           <div className="space-y-2">
