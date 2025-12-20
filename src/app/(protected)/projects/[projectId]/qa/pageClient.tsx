@@ -232,7 +232,15 @@ export default function QAPageClient({
         });
 
         if (!response.ok) {
-          const message = await response.text();
+          let message = "Failed to delete test case. Please try again.";
+
+          try {
+            const errorBody = await response.json();
+            message = (errorBody?.message as string) ?? (errorBody?.error as string) ?? message;
+          } catch (parseError) {
+            message = (await response.text()) || message;
+          }
+
           console.error("[QAPageClient] Failed to delete test case", {
             endpoint: `/api/projects/${projectId}/qa/testcases/${testCase.id}`,
             method: "DELETE",
@@ -240,7 +248,7 @@ export default function QAPageClient({
             payload: null,
             message,
           });
-          window.alert("Failed to delete test case. Please try again.");
+          window.alert(message);
           throw new Error(`Failed to delete test case (${response.status})`);
         }
 

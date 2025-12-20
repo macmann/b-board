@@ -150,11 +150,29 @@ export async function PATCH(
   { params }: { params: ProjectParams & { testCaseId?: string } }
 ) {
   const requestId = request.headers.get("x-request-id");
-  const projectId = await resolveProjectId(params);
-  const testCaseId = params && typeof params === "object" ? params.testCaseId : undefined;
+  const body = await request.json().catch(() => undefined);
+  const payload = body && typeof body === "object" ? body : undefined;
+  const projectId =
+    (await resolveProjectId(params)) ?? (payload?.projectId ? String(payload.projectId) : null);
+  const testCaseId =
+    (params && typeof params === "object" ? params.testCaseId : undefined) ??
+    (payload?.testCaseId ? String(payload.testCaseId) : null);
 
   if (!projectId || !testCaseId) {
-    return jsonError("projectId and testCaseId are required", 400);
+    console.warn("[QA][TestCases][PATCH][MissingIds]", {
+      requestId: requestId ?? "n/a",
+      params,
+      body: payload ?? null,
+    });
+
+    return NextResponse.json(
+      {
+        error: "MISSING_IDS",
+        message: "projectId and testCaseId are required",
+        received: { params: params ?? null, body: payload ?? null },
+      },
+      { status: 422 }
+    );
   }
 
   const user = await getUserFromRequest(request);
@@ -172,7 +190,6 @@ export async function PATCH(
       return jsonError("Test case not found", 404);
     }
 
-    const body = await request.json();
     const {
       title,
       type,
@@ -185,7 +202,7 @@ export async function PATCH(
       readiness,
       state,
       storyIssueId,
-    } = body ?? {};
+    } = payload ?? {};
 
     const rawStatus = status ?? readinessStatus ?? readiness ?? state;
     const resolvedStatus = normalizeStatus(rawStatus);
@@ -198,7 +215,7 @@ export async function PATCH(
       testCaseId,
       projectId,
       userId: user.id,
-      body,
+      body: payload,
     });
 
     if (storyIssueId && !(await validateStoryIssue(projectId, storyIssueId))) {
@@ -281,11 +298,29 @@ export async function DELETE(
   { params }: { params: ProjectParams & { testCaseId?: string } }
 ) {
   const requestId = request.headers.get("x-request-id");
-  const projectId = await resolveProjectId(params);
-  const testCaseId = params && typeof params === "object" ? params.testCaseId : undefined;
+  const body = await request.json().catch(() => undefined);
+  const payload = body && typeof body === "object" ? body : undefined;
+  const projectId =
+    (await resolveProjectId(params)) ?? (payload?.projectId ? String(payload.projectId) : null);
+  const testCaseId =
+    (params && typeof params === "object" ? params.testCaseId : undefined) ??
+    (payload?.testCaseId ? String(payload.testCaseId) : null);
 
   if (!projectId || !testCaseId) {
-    return jsonError("projectId and testCaseId are required", 400);
+    console.warn("[QA][TestCases][DELETE][MissingIds]", {
+      requestId: requestId ?? "n/a",
+      params,
+      body: payload ?? null,
+    });
+
+    return NextResponse.json(
+      {
+        error: "MISSING_IDS",
+        message: "projectId and testCaseId are required",
+        received: { params: params ?? null, body: payload ?? null },
+      },
+      { status: 422 }
+    );
   }
 
   const user = await getUserFromRequest(request);
