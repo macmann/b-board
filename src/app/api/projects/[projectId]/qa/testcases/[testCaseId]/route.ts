@@ -156,6 +156,13 @@ export async function PATCH(
       storyIssueId,
     } = body ?? {};
 
+    console.info("[QA][TestCases][PATCH]", {
+      requestId: requestId ?? "n/a",
+      testCaseId,
+      projectId,
+      body,
+    });
+
     if (storyIssueId && !(await validateStoryIssue(projectId, storyIssueId))) {
       return jsonError("Invalid storyIssueId", 400);
     }
@@ -170,10 +177,20 @@ export async function PATCH(
       ? status
       : undefined;
 
+    if (
+      status !== undefined && !resolvedStatus && Object.values(TestCaseStatus).length
+    ) {
+      return jsonError("Invalid status", 400);
+    }
+
+    if (priority !== undefined && !resolvedPriority && Object.values(TestCasePriority).length) {
+      return jsonError("Invalid priority", 400);
+    }
+
     const updated = await prisma.testCase.update({
       where: { id: testCaseId },
       data: {
-        ...(title ? { title } : {}),
+        ...(title !== undefined ? { title } : {}),
         ...(resolvedType ? { type: resolvedType } : {}),
         ...(storyIssueId !== undefined ? { storyIssueId: storyIssueId ?? null } : {}),
         ...(scenario !== undefined ? { scenario: scenario ?? null } : {}),
@@ -181,8 +198,8 @@ export async function PATCH(
         ...(expectedResult !== undefined
           ? { expectedResult: expectedResult ?? null }
           : {}),
-        ...(resolvedPriority ? { priority: resolvedPriority } : {}),
-        ...(resolvedStatus ? { status: resolvedStatus } : {}),
+        ...(priority !== undefined && resolvedPriority ? { priority: resolvedPriority } : {}),
+        ...(status !== undefined && resolvedStatus ? { status: resolvedStatus } : {}),
       },
     });
 

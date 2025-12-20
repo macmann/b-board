@@ -129,6 +129,10 @@ export default function QAPageClient({
       setInlineUpdatingId(testCaseId);
       setError("");
 
+      setTestCases((prev) =>
+        prev.map((item) => (item.id === testCaseId ? { ...item, ...patch } : item))
+      );
+
       try {
         const response = await fetch(`/api/projects/${projectId}/qa/testcases/${testCaseId}`, {
           method: "PATCH",
