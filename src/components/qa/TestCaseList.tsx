@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { TestCase } from "@prisma/client";
 
 import { Button } from "@/components/ui/Button";
-import Badge from "@/components/ui/Badge";
+import { Badge } from "@/components/ui/Badge";
 import { TestCasePriority, TestCaseStatus, TestCaseType } from "@/lib/prismaEnums";
 
 export type IssueSummary = { id: string; key: string | null; title: string | null };

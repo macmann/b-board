@@ -18,7 +18,7 @@ const variantClasses: Record<NonNullable<BadgeProps["variant"]>, string> = {
     "border border-slate-300 text-slate-700 dark:border-slate-700 dark:text-slate-100",
 };
 
-export default function Badge({ children, variant = "neutral", className }: BadgeProps) {
+export function Badge({ children, variant = "neutral", className }: BadgeProps) {
   return (
     <span
       className={clsx(
