@@ -12,9 +12,9 @@ import { IssueStatus } from "@/lib/prismaEnums";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ sprintId: string }> }
+  ctx: { params: Promise<{ sprintId: string }> }
 ) {
-  const { sprintId } = await params;
+  const { sprintId } = await ctx.params;
 
   try {
     const user = await getUserFromRequest(request);

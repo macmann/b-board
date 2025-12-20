@@ -36,7 +36,7 @@ vi.mock("../../../lib/ai/aiClient", () => ({
 
 vi.mock("../../../lib/requestContext", () => ({
   __esModule: true,
-  withRequestContext: (...args: unknown[]) => mockWithRequestContext(...args),
+  withRequestContext: mockWithRequestContext as any,
   setRequestContextUser: (...args: unknown[]) => mockSetRequestContextUser(...args),
 }));
 
@@ -92,7 +92,7 @@ describe("AI autofill user story route", () => {
     );
 
     const response = await POST(request as any, {
-      params: { projectId: "project-1", issueIdOrKey: "DEMO-1" },
+      params: Promise.resolve({ projectId: "project-1", issueIdOrKey: "DEMO-1" }),
     });
 
     expect(response.status).toBe(201);
@@ -124,7 +124,7 @@ describe("AI autofill user story route", () => {
     );
 
     const response = await POST(request as any, {
-      params: { projectId: "project-1", issueIdOrKey: "issue-1" },
+      params: Promise.resolve({ projectId: "project-1", issueIdOrKey: "issue-1" }),
     });
 
     expect(response.status).toBe(409);

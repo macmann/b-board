@@ -13,8 +13,9 @@ const formatDate = (value: Date) => value.toISOString().slice(0, 10);
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: ProjectParams }
+  ctx: { params: Promise<Awaited<ProjectParams>> }
 ) {
+  const params = await ctx.params;
   const parsed = await parseReportFilters(request, params);
 
   if ("error" in parsed) {

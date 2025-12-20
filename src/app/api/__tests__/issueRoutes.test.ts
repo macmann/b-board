@@ -37,7 +37,7 @@ vi.mock("../../../lib/auditLogger", () => ({
 
 vi.mock("../../../lib/requestContext", () => ({
   __esModule: true,
-  withRequestContext: (...args: unknown[]) => mockWithRequestContext(...args),
+  withRequestContext: mockWithRequestContext as any,
   setRequestContextUser: (...args: unknown[]) => mockSetRequestContextUser(...args),
 }));
 

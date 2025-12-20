@@ -106,8 +106,9 @@ const ensureValidBody = (body: any) => {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: ProjectParams }
+  ctx: { params: Promise<Awaited<ProjectParams>> }
 ) {
+  const params = await ctx.params;
   const projectId = await resolveProjectId(params);
 
   if (!projectId) {
@@ -155,8 +156,9 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: ProjectParams }
+  ctx: { params: Promise<Awaited<ProjectParams>> }
 ) {
+  const params = await ctx.params;
   const projectId = await resolveProjectId(params);
 
   if (!projectId) {
@@ -247,7 +249,8 @@ export async function PUT(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: ProjectParams }
+  ctx: { params: Promise<Awaited<ProjectParams>> }
 ) {
-  return PUT(request, { params });
+  const params = await ctx.params;
+  return PUT(request, { params: Promise.resolve(params) });
 }

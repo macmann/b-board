@@ -164,8 +164,9 @@ function buildAiPrompt(issues: IssueWithComments[]) {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: ProjectParams }
+  ctx: { params: Promise<Awaited<ProjectParams>> }
 ) {
+  const params = await ctx.params;
   return withRequestContext(request, async () => {
     const projectId = await resolveProjectId(params);
 

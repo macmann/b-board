@@ -75,7 +75,7 @@ describe("standup/my route", () => {
       issueIds: [issue.id],
     });
 
-    const createResponse = await POST(request, { params: { projectId } });
+    const createResponse = await POST(request, { params: Promise.resolve({ projectId }) });
     const created = await createResponse.json();
 
     expect(created.summaryToday).toBe("Initial summary");
@@ -88,7 +88,7 @@ describe("standup/my route", () => {
       notes: "Added note",
     });
 
-    const updateResponse = await POST(updateRequest, { params: { projectId } });
+    const updateResponse = await POST(updateRequest, { params: Promise.resolve({ projectId }) });
     const updated = await updateResponse.json();
 
     expect(updated.summaryToday).toBe("Updated summary");
@@ -104,7 +104,9 @@ describe("standup/my route", () => {
       issueIds: [issue.id],
     });
 
-    const incompleteResponse = await POST(incompleteRequest, { params: { projectId } });
+    const incompleteResponse = await POST(incompleteRequest, {
+      params: Promise.resolve({ projectId }),
+    });
     const incomplete = await incompleteResponse.json();
 
     expect(incomplete.isComplete).toBe(false);
@@ -115,7 +117,9 @@ describe("standup/my route", () => {
       issueIds: [issue.id],
     });
 
-    const completeResponse = await POST(completeRequest, { params: { projectId } });
+    const completeResponse = await POST(completeRequest, {
+      params: Promise.resolve({ projectId }),
+    });
     const complete = await completeResponse.json();
 
     expect(complete.isComplete).toBe(true);
@@ -129,7 +133,7 @@ describe("standup/my route", () => {
       researchIds: [researchItem.id],
     });
 
-    const response = await POST(request, { params: { projectId } });
+    const response = await POST(request, { params: Promise.resolve({ projectId }) });
     const body = await response.json();
 
     expect(body.research).toHaveLength(1);
@@ -141,7 +145,7 @@ describe("standup/my route", () => {
     ensureProjectRole.mockRejectedValueOnce(new permissions.ForbiddenError());
 
     const request = createRequest({ date: "2024-01-03", summaryToday: "Blocked", issueIds: [issue.id] });
-    const response = await POST(request, { params: { projectId } });
+    const response = await POST(request, { params: Promise.resolve({ projectId }) });
 
     expect(response.status).toBe(403);
   });

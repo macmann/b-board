@@ -21,8 +21,9 @@ const parsePagination = (request: NextRequest) => {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: ProjectParams }
+  ctx: { params: Promise<Awaited<ProjectParams>> }
 ) {
+  const params = await ctx.params;
   return withRequestContext(request, async () => {
     const projectId = await resolveProjectId(params);
 

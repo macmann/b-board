@@ -24,8 +24,9 @@ const isValidEnumValue = <T extends string>(value: unknown, values: T[]): value 
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: ProjectParams }
+  ctx: { params: Promise<Awaited<ProjectParams>> }
 ) {
+  const params = await ctx.params;
   const requestId = request.headers.get("x-request-id");
   const projectId = await resolveProjectId(params);
 
@@ -81,8 +82,9 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: ProjectParams }
+  ctx: { params: Promise<Awaited<ProjectParams>> }
 ) {
+  const params = await ctx.params;
   const requestId = request.headers.get("x-request-id");
   const projectId = await resolveProjectId(params);
 

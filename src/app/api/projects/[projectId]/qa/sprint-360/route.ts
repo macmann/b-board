@@ -14,8 +14,9 @@ const VIEW_ROLES = [Role.ADMIN, Role.PO, Role.DEV, Role.QA];
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: ProjectParams }
+  ctx: { params: Promise<Awaited<ProjectParams>> }
 ) {
+  const params = await ctx.params;
   const requestId = request.headers.get("x-request-id");
   const projectId = await resolveProjectId(params);
 

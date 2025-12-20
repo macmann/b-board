@@ -1,5 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
+import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { deleteUpload, saveUpload } from "@/lib/storage";
@@ -17,8 +18,8 @@ describe("uploads route", () => {
     const saved = await saveUpload(file);
 
     const { GET } = await import("./[...path]/route");
-    const response = await GET(new Request(`http://localhost${saved.publicUrl}`), {
-      params: { path: saved.publicUrl.replace(/^\/uploads\//, "").split("/") },
+    const response = await GET(new NextRequest(`http://localhost${saved.publicUrl}`), {
+      params: Promise.resolve({ path: saved.publicUrl.replace(/^\/uploads\//, "").split("/") }),
     });
 
     expect(response.status).toBe(200);
@@ -31,8 +32,8 @@ describe("uploads route", () => {
 
   it("blocks attempts to traverse outside uploads directory", async () => {
     const { GET } = await import("./[...path]/route");
-    const response = await GET(new Request("http://localhost/uploads/../../etc/passwd"), {
-      params: { path: ["..", "..", "etc", "passwd"] },
+    const response = await GET(new NextRequest("http://localhost/uploads/../../etc/passwd"), {
+      params: Promise.resolve({ path: ["..", "..", "etc", "passwd"] }),
     });
 
     expect(response.status).toBe(404);

@@ -15,8 +15,9 @@ import { setRequestContextUser, withRequestContext } from "../../../../lib/reque
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: ProjectParams }
+  ctx: { params: Promise<Awaited<ProjectParams>> }
 ) {
+  const params = await ctx.params;
   const projectId = await resolveProjectId(params);
 
   if (!projectId) {
@@ -42,8 +43,9 @@ export async function GET(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: ProjectParams }
+  ctx: { params: Promise<Awaited<ProjectParams>> }
 ) {
+  const params = await ctx.params;
   const projectId = await resolveProjectId(params);
 
   try {
@@ -92,8 +94,9 @@ export async function DELETE(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: ProjectParams }
+  ctx: { params: Promise<Awaited<ProjectParams>> }
 ) {
+  const params = await ctx.params;
   return withRequestContext(request, async () => {
     const projectId = await resolveProjectId(params);
 

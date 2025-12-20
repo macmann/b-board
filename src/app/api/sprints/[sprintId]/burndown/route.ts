@@ -8,9 +8,9 @@ const formatDate = (date: Date) => date.toISOString().split("T")[0];
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ sprintId: string }> }
+  ctx: { params: Promise<{ sprintId: string }> }
 ) {
-  const { sprintId } = await params;
+  const { sprintId } = await ctx.params;
 
   const user = await getUserFromRequest(request);
 

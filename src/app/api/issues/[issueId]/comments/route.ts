@@ -5,9 +5,9 @@ import prisma from "../../../../../lib/db";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ issueId: string }> }
+  ctx: { params: Promise<{ issueId: string }> }
 ) {
-  const { issueId } = await params;
+  const { issueId } = await ctx.params;
 
   const user = await getUserFromRequest(request);
 
@@ -34,9 +34,9 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ issueId: string }> }
+  ctx: { params: Promise<{ issueId: string }> }
 ) {
-  const { issueId } = await params;
+  const { issueId } = await ctx.params;
 
   const user = await getUserFromRequest(request);
 

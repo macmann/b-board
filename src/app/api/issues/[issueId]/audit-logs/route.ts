@@ -20,9 +20,9 @@ const parsePagination = (request: NextRequest) => {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ issueId: string }> }
+  ctx: { params: Promise<{ issueId: string }> }
 ) {
-  const { issueId } = await params;
+  const { issueId } = await ctx.params;
 
   return withRequestContext(request, async () => {
     const user = await getUserFromRequest(request);
