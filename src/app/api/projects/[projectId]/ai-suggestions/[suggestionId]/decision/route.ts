@@ -24,9 +24,9 @@ type DecisionAction = "ACCEPT" | "REJECT" | "SNOOZE";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ projectId: string; suggestionId: string }> }
+  ctx: { params: Promise<{ projectId: string; suggestionId: string }> }
 ) {
-  const resolvedParams = await params;
+  const resolvedParams = await ctx.params;
 
   return withRequestContext(request, async () => {
     const projectId = await resolveProjectId(resolvedParams);

@@ -10,9 +10,9 @@ import { Role } from "../../../../lib/prismaEnums";
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ invitationId: string }> }
+  ctx: { params: Promise<{ invitationId: string }> }
 ) {
-  const { invitationId } = await params;
+  const { invitationId } = await ctx.params;
 
   const user = await getUserFromRequest(request);
 

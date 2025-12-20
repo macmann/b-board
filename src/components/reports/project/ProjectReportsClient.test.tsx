@@ -39,21 +39,22 @@ vi.mock("./BlockerThemesModule", () => ({
 }));
 
 import ProjectReportsClient from "./ProjectReportsClient";
+import type { ReportModuleNavItem } from "./ReportModuleNav";
 
 describe("ProjectReportsClient", () => {
   beforeEach(() => {
     mockParams = new URLSearchParams();
   });
 
-  const modules = [
+  const modules: ReadonlyArray<ReportModuleNavItem & { requiresSprintScope: boolean }> = [
     {
-      key: "sprint-burndown" satisfies ReportModuleKey,
+      key: "sprint-burndown",
       title: "Sprint Burndown",
       description: "Default",
       requiresSprintScope: true,
     },
     {
-      key: "velocity-trend" satisfies ReportModuleKey,
+      key: "velocity-trend",
       title: "Velocity Trend",
       description: "Velocity",
       requiresSprintScope: true,

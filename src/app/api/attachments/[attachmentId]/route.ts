@@ -9,9 +9,9 @@ export const runtime = "nodejs";
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ attachmentId: string }> }
+  ctx: { params: Promise<{ attachmentId: string }> }
 ) {
-  const { attachmentId } = await params;
+  const { attachmentId } = await ctx.params;
   const user = await getUserFromRequest(request);
 
   if (!user) {

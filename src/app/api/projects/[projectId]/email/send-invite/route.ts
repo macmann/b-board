@@ -15,8 +15,9 @@ const validateEmail = (value: string) => /.+@.+\..+/i.test(value);
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: ProjectParams }
+  ctx: { params: Promise<Awaited<ProjectParams>> }
 ) {
+  const params = await ctx.params;
   const requestId = randomUUID();
   const respond = (status: number, body: Record<string, unknown>) =>
     NextResponse.json(

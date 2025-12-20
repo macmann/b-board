@@ -11,8 +11,9 @@ import { resolveProjectId, type ProjectParams } from "../../../../../lib/params"
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: ProjectParams }
+  ctx: { params: Promise<Awaited<ProjectParams>> }
 ) {
+  const params = await ctx.params;
   const projectId = await resolveProjectId(params);
 
   if (!projectId) {
@@ -74,8 +75,9 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: ProjectParams }
+  ctx: { params: Promise<Awaited<ProjectParams>> }
 ) {
+  const params = await ctx.params;
   const projectId = await resolveProjectId(params);
 
   if (!projectId) {

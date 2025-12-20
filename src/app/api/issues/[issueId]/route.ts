@@ -23,9 +23,9 @@ import { setRequestContextUser, withRequestContext } from "../../../../lib/reque
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ issueId: string }> }
+  ctx: { params: Promise<{ issueId: string }> }
 ) {
-  const { issueId } = await params;
+  const { issueId } = await ctx.params;
 
   return withRequestContext(request, async () => {
     try {
@@ -79,9 +79,9 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ issueId: string }> }
+  ctx: { params: Promise<{ issueId: string }> }
 ) {
-  const { issueId } = await params;
+  const { issueId } = await ctx.params;
 
   return withRequestContext(request, async () => {
     try {
@@ -348,9 +348,9 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ issueId: string }> }
+  ctx: { params: Promise<{ issueId: string }> }
 ) {
-  const { issueId } = await params;
+  const { issueId } = await ctx.params;
 
   return withRequestContext(request, async () => {
     try {

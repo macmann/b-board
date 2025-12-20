@@ -16,9 +16,9 @@ import { jsonError } from "../../../../../lib/apiResponse";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ sprintId: string }> }
+  ctx: { params: Promise<{ sprintId: string }> }
 ) {
-  const { sprintId } = await params;
+  const { sprintId } = await ctx.params;
 
   const user = await getUserFromRequest(request);
 

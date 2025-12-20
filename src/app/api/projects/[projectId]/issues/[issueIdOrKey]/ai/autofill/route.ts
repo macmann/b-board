@@ -98,15 +98,19 @@ async function fetchSimilarIssues(projectId: string, issueId: string, type: Issu
 
 type AutoFillParams = ProjectParams & { issueIdOrKey?: string };
 
-export async function POST(request: NextRequest, { params }: { params: AutoFillParams }) {
+export async function POST(
+  request: NextRequest,
+  ctx: { params: Promise<AutoFillParams> }
+) {
   return withRequestContext(request, async () => {
+    const params = await ctx.params;
     const projectId = await resolveProjectId(params);
 
     if (!projectId) {
       return jsonError("projectId is required", 400);
     }
 
-    const issueIdOrKey = params.issueIdOrKey;
+    const issueIdOrKey = (params as { issueIdOrKey?: string }).issueIdOrKey;
     const user = await getUserFromRequest(request);
 
     if (!user) {

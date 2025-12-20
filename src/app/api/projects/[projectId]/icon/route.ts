@@ -22,8 +22,9 @@ const getFilePathFromUrl = (url: string) =>
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: ProjectParams }
+  ctx: { params: Promise<Awaited<ProjectParams>> }
 ) {
+  const params = await ctx.params;
   const projectId = await resolveProjectId(params);
 
   if (!projectId) {
@@ -109,8 +110,9 @@ export async function POST(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: ProjectParams }
+  ctx: { params: Promise<Awaited<ProjectParams>> }
 ) {
+  const params = await ctx.params;
   const projectId = await resolveProjectId(params);
 
   if (!projectId) {

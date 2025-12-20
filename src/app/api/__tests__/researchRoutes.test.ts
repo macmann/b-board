@@ -95,7 +95,7 @@ describe("research item routes", () => {
       createRequest({
         body: { title: "New idea", description: "Details", dueDate: "2024-01-01" },
       }),
-      { params: { projectId: "project1" } }
+      { params: Promise.resolve({ projectId: "project1" }) }
     );
 
     expect(response.status).toBe(201);
@@ -123,7 +123,7 @@ describe("research item routes", () => {
 
     const { POST } = await import("../projects/[projectId]/research-items/route");
     const response = await POST(createRequest({ body: { title: "Disabled" } }), {
-      params: { projectId: "project1" },
+      params: Promise.resolve({ projectId: "project1" }),
     });
 
     expect(response.status).toBe(403);
@@ -149,7 +149,7 @@ describe("research item routes", () => {
     const { PATCH } = await import("../research-items/[researchItemId]/route");
     const response = await PATCH(
       createRequest({ body: { status: ResearchStatus.COMPLETED, assigneeId: "user2" } }),
-      { params: { researchItemId: "r1" } }
+      { params: Promise.resolve({ researchItemId: "r1" }) }
     );
 
     expect(response.status).toBe(200);
@@ -185,7 +185,9 @@ describe("research item routes", () => {
     mockPrisma.researchItem.findUnique.mockResolvedValue(mockDetail);
 
     const { GET } = await import("../research-items/[researchItemId]/route");
-    const response = await GET(createRequest(), { params: { researchItemId: "r1" } });
+    const response = await GET(createRequest(), {
+      params: Promise.resolve({ researchItemId: "r1" }),
+    });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
@@ -205,7 +207,7 @@ describe("research item routes", () => {
 
     const { PATCH } = await import("../research-items/[researchItemId]/route");
     const response = await PATCH(createRequest({ body: { title: "Nope" } }), {
-      params: { researchItemId: "r1" },
+      params: Promise.resolve({ researchItemId: "r1" }),
     });
 
     expect(response.status).toBe(403);
@@ -227,7 +229,7 @@ describe("observation routes", () => {
       createRequest({
         body: { type: ResearchObservationType.NOTE, content: "Some note" },
       }),
-      { params: { researchItemId: "r1" } }
+      { params: Promise.resolve({ researchItemId: "r1" }) }
     );
 
     expect(response.status).toBe(400);
@@ -250,7 +252,7 @@ describe("issue linking routes", () => {
 
     const { POST } = await import("../research-items/[researchItemId]/issues/route");
     const response = await POST(createRequest({ body: { issueId: "i1" } }), {
-      params: { researchItemId: "r1" },
+      params: Promise.resolve({ researchItemId: "r1" }),
     });
 
     expect(response.status).toBe(400);
@@ -270,7 +272,7 @@ describe("issue linking routes", () => {
 
     const { POST } = await import("../research-items/[researchItemId]/issues/route");
     const response = await POST(createRequest({ body: { issueId: "i1" } }), {
-      params: { researchItemId: "r1" },
+      params: Promise.resolve({ researchItemId: "r1" }),
     });
 
     expect(response.status).toBe(403);

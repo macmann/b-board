@@ -41,14 +41,13 @@ async function ensureAccess(
   return { researchItem, enabled: researchItem.project.enableResearchBoard } as const;
 }
 
-type ObservationParams = { researchItemId?: string } | Promise<{ researchItemId?: string }>;
+type ObservationParams = { researchItemId?: string };
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: ObservationParams }
+  ctx: { params: Promise<ObservationParams> }
 ) {
-  const resolvedParams = await Promise.resolve(params);
-  const researchItemId = resolvedParams?.researchItemId;
+  const { researchItemId } = await ctx.params;
 
   if (!researchItemId) {
     return NextResponse.json({ message: "Missing researchItemId" }, { status: 400 });
@@ -88,10 +87,9 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: ObservationParams }
+  ctx: { params: Promise<ObservationParams> }
 ) {
-  const resolvedParams = await Promise.resolve(params);
-  const researchItemId = resolvedParams?.researchItemId;
+  const { researchItemId } = await ctx.params;
 
   if (!researchItemId) {
     return NextResponse.json({ message: "Missing researchItemId" }, { status: 400 });

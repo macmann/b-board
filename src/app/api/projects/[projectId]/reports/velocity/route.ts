@@ -11,8 +11,9 @@ import { parseReportFilters } from "@/lib/reports/dto";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: ProjectParams }
+  ctx: { params: Promise<Awaited<ProjectParams>> }
 ) {
+  const params = await ctx.params;
   const parsed = await parseReportFilters(request, params);
 
   if ("error" in parsed) {

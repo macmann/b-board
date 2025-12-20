@@ -12,9 +12,9 @@ import { PROJECT_ADMIN_ROLES } from "../../../../../lib/roles";
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ issueId: string }> }
+  ctx: { params: Promise<{ issueId: string }> }
 ) {
-  const { issueId } = await params;
+  const { issueId } = await ctx.params;
 
   try {
     const user = await getUserFromRequest(request);

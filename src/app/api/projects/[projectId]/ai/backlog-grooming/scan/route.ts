@@ -138,7 +138,11 @@ function buildPrompt(options: {
   };
 }
 
-export async function POST(request: NextRequest, { params }: { params: ProjectParams }) {
+export async function POST(
+  request: NextRequest,
+  ctx: { params: Promise<Awaited<ProjectParams>> }
+) {
+  const params = await ctx.params;
   return withRequestContext(request, async () => {
     const projectId = await resolveProjectId(params);
 

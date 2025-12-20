@@ -97,9 +97,10 @@ const getLatestExecutionsBySprint = async (testCaseId: string) => {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: ProjectParams & { testCaseId?: string } }
+  ctx: { params: Promise<Awaited<ProjectParams> & { testCaseId?: string }> }
 ) {
   const requestId = randomUUID();
+  const params = await ctx.params;
   const projectId = await resolveProjectId(params);
   const testCaseId = params && typeof params === "object" ? params.testCaseId : undefined;
 
@@ -162,16 +163,24 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: ProjectParams & { testCaseId?: string } }
+  ctx: { params: Promise<Awaited<ProjectParams> & { testCaseId?: string }> }
 ) {
   const requestId = randomUUID();
+  const params = await ctx.params;
   const body = await request.json().catch(() => undefined);
   const payload = body && typeof body === "object" ? body : undefined;
   const projectId =
     (await resolveProjectId(params)) ?? (payload?.projectId ? String(payload.projectId) : null);
-  const testCaseId =
-    (params && typeof params === "object" ? params.testCaseId : undefined) ??
-    (payload?.testCaseId ? String(payload.testCaseId) : null);
+  const testCaseId = params && typeof params === "object" ? params.testCaseId : undefined;
+
+  console.info(
+    JSON.stringify({
+      area: "QA",
+      event: "TEST_CASE_PARAMS_RESOLVED",
+      projectId,
+      testCaseId,
+    })
+  );
 
   logServer(requestId, "TEST_CASE_PATCH_REQUEST", {
     method: request.method,
@@ -194,6 +203,8 @@ export async function PATCH(
     console.warn("[QA][TestCases][PATCH][MissingIds]", {
       requestId,
       params,
+      projectId,
+      testCaseId,
       body: payload ?? null,
     });
 
@@ -341,16 +352,24 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: ProjectParams & { testCaseId?: string } }
+  ctx: { params: Promise<Awaited<ProjectParams> & { testCaseId?: string }> }
 ) {
   const requestId = randomUUID();
+  const params = await ctx.params;
   const body = await request.json().catch(() => undefined);
   const payload = body && typeof body === "object" ? body : undefined;
   const projectId =
     (await resolveProjectId(params)) ?? (payload?.projectId ? String(payload.projectId) : null);
-  const testCaseId =
-    (params && typeof params === "object" ? params.testCaseId : undefined) ??
-    (payload?.testCaseId ? String(payload.testCaseId) : null);
+  const testCaseId = params && typeof params === "object" ? params.testCaseId : undefined;
+
+  console.info(
+    JSON.stringify({
+      area: "QA",
+      event: "TEST_CASE_PARAMS_RESOLVED",
+      projectId,
+      testCaseId,
+    })
+  );
 
   logServer(requestId, "TEST_CASE_DELETE_REQUEST", {
     method: request.method,
@@ -365,6 +384,8 @@ export async function DELETE(
     console.warn("[QA][TestCases][DELETE][MissingIds]", {
       requestId,
       params,
+      projectId,
+      testCaseId,
       body: payload ?? null,
     });
 

@@ -48,8 +48,9 @@ const validateLinkedBug = async (projectId: string, linkedBugIssueId?: string | 
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: ProjectParams & { executionId?: string } }
+  ctx: { params: Promise<Awaited<ProjectParams> & { executionId?: string }> }
 ) {
+  const params = await ctx.params;
   const requestId = request.headers.get("x-request-id");
   const body = await request.json().catch(() => undefined);
   const payload = body && typeof body === "object" ? body : undefined;

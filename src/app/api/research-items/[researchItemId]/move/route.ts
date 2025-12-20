@@ -14,9 +14,9 @@ const RESEARCH_STATUS_SET = new Set(Object.values(ResearchStatus));
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ researchItemId: string }> }
+  ctx: { params: Promise<{ researchItemId: string }> }
 ) {
-  const { researchItemId } = await params;
+  const { researchItemId } = await ctx.params;
 
   try {
     const user = await getUserFromRequest(request);
