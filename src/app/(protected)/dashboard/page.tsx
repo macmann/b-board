@@ -171,6 +171,22 @@ const buildBurndownSeries = (
   return burndown;
 };
 
+const isIssueStatus = (value: string | null): value is IssueStatus => {
+  return value !== null && (Object.values(IssueStatus) as string[]).includes(value);
+};
+
+const normalizeIssueHistory = (
+  history: Array<{ newValue: string | null; createdAt: Date }>
+): Array<{ newValue: IssueStatus; createdAt: Date }> =>
+  history.flatMap(({ newValue, createdAt }) =>
+    isIssueStatus(newValue)
+      ? [{
+          newValue,
+          createdAt,
+        }]
+      : []
+  );
+
 const buildPriorityStats = (
   counts: Array<{ priority: IssuePriority; _count: { _all: number } }>
 ) => {
@@ -425,9 +441,18 @@ export default async function DashboardPage() {
           },
         });
 
+        const normalizedIssues: Parameters<typeof buildBurndownSeries>[2] = issues.map((issue) => ({
+          ...issue,
+          history: normalizeIssueHistory(issue.history),
+        }));
+
         return [
           sprint.id,
-          buildBurndownSeries(sprint.startDate ?? null, sprint.endDate ?? null, issues),
+          buildBurndownSeries(
+            sprint.startDate ?? null,
+            sprint.endDate ?? null,
+            normalizedIssues
+          ),
         ];
       })
     )
