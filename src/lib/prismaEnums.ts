@@ -61,6 +61,41 @@ export const IssuePriority = {
 
 export type IssuePriority = (typeof IssuePriority)[keyof typeof IssuePriority];
 
+export const TestCaseType = {
+  POSITIVE: "POSITIVE",
+  NEGATIVE: "NEGATIVE",
+} as const;
+
+export type TestCaseType = (typeof TestCaseType)[keyof typeof TestCaseType];
+
+export const TestCasePriority = {
+  LOW: "LOW",
+  MEDIUM: "MEDIUM",
+  HIGH: "HIGH",
+  CRITICAL: "CRITICAL",
+} as const;
+
+export type TestCasePriority =
+  (typeof TestCasePriority)[keyof typeof TestCasePriority];
+
+export const TestCaseStatus = {
+  DRAFT: "DRAFT",
+  READY: "READY",
+  DEPRECATED: "DEPRECATED",
+} as const;
+
+export type TestCaseStatus = (typeof TestCaseStatus)[keyof typeof TestCaseStatus];
+
+export const TestResultStatus = {
+  NOT_RUN: "NOT_RUN",
+  PASS: "PASS",
+  FAIL: "FAIL",
+  BLOCKED: "BLOCKED",
+} as const;
+
+export type TestResultStatus =
+  (typeof TestResultStatus)[keyof typeof TestResultStatus];
+
 export const BuildStatus = {
   PLANNED: "PLANNED",
   IN_PROGRESS: "IN_PROGRESS",
