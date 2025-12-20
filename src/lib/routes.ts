@@ -19,6 +19,7 @@ export const routes = {
       `${projectBase(projectId)}/builds/${buildId}`,
     sprints: (projectId: string) => `${projectBase(projectId)}/sprints`,
     reports: (projectId: string) => `${projectBase(projectId)}/reports`,
+    qa: (projectId: string) => `${projectBase(projectId)}/qa`,
     standup: (projectId: string) => `${projectBase(projectId)}/standup`,
     settings: projectSettings,
     settingsImport: (projectId: string) => `${projectSettings(projectId)}/import`,

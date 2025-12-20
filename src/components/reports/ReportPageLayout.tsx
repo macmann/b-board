@@ -10,6 +10,7 @@ import DeliveryHealthSummaryReport from "./DeliveryHealthSummaryReport";
 import EmptyReportState from "./EmptyReportState";
 import InactiveProjectsReport from "./InactiveProjectsReport";
 import OrphanedWorkReport from "./OrphanedWorkReport";
+import QASprint360Report from "./QASprint360Report";
 import ProjectStatusOverviewReport from "./ProjectStatusOverviewReport";
 import RoleDistributionReport from "./RoleDistributionReport";
 import UserAdoptionMetricsReport from "./UserAdoptionMetricsReport";
@@ -25,7 +26,8 @@ export type ReportPageKey =
   | "agingIssues"
   | "orphanedWork"
   | "crossProjectStatus"
-  | "deliveryHealth";
+  | "deliveryHealth"
+  | "qaSprint360";
 
 type ReportPageLayoutProps = {
   title: string;
@@ -150,6 +152,8 @@ export default function ReportPageLayout({
         return <CrossProjectIssueStatusReport filters={filters} />;
       case "deliveryHealth":
         return <DeliveryHealthSummaryReport filters={filters} />;
+      case "qaSprint360":
+        return <QASprint360Report filters={filters} />;
       default:
         return null;
     }
