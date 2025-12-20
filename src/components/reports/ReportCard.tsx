@@ -107,4 +107,10 @@ export const reportModules: ReportModule[] = [
     description: "Detect unassigned or disconnected items across the workspace.",
     href: "/reports/orphaned-work",
   },
+  {
+    key: "qa-sprint-360",
+    title: "QA Sprint 360",
+    description: "Sprint-level QA coverage, execution results, and linked bugs.",
+    href: "/reports/qa-sprint-360",
+  },
 ];

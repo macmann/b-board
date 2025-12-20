@@ -51,6 +51,7 @@ export default function AppShell({
         { href: routes.project.builds(currentProjectId), label: "Builds" },
         { href: routes.project.sprints(currentProjectId), label: "Sprints" },
         { href: routes.project.reports(currentProjectId), label: "Reports" },
+        { href: routes.project.qa(currentProjectId), label: "QA" },
         { href: routes.project.standup(currentProjectId), label: "Standup" },
         { href: routes.project.settings(currentProjectId), label: "Settings" },
       ]
