@@ -256,8 +256,31 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
   );
 
   const handleResultChange = (testCase: TestCase, result: TestResultStatus) => {
+    setExecutionState((prev) => {
+      const current = prev[testCase.id] ?? {
+        executionId: null,
+        result: TestResultStatus.NOT_RUN,
+        actualResult: "",
+        linkedBugIssueId: null,
+        linkedBugIssue: null,
+      };
+
+      const nextBugId = result === TestResultStatus.FAIL ? current.linkedBugIssueId ?? null : null;
+
+      return {
+        ...prev,
+        [testCase.id]: {
+          ...current,
+          result,
+          linkedBugIssueId: nextBugId,
+          linkedBugIssue: result === TestResultStatus.FAIL ? current.linkedBugIssue : null,
+        },
+      };
+    });
+
     const current = executionState[testCase.id];
     const nextBug = result === TestResultStatus.FAIL ? current?.linkedBugIssueId ?? null : null;
+
     updateExecution(testCase, { result, linkedBugIssueId: nextBug });
   };
 
