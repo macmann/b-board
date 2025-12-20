@@ -2,7 +2,7 @@ services:
   - type: web
     name: mini-jira
     env: node
-    buildCommand: npm install && npx prisma migrate deploy && npm run build
+    buildCommand: npm install && npm run predeploy && npx prisma db push && npm run build
     startCommand: npm run start
     envVars:
       - key: DATABASE_URL
