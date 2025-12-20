@@ -9,6 +9,7 @@
     "start": "next start -p ${PORT:-3000}",
     "postinstall": "prisma generate",
     "predeploy": "tsx scripts/dedupe-testexecutions.ts",
+    "render:deploy": "node scripts/render-deploy.mjs",
     "seed": "ts-node prisma/seed.ts",
     "seed:builds": "ts-node prisma/seedBuilds.ts",
     "test": "vitest run",
