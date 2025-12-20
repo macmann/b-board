@@ -27,7 +27,7 @@ import IssueTypeIcon, {
   ISSUE_TYPE_METADATA,
 } from "../../../../components/issues/IssueTypeIcon";
 
-import Badge from "@/components/ui/Badge";
+import { Badge } from "@/components/ui/Badge";
 import { routes } from "@/lib/routes";
 import { PROJECT_CONTRIBUTOR_ROLES } from "@/lib/roles";
 import { ProjectRole } from "../../../../lib/roles";
