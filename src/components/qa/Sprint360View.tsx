@@ -451,7 +451,7 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
               </Link>
               <Button
                 variant="ghost"
-                size="xs"
+                size="sm"
                 onClick={() => updateExecution(testCase, { linkedBugIssueId: null, linkedBugIssue: null })}
                 disabled={disabled}
               >
