@@ -58,15 +58,14 @@ const validateLinkedBug = async (projectId: string, linkedBugIssueId?: string | 
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params?: { projectId?: string; sprintId?: string } }
+  context: { params: Promise<{ projectId: string; sprintId: string }> }
 ) {
   const requestId = request.headers.get("x-request-id") ?? "n/a";
-  const projectId = params?.projectId ?? null;
-  const sprintId = params?.sprintId ?? null;
+  const { projectId, sprintId } = await context.params;
 
   if (!projectId || !sprintId) {
     return NextResponse.json(
-      { error: "MISSING_PARAMS", message: "projectId and sprintId are required", params },
+      { error: "MISSING_PARAMS", message: "projectId and sprintId are required", params: { projectId, sprintId } },
       { status: 422 }
     );
   }
