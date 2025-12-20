@@ -76,6 +76,14 @@ export async function PATCH(
     const body = await request.json();
     const { result, actualResult, executedAt, linkedBugIssueId } = body ?? {};
 
+    console.info("[QA][Executions][PATCH]", {
+      requestId: requestId ?? "n/a",
+      executionId,
+      projectId,
+      result,
+      executedAt,
+    });
+
     if (linkedBugIssueId && !(await validateLinkedBug(projectId, linkedBugIssueId))) {
       return jsonError("Invalid linkedBugIssueId", 400);
     }
@@ -84,7 +92,11 @@ export async function PATCH(
       ? result
       : undefined;
 
-    const parsedExecutedAt = executedAt ? new Date(executedAt) : undefined;
+    if (result !== undefined && !resolvedResult) {
+      return jsonError("Invalid result", 400);
+    }
+
+    const parsedExecutedAt = executedAt === null ? null : executedAt ? new Date(executedAt) : undefined;
 
     if (parsedExecutedAt && Number.isNaN(parsedExecutedAt.getTime())) {
       return jsonError("Invalid executedAt", 400);

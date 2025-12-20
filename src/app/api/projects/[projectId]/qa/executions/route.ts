@@ -148,6 +148,14 @@ export async function POST(
       linkedBugIssueId,
     } = body ?? {};
 
+    console.info("[QA][Executions][POST]", {
+      requestId: requestId ?? "n/a",
+      projectId,
+      testCaseId,
+      sprintId,
+      result,
+    });
+
     if (!testCaseId || typeof testCaseId !== "string") {
       return jsonError("testCaseId is required", 400);
     }
@@ -174,23 +182,51 @@ export async function POST(
       return jsonError("Invalid executedAt", 400);
     }
 
-    const execution = await prisma.testExecution.create({
-      data: {
+    const existingExecution = await prisma.testExecution.findFirst({
+      where: {
         testCaseId,
         sprintId: sprintId ?? null,
-        result: resolvedResult,
-        actualResult: actualResult ?? null,
-        executedAt: parsedExecutedAt,
-        linkedBugIssueId: linkedBugIssueId ?? null,
-        executedById: user.id,
       },
-      include: {
-        testCase: true,
-        sprint: true,
-        linkedBugIssue: true,
-        executedBy: true,
-      },
+      orderBy: [
+        { executedAt: "desc" },
+        { createdAt: "desc" },
+      ],
     });
+
+    const execution = existingExecution
+      ? await prisma.testExecution.update({
+          where: { id: existingExecution.id },
+          data: {
+            result: resolvedResult,
+            actualResult: actualResult ?? null,
+            executedAt: parsedExecutedAt,
+            linkedBugIssueId: linkedBugIssueId ?? null,
+            executedById: user.id,
+          },
+          include: {
+            testCase: true,
+            sprint: true,
+            linkedBugIssue: true,
+            executedBy: true,
+          },
+        })
+      : await prisma.testExecution.create({
+          data: {
+            testCaseId,
+            sprintId: sprintId ?? null,
+            result: resolvedResult,
+            actualResult: actualResult ?? null,
+            executedAt: parsedExecutedAt,
+            linkedBugIssueId: linkedBugIssueId ?? null,
+            executedById: user.id,
+          },
+          include: {
+            testCase: true,
+            sprint: true,
+            linkedBugIssue: true,
+            executedBy: true,
+          },
+        });
 
     return NextResponse.json({ ok: true, data: execution }, { status: 201 });
   } catch (error) {
