@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getUserFromRequest } from "@/lib/auth";
@@ -5,6 +6,7 @@ import { jsonError } from "@/lib/apiResponse";
 import prisma from "@/lib/db";
 import { ensureProjectRole, ForbiddenError } from "@/lib/permissions";
 import { IssueType, Role, TestResultStatus } from "@/lib/prismaEnums";
+import { logServer } from "@/lib/serverLogger";
 
 const EDIT_ROLES = [Role.ADMIN, Role.PO, Role.QA];
 
@@ -60,8 +62,15 @@ export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ projectId: string; sprintId: string }> }
 ) {
-  const requestId = request.headers.get("x-request-id") ?? "n/a";
+  const requestId = randomUUID();
   const { projectId, sprintId } = await context.params;
+
+  logServer(requestId, "SPRINT_EXECUTION_PATCH_REQUEST", {
+    method: request.method,
+    pathname: request.nextUrl.pathname,
+    projectId,
+    sprintId,
+  });
 
   if (!projectId || !sprintId) {
     return NextResponse.json(
@@ -99,10 +108,9 @@ export async function PATCH(
     const resolvedResult = normalizedResult ?? TestResultStatus.NOT_RUN;
     const incomingNotes = notes ?? actualResult ?? null;
 
-    console.info("[QA][SprintExecutions][PATCH][Request]", {
+    logServer(requestId, "SPRINT_EXECUTION_PATCH_BODY", {
       method: request.method,
-      url: request.nextUrl.pathname,
-      requestId,
+      pathname: request.nextUrl.pathname,
       projectId,
       sprintId,
       testCaseId,
@@ -175,6 +183,13 @@ export async function PATCH(
         linkedBugIssue: true,
         executedBy: true,
       },
+    });
+
+    logServer(requestId, "SPRINT_EXECUTION_PATCH_PRISMA", {
+      operation: "testExecution.upsert",
+      where: { testCaseId, sprintId },
+      result: resolvedResult,
+      linkedBugIssueId,
     });
 
     return NextResponse.json({ ok: true, data: execution });

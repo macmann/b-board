@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getUserFromRequest } from "@/lib/auth";
@@ -14,6 +15,7 @@ import {
   TestCaseStatus,
   TestCaseType,
 } from "@/lib/prismaEnums";
+import { logServer } from "@/lib/serverLogger";
 
 const VIEW_ROLES = [Role.ADMIN, Role.PO, Role.DEV, Role.QA];
 const EDIT_ROLES = [Role.ADMIN, Role.PO, Role.QA];
@@ -97,9 +99,17 @@ export async function GET(
   request: NextRequest,
   { params }: { params: ProjectParams & { testCaseId?: string } }
 ) {
-  const requestId = request.headers.get("x-request-id");
+  const requestId = randomUUID();
   const projectId = await resolveProjectId(params);
   const testCaseId = params && typeof params === "object" ? params.testCaseId : undefined;
+
+  logServer(requestId, "TEST_CASE_GET_REQUEST", {
+    method: request.method,
+    pathname: request.nextUrl.pathname,
+    params,
+    projectId,
+    testCaseId,
+  });
 
   if (!projectId || !testCaseId) {
     return jsonError("projectId and testCaseId are required", 400);
@@ -115,6 +125,11 @@ export async function GET(
     await ensureProjectRole(prisma, user.id, projectId, VIEW_ROLES);
 
     const testCase = await getTestCase(testCaseId);
+
+    logServer(requestId, "TEST_CASE_GET_PRISMA", {
+      operation: "testCase.findUnique",
+      where: { id: testCaseId },
+    });
 
     if (!testCase || testCase.projectId !== projectId) {
       return jsonError("Test case not found", 404);
@@ -140,7 +155,7 @@ export async function GET(
       return jsonError("Forbidden", 403);
     }
 
-    console.error("[QA][TestCases][GET_BY_ID]", requestId ?? "n/a", error);
+    console.error("[QA][TestCases][GET_BY_ID]", requestId, error);
     return jsonError("Internal server error", 500);
   }
 }
@@ -149,7 +164,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: ProjectParams & { testCaseId?: string } }
 ) {
-  const requestId = request.headers.get("x-request-id");
+  const requestId = randomUUID();
   const body = await request.json().catch(() => undefined);
   const payload = body && typeof body === "object" ? body : undefined;
   const projectId =
@@ -158,9 +173,26 @@ export async function PATCH(
     (params && typeof params === "object" ? params.testCaseId : undefined) ??
     (payload?.testCaseId ? String(payload.testCaseId) : null);
 
+  logServer(requestId, "TEST_CASE_PATCH_REQUEST", {
+    method: request.method,
+    pathname: request.nextUrl.pathname,
+    params,
+    projectId,
+    testCaseId,
+    body: payload
+      ? {
+          ...("storyIssueId" in payload ? { storyIssueId: payload.storyIssueId } : {}),
+          ...("status" in payload ? { status: payload.status } : {}),
+          ...("priority" in payload ? { priority: payload.priority } : {}),
+          ...("title" in payload ? { title: payload.title } : {}),
+          ...("type" in payload ? { type: payload.type } : {}),
+        }
+      : null,
+  });
+
   if (!projectId || !testCaseId) {
     console.warn("[QA][TestCases][PATCH][MissingIds]", {
-      requestId: requestId ?? "n/a",
+      requestId,
       params,
       body: payload ?? null,
     });
@@ -208,10 +240,9 @@ export async function PATCH(
     const resolvedStatus = normalizeStatus(rawStatus);
     const resolvedPriority = normalizePriority(priority);
 
-    console.info("[QA][TestCases][PATCH][Request]", {
+    logServer(requestId, "TEST_CASE_PATCH_VALIDATED", {
       method: request.method,
-      url: request.nextUrl.pathname,
-      requestId: requestId ?? "n/a",
+      pathname: request.nextUrl.pathname,
       testCaseId,
       projectId,
       userId: user.id,
@@ -228,7 +259,7 @@ export async function PATCH(
 
     if (rawStatus !== undefined && !resolvedStatus) {
       console.warn("[QA][TestCases][PATCH][Validation]", {
-        requestId: requestId ?? "n/a",
+        requestId,
         projectId,
         testCaseId,
         receivedStatus: rawStatus,
@@ -248,7 +279,7 @@ export async function PATCH(
 
     if (priority !== undefined && !resolvedPriority) {
       console.warn("[QA][TestCases][PATCH][Validation]", {
-        requestId: requestId ?? "n/a",
+        requestId,
         projectId,
         testCaseId,
         receivedPriority: priority,
@@ -282,13 +313,28 @@ export async function PATCH(
       },
     });
 
+    logServer(requestId, "TEST_CASE_PATCH_PRISMA", {
+      operation: "testCase.update",
+      where: { id: testCaseId },
+      dataKeys: Object.keys({
+        ...(title !== undefined ? { title } : {}),
+        ...(resolvedType ? { type: resolvedType } : {}),
+        ...(storyIssueId !== undefined ? { storyIssueId: storyIssueId ?? null } : {}),
+        ...(scenario !== undefined ? { scenario: scenario ?? null } : {}),
+        ...(testData !== undefined ? { testData: testData ?? null } : {}),
+        ...(expectedResult !== undefined ? { expectedResult: expectedResult ?? null } : {}),
+        ...(priority !== undefined && resolvedPriority ? { priority: resolvedPriority } : {}),
+        ...(rawStatus !== undefined && resolvedStatus ? { status: resolvedStatus } : {}),
+      }),
+    });
+
     return NextResponse.json({ ok: true, data: updated });
   } catch (error) {
     if (error instanceof ForbiddenError) {
       return jsonError("Forbidden", 403);
     }
 
-    console.error("[QA][TestCases][PATCH]", requestId ?? "n/a", error);
+    console.error("[QA][TestCases][PATCH]", requestId, error);
     return jsonError("Internal server error", 500);
   }
 }
@@ -297,7 +343,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: ProjectParams & { testCaseId?: string } }
 ) {
-  const requestId = request.headers.get("x-request-id");
+  const requestId = randomUUID();
   const body = await request.json().catch(() => undefined);
   const payload = body && typeof body === "object" ? body : undefined;
   const projectId =
@@ -306,9 +352,18 @@ export async function DELETE(
     (params && typeof params === "object" ? params.testCaseId : undefined) ??
     (payload?.testCaseId ? String(payload.testCaseId) : null);
 
+  logServer(requestId, "TEST_CASE_DELETE_REQUEST", {
+    method: request.method,
+    pathname: request.nextUrl.pathname,
+    params,
+    projectId,
+    testCaseId,
+    body: payload ? { testCaseId: payload.testCaseId, projectId: payload.projectId } : null,
+  });
+
   if (!projectId || !testCaseId) {
     console.warn("[QA][TestCases][DELETE][MissingIds]", {
-      requestId: requestId ?? "n/a",
+      requestId,
       params,
       body: payload ?? null,
     });
@@ -338,8 +393,8 @@ export async function DELETE(
       return jsonError("Test case not found", 404);
     }
 
-    console.info("[QA][TestCases][DELETE]", {
-      requestId: requestId ?? "n/a",
+    logServer(requestId, "TEST_CASE_DELETE_PRISMA", {
+      operation: "testCase.delete",
       projectId,
       testCaseId,
       userId: user.id,
@@ -353,7 +408,7 @@ export async function DELETE(
       return jsonError("Forbidden", 403);
     }
 
-    console.error("[QA][TestCases][DELETE]", requestId ?? "n/a", error);
+    console.error("[QA][TestCases][DELETE]", requestId, error);
     return jsonError("Internal server error", 500);
   }
 }

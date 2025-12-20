@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { routes } from "@/lib/routes";
 import type { ProjectRole } from "@/lib/roles";
 import { IssueStatus, IssueType, SprintStatus, TestCaseStatus, TestResultStatus } from "@/lib/prismaEnums";
+import { logClient } from "@/lib/clientLogger";
 
 const resultOptions: { value: TestResultStatus; label: string }[] = [
   { value: TestResultStatus.NOT_RUN, label: "Not Run" },
@@ -84,14 +85,23 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
     setError("");
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/sprints`, {
+      const endpoint = `/api/projects/${projectId}/sprints`;
+
+      logClient("QA Sprint360 Fetch Sprints", {
+        action: "FETCH_SPRINTS",
+        method: "GET",
+        endpoint,
+        projectId,
+      });
+
+      const response = await fetch(endpoint, {
         credentials: "include",
       });
 
       if (!response.ok) {
         const message = await response.text();
         console.error("[Sprint360] failed to load sprints", {
-          endpoint: `/api/projects/${projectId}/sprints`,
+          endpoint,
           method: "GET",
           status: response.status,
           message,
@@ -139,14 +149,24 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
       setError("");
 
       try {
-        const response = await fetch(`/api/projects/${projectId}/qa/sprint-360?sprintId=${sprintId}`, {
+        const endpoint = `/api/projects/${projectId}/qa/sprint-360?sprintId=${sprintId}`;
+
+        logClient("QA Sprint360 Fetch Data", {
+          action: "FETCH_SPRINT_360",
+          method: "GET",
+          endpoint,
+          projectId,
+          sprintId,
+        });
+
+        const response = await fetch(endpoint, {
           credentials: "include",
         });
 
         if (!response.ok) {
           const message = await response.text();
           console.error("[Sprint360] failed to load data", {
-            endpoint: `/api/projects/${projectId}/qa/sprint-360?sprintId=${sprintId}`,
+            endpoint,
             method: "GET",
             status: response.status,
             message,
@@ -218,21 +238,24 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
           linkedBugIssueId: nextState.linkedBugIssueId ?? null,
         };
 
-        console.info("[Sprint360] Saving execution", {
-          endpoint: `/api/projects/${projectId}/qa/sprints/${selectedSprintId}/executions`,
+        const endpoint = `/api/projects/${projectId}/qa/sprints/${selectedSprintId}/executions`;
+
+        logClient("QA Sprint360 Save Execution", {
+          action: "PATCH_EXECUTION",
           method: "PATCH",
+          endpoint,
+          projectId,
+          sprintId: selectedSprintId,
+          testCaseId: testCase.id,
           payload,
         });
 
-        const response = await fetch(
-          `/api/projects/${projectId}/qa/sprints/${selectedSprintId}/executions`,
-          {
-            method: "PATCH",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          }
-        );
+        const response = await fetch(endpoint, {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
 
         if (!response.ok) {
           let message = "Failed to save execution result. Please try again.";
@@ -245,7 +268,7 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
           }
 
           console.error("[Sprint360] failed to save execution", {
-            endpoint: `/api/projects/${projectId}/qa/sprints/${selectedSprintId}/executions`,
+            endpoint,
             method: "PATCH",
             status: response.status,
             payload,
@@ -330,11 +353,19 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
 
       setBugSearching((prev) => ({ ...prev, [testCaseId]: true }));
 
-      try {
-        const response = await fetch(
-          `/api/projects/${projectId}/standup/search-issues?query=${encodeURIComponent(term)}&take=8`,
-          { credentials: "include" }
-        );
+    try {
+      const endpoint = `/api/projects/${projectId}/standup/search-issues?query=${encodeURIComponent(term)}&take=8`;
+
+      logClient("QA Sprint360 Search Bugs", {
+        action: "SEARCH_BUGS",
+        method: "GET",
+        endpoint,
+        projectId,
+        sprintId: selectedSprintId,
+        testCaseId,
+      });
+
+      const response = await fetch(endpoint, { credentials: "include" });
 
         if (!response.ok) {
           throw new Error(`Failed to search issues (${response.status})`);
@@ -375,7 +406,22 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
 
   const handleCreateBug = async (story: IssueSummary | null, testCase: TestCase) => {
     try {
-      const response = await fetch(`/api/projects/${projectId}/issues`, {
+      const endpoint = `/api/projects/${projectId}/issues`;
+
+      logClient("QA Sprint360 Create Bug", {
+        action: "CREATE_BUG_FOR_TEST_CASE",
+        method: "POST",
+        endpoint,
+        projectId,
+        sprintId: selectedSprintId,
+        testCaseId: testCase.id,
+        payload: {
+          storyIssueId: story?.id ?? null,
+          priority: testCase.priority,
+        },
+      });
+
+      const response = await fetch(endpoint, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -391,7 +437,7 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
       if (!response.ok) {
         const message = await response.text();
         console.error("[Sprint360] failed to create bug", {
-          endpoint: `/api/projects/${projectId}/issues`,
+          endpoint,
           method: "POST",
           status: response.status,
           message,
@@ -412,7 +458,18 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
     if (!canEditTestCases) return;
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/qa/testcases/${testCaseId}`, {
+      const endpoint = `/api/projects/${projectId}/qa/testcases/${testCaseId}`;
+
+      logClient("QA Sprint360 Link Story", {
+        action: "LINK_STORY",
+        method: "PATCH",
+        endpoint,
+        projectId,
+        testCaseId,
+        payload: { storyIssueId },
+      });
+
+      const response = await fetch(endpoint, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -422,7 +479,7 @@ export function Sprint360View({ projectId, projectRole }: Sprint360ViewProps) {
       if (!response.ok) {
         const message = await response.text();
         console.error("[Sprint360] failed to link story", {
-          endpoint: `/api/projects/${projectId}/qa/testcases/${testCaseId}`,
+          endpoint,
           method: "PATCH",
           status: response.status,
           payload: { storyIssueId },
