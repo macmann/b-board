@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 
+import { Prisma } from "@prisma/client";
+
 import { getCurrentProjectContext } from "@/lib/projectContext";
 import {
   BuildStatus,
@@ -348,6 +350,18 @@ export default async function DashboardPage() {
   const activeSprintIds = activeSprints.map((sprint) => sprint.id);
   const healthSprints = activeSprints.slice(0, 3);
 
+  const buildSelect = {
+    id: true,
+    key: true,
+    name: true,
+    status: true,
+    updatedAt: true,
+    projectId: true,
+    project: { select: { id: true, name: true, key: true } },
+  } satisfies Prisma.BuildSelect;
+
+  type DashboardBuild = Prisma.BuildGetPayload<{ select: typeof buildSelect }>;
+
   const [
     bugSeverityTodayCounts,
     bugSeveritySprintCounts,
@@ -379,18 +393,18 @@ export default async function DashboardPage() {
     projectIds.length
       ? prisma.build.findMany({
           where: { projectId: { in: projectIds } },
-          include: { project: { select: { name: true, key: true } } },
+          select: buildSelect,
           orderBy: { updatedAt: "desc" },
           take: 5,
         })
-      : Promise.resolve([] as Awaited<ReturnType<typeof prisma.build.findMany>>),
+      : Promise.resolve([] as DashboardBuild[]),
     projectIds.length
       ? prisma.build.findFirst({
           where: {
             projectId: { in: projectIds },
             status: { in: [BuildStatus.ROLLED_BACK, BuildStatus.CANCELLED] },
           },
-          include: { project: { select: { name: true, key: true } } },
+          select: buildSelect,
           orderBy: { updatedAt: "desc" },
         })
       : Promise.resolve(null),
