@@ -233,7 +233,6 @@ export default async function DashboardPage() {
     failedBuildsLastDay,
     overdueIssues,
     staleIssues,
-    workloadGroups,
   ]: [
     IssueCountGroup[],
     Array<{
@@ -248,7 +247,6 @@ export default async function DashboardPage() {
     number,
     number,
     number,
-    WorkloadGroup[],
   ] = await Promise.all([
     projectIds.length
       ? prisma.issue.groupBy({
@@ -324,8 +322,9 @@ export default async function DashboardPage() {
           },
         })
       : Promise.resolve(0),
-    getWorkloadGroups(projectIds),
   ]);
+
+  const workloadGroups = await getWorkloadGroups(projectIds);
 
   const statsByProjectId = buildIssueStats(projectIds, issueCounts);
   const blockersByProjectId = buildBlockerCounts(projectIds, blockerCounts);
