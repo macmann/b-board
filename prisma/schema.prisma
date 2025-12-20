@@ -55,6 +55,31 @@ enum IssuePriority {
   CRITICAL
 }
 
+enum TestCaseType {
+  POSITIVE
+  NEGATIVE
+}
+
+enum TestCasePriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TestCaseStatus {
+  DRAFT
+  READY
+  DEPRECATED
+}
+
+enum TestResultStatus {
+  NOT_RUN
+  PASS
+  FAIL
+  BLOCKED
+}
+
 enum BuildStatus {
   PLANNED
   IN_PROGRESS
@@ -180,6 +205,8 @@ model User {
   aiRuns                AIRun[]             @relation("AIRunCreatedBy")
   aiSuggestionsDecided  AISuggestion[]      @relation("AISuggestionDecisionUser")
   createdBuilds         Build[]             @relation("BuildCreatedBy")
+  createdTestCases      TestCase[]          @relation("TestCaseCreatedBy")
+  testExecutions        TestExecution[]     @relation("TestExecutionExecutedBy")
 }
 
 model Workspace {
@@ -237,6 +264,7 @@ model Project {
   aiRuns             AIRun[]
   aiSuggestions      AISuggestion[]
   builds             Build[]
+  testCases          TestCase[]
 
   @@unique([workspaceId, key])
 }
@@ -305,8 +333,9 @@ model Sprint {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  issues  Issue[]
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  issues         Issue[]
+  testExecutions TestExecution[]
 }
 
 model Epic {
@@ -354,6 +383,8 @@ model Issue {
   standupLinks  StandupEntryIssueLink[]
   attachments   Attachment[]
   buildLinks    BuildIssue[]
+  testCases     TestCase[]              @relation("StoryTestCases")
+  bugExecutions TestExecution[]         @relation("BugTestExecutions")
 
   @@index([projectId])
   @@index([sprintId])
@@ -395,6 +426,52 @@ model BuildIssue {
 
   @@unique([buildId, issueId])
   @@index([issueId])
+}
+
+model TestCase {
+  id             String           @id @default(cuid())
+  projectId      String
+  storyIssueId   String?
+  title          String
+  type           TestCaseType
+  scenario       String?
+  testData       String?
+  expectedResult String?
+  priority       TestCasePriority @default(MEDIUM)
+  status         TestCaseStatus   @default(DRAFT)
+  createdById    String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  storyIssue     Issue?          @relation("StoryTestCases", fields: [storyIssueId], references: [id], onDelete: SetNull)
+  createdBy      User?           @relation("TestCaseCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  testExecutions TestExecution[]
+
+  @@index([projectId])
+  @@index([storyIssueId])
+}
+
+model TestExecution {
+  id               String           @id @default(cuid())
+  testCaseId       String
+  sprintId         String?
+  result           TestResultStatus @default(NOT_RUN)
+  executedById     String?
+  executedAt       DateTime?
+  actualResult     String?
+  linkedBugIssueId String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  testCase       TestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  sprint         Sprint?  @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  executedBy     User?    @relation("TestExecutionExecutedBy", fields: [executedById], references: [id], onDelete: SetNull)
+  linkedBugIssue Issue?   @relation("BugTestExecutions", fields: [linkedBugIssueId], references: [id], onDelete: SetNull)
+
+  @@index([testCaseId])
+  @@index([sprintId])
+  @@index([linkedBugIssueId])
 }
 
 model Comment {
