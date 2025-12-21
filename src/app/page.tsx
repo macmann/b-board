@@ -1,8 +1,14 @@
 import Logo from "@/components/branding/Logo";
 import { ContactUsSection } from "@/components/marketing/ContactUsSection";
 import { FeaturesSection } from "@/components/marketing/FeaturesSection";
+import { homepageEnabled } from "@/config/appConfig";
+import { redirect } from "next/navigation";
 
 export default function HomePage() {
+  if (!homepageEnabled) {
+    redirect("/login");
+  }
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 via-slate-50 to-white text-slate-900 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900 dark:text-slate-50">
       <div className="absolute inset-0 -z-10 overflow-hidden">
