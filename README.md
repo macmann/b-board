@@ -80,6 +80,7 @@ This repository includes a `render.yaml` for one-click deployment.
 | `JWT_SECRET` | Secret used to sign and verify authentication tokens. **Required**. |
 | `DATABASE_URL` | Connection string for the PostgreSQL database used by Prisma. **Required in deployed environments**. |
 | `OPENAI_API_KEY` | OpenAI key enabling AI-generated summaries. Optional. |
+| `HOMEPAGE_ENABLED` | Set to `1` to serve the marketing homepage at `/`. Set to `0` (or leave unset) to redirect `/` to `/login`. Default: disabled. |
 | `SMTP_HOST` | SMTP server host for outbound emails (contact form + notifications). |
 | `SMTP_PORT` | SMTP server port (e.g., 587 or 465). |
 | `SMTP_USER` | SMTP username/credential. |
