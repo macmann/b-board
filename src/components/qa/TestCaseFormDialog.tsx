@@ -58,6 +58,9 @@ export default function TestCaseFormDialog({
   const [error, setError] = useState<string>("");
 
   const isEditing = useMemo(() => Boolean(testCase), [testCase]);
+  const inputClass =
+    "rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:placeholder:text-slate-400 dark:disabled:bg-slate-800";
+  const labelClass = "text-sm font-medium text-gray-700 dark:text-slate-200";
 
   useEffect(() => {
     if (testCase) {
@@ -145,17 +148,17 @@ export default function TestCaseFormDialog({
     <Dialog.Root open={open} onOpenChange={(value) => onOpenChange(canEdit && value)}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/30 animate-fade-in" />
-        <Dialog.Content className="fixed right-0 top-0 flex h-full w-full max-w-md flex-col gap-4 overflow-y-auto bg-white p-6 shadow-xl animate-slide-in-right">
+        <Dialog.Content className="fixed right-0 top-0 flex h-full w-full max-w-md flex-col gap-4 overflow-y-auto bg-white p-6 shadow-xl animate-slide-in-right dark:bg-slate-950 dark:text-slate-50">
           <Dialog.Title className="text-lg font-semibold">
             {isEditing ? "Edit Test Case" : "New Test Case"}
           </Dialog.Title>
-          <Dialog.Description className="text-sm text-slate-500">
+          <Dialog.Description className="text-sm text-slate-500 dark:text-slate-300">
             {isEditing ? "Update the test case details" : "Create a new QA test case"}
           </Dialog.Description>
 
           <form className="grid gap-4" onSubmit={handleSubmit}>
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-gray-700" htmlFor="title">
+              <label className={labelClass} htmlFor="title">
                 Title
               </label>
               <input
@@ -165,12 +168,12 @@ export default function TestCaseFormDialog({
                 onChange={(event) => setFormState((prev) => ({ ...prev, title: event.target.value }))}
                 required
                 disabled={!canEdit}
-                className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                className={inputClass}
               />
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-gray-700" htmlFor="type">
+              <label className={labelClass} htmlFor="type">
                 Type
               </label>
               <select
@@ -179,7 +182,7 @@ export default function TestCaseFormDialog({
                 value={formState.type}
                 onChange={(event) => setFormState((prev) => ({ ...prev, type: event.target.value as TestCaseType }))}
                 disabled={!canEdit}
-                className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                className={inputClass}
               >
                 {Object.values(TestCaseType).map((option) => (
                   <option key={option} value={option}>
@@ -201,7 +204,7 @@ export default function TestCaseFormDialog({
             />
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-gray-700" htmlFor="testData">
+              <label className={labelClass} htmlFor="testData">
                 Test Data
               </label>
               <textarea
@@ -211,12 +214,12 @@ export default function TestCaseFormDialog({
                 onChange={(event) => setFormState((prev) => ({ ...prev, testData: event.target.value }))}
                 rows={2}
                 disabled={!canEdit}
-                className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                className={inputClass}
               />
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-gray-700" htmlFor="expectedResult">
+              <label className={labelClass} htmlFor="expectedResult">
                 Expected Result
               </label>
               <textarea
@@ -226,12 +229,12 @@ export default function TestCaseFormDialog({
                 onChange={(event) => setFormState((prev) => ({ ...prev, expectedResult: event.target.value }))}
                 rows={2}
                 disabled={!canEdit}
-                className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                className={inputClass}
               />
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-gray-700" htmlFor="scenario">
+              <label className={labelClass} htmlFor="scenario">
                 Scenario
               </label>
               <textarea
@@ -241,13 +244,13 @@ export default function TestCaseFormDialog({
                 onChange={(event) => setFormState((prev) => ({ ...prev, scenario: event.target.value }))}
                 rows={2}
                 disabled={!canEdit}
-                className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                className={inputClass}
               />
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-gray-700" htmlFor="priority">
+                <label className={labelClass} htmlFor="priority">
                   Priority
                 </label>
                 <select
@@ -258,7 +261,7 @@ export default function TestCaseFormDialog({
                     setFormState((prev) => ({ ...prev, priority: event.target.value as TestCasePriority }))
                   }
                   disabled={!canEdit}
-                  className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                  className={inputClass}
                 >
                   {Object.values(TestCasePriority).map((option) => (
                     <option key={option} value={option}>
@@ -269,7 +272,7 @@ export default function TestCaseFormDialog({
               </div>
 
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-gray-700" htmlFor="status">
+                <label className={labelClass} htmlFor="status">
                   Status
                 </label>
                 <select
@@ -278,7 +281,7 @@ export default function TestCaseFormDialog({
                   value={formState.status}
                   onChange={(event) => setFormState((prev) => ({ ...prev, status: event.target.value as TestCaseStatus }))}
                   disabled={!canEdit}
-                  className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                  className={inputClass}
                 >
                   {Object.values(TestCaseStatus).map((option) => (
                     <option key={option} value={option}>

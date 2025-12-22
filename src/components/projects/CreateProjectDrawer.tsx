@@ -59,10 +59,10 @@ export default function CreateProjectDrawer({ onCreated }: CreateProjectDrawerPr
 
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/30 animate-fade-in" />
-        <Dialog.Content className="fixed right-0 top-0 flex h-full w-full max-w-md flex-col gap-4 bg-white p-6 shadow-xl animate-slide-in-right">
+        <Dialog.Content className="fixed right-0 top-0 flex h-full w-full max-w-md flex-col gap-4 bg-white p-6 shadow-xl animate-slide-in-right dark:bg-slate-950 dark:text-slate-50">
           <div className="space-y-1">
             <Dialog.Title className="text-lg font-semibold">Create project</Dialog.Title>
-            <Dialog.Description className="text-sm text-slate-500">
+            <Dialog.Description className="text-sm text-slate-500 dark:text-slate-300">
               Create a new project workspace.
             </Dialog.Description>
           </div>
@@ -71,7 +71,7 @@ export default function CreateProjectDrawer({ onCreated }: CreateProjectDrawerPr
 
           <form className="flex flex-1 flex-col gap-4 overflow-y-auto" onSubmit={handleSubmit}>
             <div className="space-y-1">
-              <label className="block text-sm font-medium text-slate-700" htmlFor="project-key">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="project-key">
                 Key
               </label>
               <input
@@ -80,12 +80,12 @@ export default function CreateProjectDrawer({ onCreated }: CreateProjectDrawerPr
                 value={key}
                 onChange={(event) => setKey(event.target.value)}
                 required
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:placeholder:text-slate-400"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="block text-sm font-medium text-slate-700" htmlFor="project-name">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="project-name">
                 Name
               </label>
               <input
@@ -94,12 +94,12 @@ export default function CreateProjectDrawer({ onCreated }: CreateProjectDrawerPr
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 required
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:placeholder:text-slate-400"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="block text-sm font-medium text-slate-700" htmlFor="project-description">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="project-description">
                 Description (optional)
               </label>
               <textarea
@@ -108,11 +108,11 @@ export default function CreateProjectDrawer({ onCreated }: CreateProjectDrawerPr
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
                 rows={4}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:placeholder:text-slate-400"
               />
             </div>
 
-            <div className="mt-auto flex justify-end gap-2 border-t border-slate-200 pt-4">
+            <div className="mt-auto flex justify-end gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
               <Dialog.Close asChild>
                 <Button type="button" variant="secondary">
                   Cancel
@@ -125,7 +125,7 @@ export default function CreateProjectDrawer({ onCreated }: CreateProjectDrawerPr
           </form>
 
           <Dialog.Close asChild>
-            <button className="absolute right-4 top-4 text-slate-400 hover:text-slate-600" aria-label="Close">
+            <button className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300" aria-label="Close">
               ✕
             </button>
           </Dialog.Close>

@@ -339,23 +339,27 @@ export default function ResearchDetailsDrawer({
       }
     : undefined;
 
+  const inputClass =
+    "rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:placeholder:text-slate-400";
+  const labelClass = "text-sm font-medium text-slate-700 dark:text-slate-200";
+
   return (
     <Dialog.Root open={open} onOpenChange={(value) => !value && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/30 animate-fade-in" />
-        <Dialog.Content className="fixed right-0 top-0 flex h-full w-[960px] max-w-full flex-col gap-4 overflow-y-auto bg-white p-6 shadow-xl animate-slide-in-right">
+        <Dialog.Content className="fixed right-0 top-0 flex h-full w-[960px] max-w-full flex-col gap-4 overflow-y-auto bg-white p-6 shadow-xl animate-slide-in-right dark:bg-slate-950 dark:text-slate-50">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <Dialog.Title className="text-2xl font-semibold text-slate-900">
+              <Dialog.Title className="text-2xl font-semibold text-slate-900 dark:text-slate-50">
                 {detail?.title ?? "Research Details"}
               </Dialog.Title>
               {detail?.key && (
-                <p className="mt-1 font-mono text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <p className="mt-1 font-mono text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   {detail.key}
                 </p>
               )}
               {detail?.status && (
-                <div className="mt-2 inline-flex items-center gap-2 text-sm text-slate-600">
+                <div className="mt-2 inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
                   <span
                     className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${detail?.status ? statusStyles[detail.status] : ""}`}
                   >
@@ -365,7 +369,7 @@ export default function ResearchDetailsDrawer({
                 </div>
               )}
               {detail?.assignee && (
-                <p className="mt-1 text-sm text-slate-600">Assignee: {detail.assignee.name}</p>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Assignee: {detail.assignee.name}</p>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -401,7 +405,7 @@ export default function ResearchDetailsDrawer({
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100"
+                  className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-900"
                   aria-label="Close"
                 >
                   ✕
@@ -411,17 +415,17 @@ export default function ResearchDetailsDrawer({
           </div>
 
           {error && (
-            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-500/50 dark:bg-red-950 dark:text-red-100">{error}</div>
           )}
 
           {isLoading ? (
-            <div className="text-sm text-slate-600">Loading research details...</div>
+            <div className="text-sm text-slate-600 dark:text-slate-300">Loading research details...</div>
           ) : detail ? (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
               <div className="space-y-4 lg:col-span-2">
-                <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-base font-semibold text-slate-900">Status & Outcome</h3>
+                    <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">Status & Outcome</h3>
                     <Button
                       variant="secondary"
                       disabled={isReadOnly || detail.status === ResearchStatus.COMPLETED}
@@ -432,7 +436,7 @@ export default function ResearchDetailsDrawer({
                   </div>
                   <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="flex flex-col gap-2">
-                      <label className="text-sm font-medium text-slate-700" htmlFor="statusControl">
+                      <label className={labelClass} htmlFor="statusControl">
                         Status
                       </label>
                       <select
@@ -440,7 +444,7 @@ export default function ResearchDetailsDrawer({
                         value={detail.status}
                         onChange={(event) => handleStatusUpdate(event.target.value as ResearchStatus)}
                         disabled={isReadOnly}
-                        className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                        className={inputClass}
                       >
                         {Object.values(ResearchStatus).map((option) => (
                           <option key={option} value={option}>
@@ -451,7 +455,7 @@ export default function ResearchDetailsDrawer({
                     </div>
 
                     <div className="flex flex-col gap-2">
-                      <label className="text-sm font-medium text-slate-700" htmlFor="priorityControl">
+                      <label className={labelClass} htmlFor="priorityControl">
                         Priority
                       </label>
                       <select
@@ -459,7 +463,7 @@ export default function ResearchDetailsDrawer({
                         value={detail.priority}
                         onChange={(event) => updateResearchItem({ priority: event.target.value as ResearchPriority })}
                         disabled={isReadOnly}
-                        className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                        className={inputClass}
                       >
                         {Object.values(ResearchPriority).map((option) => (
                           <option key={option} value={option}>
@@ -470,7 +474,7 @@ export default function ResearchDetailsDrawer({
                     </div>
 
                     <div className="flex flex-col gap-2">
-                      <label className="text-sm font-medium text-slate-700" htmlFor="decisionControl">
+                      <label className={labelClass} htmlFor="decisionControl">
                         Outcome
                       </label>
                       <select
@@ -478,7 +482,7 @@ export default function ResearchDetailsDrawer({
                         value={detail.decision}
                         onChange={(event) => updateResearchItem({ decision: event.target.value as ResearchDecision })}
                         disabled={isReadOnly}
-                        className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                        className={inputClass}
                       >
                         {Object.values(ResearchDecision).map((option) => (
                           <option key={option} value={option}>
@@ -489,43 +493,43 @@ export default function ResearchDetailsDrawer({
                     </div>
 
                     <div className="flex flex-col gap-2">
-                      <label className="text-sm font-medium text-slate-700">Research Type</label>
-                      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                      <label className={labelClass}>Research Type</label>
+                      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
                         {detail.tags[0] ? formatTag(detail.tags[0]) : "—"}
                       </div>
                     </div>
                   </div>
                   {actionMessage && (
-                    <p className="mt-3 text-sm text-red-600">{actionMessage}</p>
+                    <p className="mt-3 text-sm text-red-500">{actionMessage}</p>
                   )}
                 </div>
 
-                <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-                  <h3 className="text-base font-semibold text-slate-900">Description</h3>
-                  <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+                <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                  <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">Description</h3>
+                  <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">
                     {detail.description || "No description provided."}
                   </p>
                 </div>
 
-                <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-base font-semibold text-slate-900">Attachments</h3>
-                    <span className="text-xs text-slate-500">{detail.attachments.length} files</span>
+                    <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">Attachments</h3>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">{detail.attachments.length} files</span>
                   </div>
                   {detail.attachments.length === 0 ? (
-                    <p className="mt-2 text-sm text-slate-600">No attachments yet.</p>
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">No attachments yet.</p>
                   ) : (
                     <ul className="mt-3 space-y-2 text-sm">
                       {detail.attachments.map((attachment) => (
                         <li
                           key={attachment.id}
-                          className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-slate-800"
+                          className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-slate-800 dark:border-slate-700 dark:text-slate-100"
                         >
                           <a
                             href={attachment.url}
                             target="_blank"
                             rel="noreferrer"
-                            className="truncate font-medium text-blue-600 hover:underline"
+                            className="truncate font-medium text-blue-600 hover:underline dark:text-blue-300"
                           >
                             {attachment.fileName}
                           </a>
@@ -544,36 +548,36 @@ export default function ResearchDetailsDrawer({
                   )}
                 </div>
 
-                <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-base font-semibold text-slate-900">Observations</h3>
-                    <span className="text-xs text-slate-500">{observations.length} entries</span>
+                    <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">Observations</h3>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">{observations.length} entries</span>
                   </div>
                   <div className="mt-3 space-y-3">
                     {observations.map((observation) => (
-                      <div key={observation.id} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                        <div className="flex items-center justify-between text-xs text-slate-500">
+                      <div key={observation.id} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-900">
+                        <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                           <span>{observation.type.replace(/_/g, " ")}</span>
                           <span>{formatDate(observation.createdAt)}</span>
                         </div>
-                        <p className="mt-1 text-slate-700">{observation.content}</p>
+                        <p className="mt-1 text-slate-700 dark:text-slate-200">{observation.content}</p>
                       </div>
                     ))}
                     {!observations.length && (
-                      <p className="text-sm text-slate-600">No observations yet.</p>
+                      <p className="text-sm text-slate-600 dark:text-slate-300">No observations yet.</p>
                     )}
                   </div>
                   {!isReadOnly && (
                     <form className="mt-4 grid gap-3" onSubmit={handleObservationSubmit}>
                       <div className="flex flex-col gap-2">
-                        <label className="text-sm font-medium text-slate-700" htmlFor="observationType">
+                        <label className={labelClass} htmlFor="observationType">
                           Type
                         </label>
                         <select
                           id="observationType"
                           value={observationType}
                           onChange={(event) => setObservationType(event.target.value as ResearchObservationType)}
-                          className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className={inputClass}
                         >
                           {Object.values(ResearchObservationType).map((option) => (
                             <option key={option} value={option}>
@@ -583,7 +587,7 @@ export default function ResearchDetailsDrawer({
                         </select>
                       </div>
                       <div className="flex flex-col gap-2">
-                        <label className="text-sm font-medium text-slate-700" htmlFor="observationContent">
+                        <label className={labelClass} htmlFor="observationContent">
                           Details
                         </label>
                         <textarea
@@ -591,7 +595,7 @@ export default function ResearchDetailsDrawer({
                           value={observationContent}
                           onChange={(event) => setObservationContent(event.target.value)}
                           rows={3}
-                          className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className={inputClass}
                           required
                         />
                       </div>
@@ -606,19 +610,19 @@ export default function ResearchDetailsDrawer({
               </div>
 
               <div className="space-y-4">
-                <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-base font-semibold text-slate-900">Linked Issues</h3>
-                    <span className="text-xs text-slate-500">{links.length} linked</span>
+                    <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">Linked Issues</h3>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">{links.length} linked</span>
                   </div>
                   <div className="mt-3 space-y-3">
                     {links.map((link) => (
-                      <div key={link.id} className="rounded-md border border-slate-200 px-3 py-2 text-sm">
+                      <div key={link.id} className="rounded-md border border-slate-200 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-900">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="font-semibold text-slate-900">{link.key ?? "Un-keyed"}</p>
-                            <p className="text-slate-600">{link.title}</p>
-                            <p className="text-xs text-slate-500">
+                            <p className="font-semibold text-slate-900 dark:text-slate-50">{link.key ?? "Un-keyed"}</p>
+                            <p className="text-slate-600 dark:text-slate-300">{link.title}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
                               {link.assignee?.name ? `Assignee: ${link.assignee.name}` : "Unassigned"}
                             </p>
                           </div>
@@ -635,12 +639,12 @@ export default function ResearchDetailsDrawer({
                         </div>
                       </div>
                     ))}
-                    {!links.length && <p className="text-sm text-slate-600">No issues linked yet.</p>}
+                    {!links.length && <p className="text-sm text-slate-600 dark:text-slate-300">No issues linked yet.</p>}
                   </div>
                   {!isReadOnly && (
                     <div className="mt-4 space-y-3">
                       <div className="flex flex-col gap-2">
-                        <label className="text-sm font-medium text-slate-700" htmlFor="issueSearch">
+                        <label className={labelClass} htmlFor="issueSearch">
                           Search Issues
                         </label>
                         <input
@@ -648,15 +652,15 @@ export default function ResearchDetailsDrawer({
                           value={issueSearch}
                           onChange={(event) => setIssueSearch(event.target.value)}
                           placeholder="Search by key or title"
-                          className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className={inputClass}
                         />
                       </div>
                       <div className="space-y-2 max-h-56 overflow-y-auto">
                         {availableIssues.map((issue) => (
-                          <div key={issue.id} className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-sm">
+                          <div key={issue.id} className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-900">
                             <div>
-                              <p className="font-semibold text-slate-900">{issue.key ?? "Un-keyed"}</p>
-                              <p className="text-slate-600">{issue.title}</p>
+                              <p className="font-semibold text-slate-900 dark:text-slate-50">{issue.key ?? "Un-keyed"}</p>
+                              <p className="text-slate-600 dark:text-slate-300">{issue.title}</p>
                             </div>
                             <Button
                               variant="secondary"
@@ -669,7 +673,7 @@ export default function ResearchDetailsDrawer({
                           </div>
                         ))}
                         {!availableIssues.length && (
-                          <p className="text-sm text-slate-600">No matching issues available.</p>
+                          <p className="text-sm text-slate-600 dark:text-slate-300">No matching issues available.</p>
                         )}
                       </div>
                     </div>
@@ -678,7 +682,7 @@ export default function ResearchDetailsDrawer({
               </div>
             </div>
           ) : (
-            <p className="text-sm text-slate-600">Select a research item to see details.</p>
+            <p className="text-sm text-slate-600 dark:text-slate-300">Select a research item to see details.</p>
           )}
         </Dialog.Content>
       </Dialog.Portal>
