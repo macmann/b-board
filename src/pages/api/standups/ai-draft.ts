@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 
 import { verifyAuthToken } from "@/lib/auth";
 import prisma from "@/lib/db";
-import openai from "@/lib/openai";
+import { getOpenAIClient } from "@/lib/openai";
 
 type StandupDraft = {
   yesterday: string;
@@ -47,7 +47,7 @@ export default async function handler(
   const userLabel = user.name || user.email || "team member";
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAIClient().chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
