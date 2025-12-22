@@ -6,7 +6,7 @@ import type {
 } from "@prisma/client";
 import { StandupSummary } from "@prisma/client";
 
-import openai from "./openai";
+import { getOpenAIClient } from "./openai";
 import prisma from "./db";
 import { sendEmail } from "./email";
 import { PROJECT_ADMIN_ROLES } from "./roles";
@@ -103,7 +103,7 @@ export const generateProjectStandupSummary = async (
 
   const prompt = buildPrompt(project.name, targetDate, standupEntries);
 
-  const completion = await openai.chat.completions.create({
+  const completion = await getOpenAIClient().chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
       {

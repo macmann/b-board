@@ -9,10 +9,25 @@ const RESPONSE_SNIPPET_LENGTH = 200;
 const FALLBACK_MODEL = "gpt-4o-mini";
 const defaultModel = process.env.AI_MODEL_DEFAULT ?? FALLBACK_MODEL;
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_API_KEY,
-  baseURL: process.env.AI_BASE_URL,
-});
+let cachedOpenAIClient: OpenAI | null = null;
+
+function getOpenAIClient() {
+  if (cachedOpenAIClient) return cachedOpenAIClient;
+
+  const apiKey = process.env.AI_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("AI_API_KEY is not configured");
+  }
+
+  cachedOpenAIClient = new OpenAI({
+    apiKey,
+    baseURL: process.env.AI_BASE_URL,
+  });
+
+  return cachedOpenAIClient;
+}
+export { getOpenAIClient };
 
 export type ChatJsonArgs = {
   model?: string | null;
@@ -118,7 +133,7 @@ export async function chatJson<T = unknown>({
       response_format: { type: "json_object" as const },
     } as const;
 
-    const completion = (await openai.chat.completions.create(params as any, {
+    const completion = (await getOpenAIClient().chat.completions.create(params as any, {
       signal: controller.signal,
       timeout: requestTimeout,
     })) as ChatCompletion;
