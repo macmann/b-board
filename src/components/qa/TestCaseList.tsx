@@ -61,8 +61,8 @@ export function TestCaseList({
 
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-slate-200">
-        <thead className="bg-slate-50">
+      <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800">
+        <thead className="bg-slate-50 dark:bg-slate-900">
           <tr>
             <th className={tableHeaderClass}>Story</th>
             <th className={tableHeaderClass}>TC Title</th>
@@ -74,13 +74,13 @@ export function TestCaseList({
             <th className={tableHeaderClass}>Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
           {testCases.map((testCase) => {
             const isBusy = updatingId === testCase.id || deletingId === testCase.id;
             const story = testCase.story;
 
             return (
-              <tr key={testCase.id} className="bg-white hover:bg-slate-50">
+              <tr key={testCase.id} className="bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800">
                 <td className={tableCellClass}>
                   {story ? (
                     <div className="space-y-1">

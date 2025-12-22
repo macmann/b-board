@@ -80,59 +80,59 @@ export default function CreateSprintDrawer({
 
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/30 animate-fade-in" />
-        <Dialog.Content className="fixed right-0 top-0 flex h-full w-full max-w-md flex-col gap-4 bg-white p-6 shadow-xl animate-slide-in-right">
+        <Dialog.Content className="fixed right-0 top-0 flex h-full w-full max-w-md flex-col gap-4 bg-white p-6 shadow-xl animate-slide-in-right dark:bg-slate-950 dark:text-slate-50">
           <Dialog.Title className="text-lg font-semibold">Create new sprint</Dialog.Title>
 
           <form className="flex flex-1 flex-col gap-4 overflow-y-auto" onSubmit={handleSubmit}>
             <div className="space-y-1">
-              <label className="block text-sm font-medium text-slate-700">Sprint name</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Sprint name</label>
               <input
                 name="name"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 required
-                className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:placeholder:text-slate-400"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="block text-sm font-medium text-slate-700">Goal (optional)</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Goal (optional)</label>
               <textarea
                 name="goal"
                 rows={3}
                 value={goal}
                 onChange={(event) => setGoal(event.target.value)}
-                className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:placeholder:text-slate-400"
               />
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-1">
-                <label className="block text-sm font-medium text-slate-700">Start date</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Start date</label>
                 <input
                   type="date"
                   name="startDate"
                   value={startDate}
                   onChange={(event) => setStartDate(event.target.value)}
-                  className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:placeholder:text-slate-400"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="block text-sm font-medium text-slate-700">End date</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">End date</label>
                 <input
                   type="date"
                   name="endDate"
                   value={endDate}
                   onChange={(event) => setEndDate(event.target.value)}
-                  className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:placeholder:text-slate-400"
                 />
               </div>
             </div>
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && <p className="text-sm text-red-500">{error}</p>}
 
-            <div className="mt-auto flex justify-end gap-2 border-t border-slate-200 pt-4">
+            <div className="mt-auto flex justify-end gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
               <Dialog.Close asChild>
                 <Button type="button" variant="secondary">
                   Cancel
@@ -145,7 +145,7 @@ export default function CreateSprintDrawer({
           </form>
 
           <Dialog.Close asChild>
-            <button className="absolute right-4 top-4 text-slate-400 hover:text-slate-600">✕</button>
+            <button className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300">✕</button>
           </Dialog.Close>
         </Dialog.Content>
       </Dialog.Portal>

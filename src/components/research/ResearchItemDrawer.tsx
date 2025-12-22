@@ -222,19 +222,23 @@ export default function ResearchItemDrawer({
     [members]
   );
 
+  const inputClass =
+    "rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:placeholder:text-slate-400 dark:disabled:bg-slate-800";
+  const labelClass = "text-sm font-medium text-gray-700 dark:text-slate-200";
+
   return (
     <Dialog.Root open={open} onOpenChange={(value) => setOpen(!isReadOnly && value)}>
       <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/30 animate-fade-in" />
-        <Dialog.Content className="fixed right-0 top-0 flex h-full w-[440px] flex-col gap-4 bg-white p-6 shadow-xl animate-slide-in-right">
+        <Dialog.Content className="fixed right-0 top-0 flex h-full w-[440px] flex-col gap-4 bg-white p-6 shadow-xl animate-slide-in-right dark:bg-slate-950 dark:text-slate-50">
           <Dialog.Title className="mb-2 text-lg font-semibold">
             {isEdit ? "Edit Research Item" : "Create Research Item"}
           </Dialog.Title>
 
           <form className="grid gap-4" onSubmit={handleSubmit}>
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-gray-700" htmlFor="title">
+              <label className={labelClass} htmlFor="title">
                 Title
               </label>
               <input
@@ -244,12 +248,12 @@ export default function ResearchItemDrawer({
                 onChange={(event) => setTitle(event.target.value)}
                 required
                 disabled={isReadOnly}
-                className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                className={inputClass}
               />
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-gray-700" htmlFor="description">
+              <label className={labelClass} htmlFor="description">
                 Description
               </label>
               <textarea
@@ -259,13 +263,13 @@ export default function ResearchItemDrawer({
                 onChange={(event) => setDescription(event.target.value)}
                 rows={4}
                 disabled={isReadOnly}
-                className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                className={inputClass}
               />
             </div>
 
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-700">Attachments</label>
+                <label className={labelClass}>Attachments</label>
                 <input
                   type="file"
                   multiple
@@ -279,13 +283,13 @@ export default function ResearchItemDrawer({
                   {attachments.map((file) => (
                     <li
                       key={file.id}
-                      className="flex items-center justify-between rounded-md border border-gray-200 px-2 py-1 text-gray-800"
+                      className="flex items-center justify-between rounded-md border border-gray-200 px-2 py-1 text-gray-800 dark:border-slate-700 dark:text-slate-100"
                     >
                       <a
                         href={file.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="truncate font-medium text-blue-600 hover:underline"
+                        className="truncate font-medium text-blue-600 hover:underline dark:text-blue-300"
                       >
                         {file.fileName}
                       </a>
@@ -302,15 +306,15 @@ export default function ResearchItemDrawer({
                   ))}
                 </ul>
               ) : (
-                <p className="text-xs text-gray-500">No attachments</p>
+                <p className="text-xs text-gray-500 dark:text-slate-400">No attachments</p>
               )}
               {attachmentError && (
-                <p className="text-xs text-red-600">{attachmentError}</p>
+                <p className="text-xs text-red-500">{attachmentError}</p>
               )}
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-gray-700" htmlFor="type">
+              <label className={labelClass} htmlFor="type">
                 Research Type
               </label>
               <input
@@ -320,12 +324,12 @@ export default function ResearchItemDrawer({
                 onChange={(event) => setType(event.target.value)}
                 disabled={isReadOnly}
                 placeholder="e.g. User Interview"
-                className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                className={inputClass}
               />
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-gray-700" htmlFor="priority">
+              <label className={labelClass} htmlFor="priority">
                 Priority
               </label>
               <select
@@ -334,7 +338,7 @@ export default function ResearchItemDrawer({
                 value={priority}
                 onChange={(event) => setPriority(event.target.value as ResearchPriority)}
                 disabled={isReadOnly}
-                className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                className={inputClass}
               >
                 {Object.values(ResearchPriority).map((option) => (
                   <option key={option} value={option}>
@@ -346,7 +350,7 @@ export default function ResearchItemDrawer({
 
             {isEdit && (
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-gray-700" htmlFor="status">
+                <label className={labelClass} htmlFor="status">
                   Status
                 </label>
                 <select
@@ -355,7 +359,7 @@ export default function ResearchItemDrawer({
                   value={status}
                   onChange={(event) => setStatus(event.target.value as ResearchStatus)}
                   disabled={isReadOnly}
-                  className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                  className={inputClass}
                 >
                   {Object.values(ResearchStatus).map((option) => (
                     <option key={option} value={option}>
@@ -367,7 +371,7 @@ export default function ResearchItemDrawer({
             )}
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-gray-700" htmlFor="decision">
+              <label className={labelClass} htmlFor="decision">
                 Outcome
               </label>
               <select
@@ -376,7 +380,7 @@ export default function ResearchItemDrawer({
                 value={decision}
                 onChange={(event) => setDecision(event.target.value as ResearchDecision)}
                 disabled={isReadOnly}
-                className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                className={inputClass}
               >
                 {Object.values(ResearchDecision).map((option) => (
                   <option key={option} value={option}>
@@ -387,7 +391,7 @@ export default function ResearchItemDrawer({
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-gray-700" htmlFor="assignee">
+              <label className={labelClass} htmlFor="assignee">
                 Assignee
               </label>
               <select
@@ -396,7 +400,7 @@ export default function ResearchItemDrawer({
                 value={assigneeId}
                 onChange={(event) => setAssigneeId(event.target.value)}
                 disabled={isReadOnly}
-                className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                className={inputClass}
               >
                 <option value="">Unassigned</option>
                 {memberOptions.map((member) => (
@@ -408,7 +412,7 @@ export default function ResearchItemDrawer({
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-gray-700" htmlFor="dueDate">
+              <label className={labelClass} htmlFor="dueDate">
                 Due Date
               </label>
               <input
@@ -418,12 +422,14 @@ export default function ResearchItemDrawer({
                 value={dueDate ?? ""}
                 onChange={(event) => setDueDate(event.target.value)}
                 disabled={isReadOnly}
-                className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                className={inputClass}
               />
             </div>
 
             {error && (
-              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-500/50 dark:bg-red-950 dark:text-red-100">
+                {error}
+              </div>
             )}
 
             <div className="mt-2 flex items-center justify-end gap-2">
