@@ -1,6 +1,10 @@
 import Logo from "@/components/branding/Logo";
 import { ContactUsSection } from "@/components/marketing/ContactUsSection";
 import { FeaturesSection } from "@/components/marketing/FeaturesSection";
+import { FAQSection } from "@/components/marketing/FAQSection";
+import { UseCasesSection } from "@/components/marketing/UseCasesSection";
+import { WhatsNewSection } from "@/components/marketing/WhatsNewSection";
+import { WorkflowGlanceSection } from "@/components/marketing/WorkflowGlanceSection";
 import { homepageEnabled } from "@/config/appConfig";
 import { redirect } from "next/navigation";
 
@@ -361,6 +365,14 @@ export default function HomePage() {
             </a>
           </div>
         </section>
+
+        <WhatsNewSection />
+
+        <UseCasesSection />
+
+        <WorkflowGlanceSection />
+
+        <FAQSection />
 
         <footer className="mt-12 border-t border-slate-200 pt-5 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
           <p>© {new Date().getFullYear()} B Board. Built for focused teams.</p>
