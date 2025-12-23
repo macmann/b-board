@@ -10,7 +10,6 @@
     "postinstall": "prisma generate",
     "predeploy": "node scripts/dedupe-testexecutions.mjs",
     "render:deploy": "node scripts/render-deploy.mjs",
-    "lint:placeholders": "node scripts/check-placeholders.mjs",
     "dedupe:testexecutions": "node scripts/dedupe-testexecutions.mjs",
     "seed": "ts-node prisma/seed.ts",
     "seed:builds": "ts-node prisma/seedBuilds.ts",
