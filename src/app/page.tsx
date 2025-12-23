@@ -178,8 +178,6 @@ export default function HomePage() {
 
         <FeaturesSection />
 
-        <ContactUsSection />
-
         <section id="workflow" className="mt-16 space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
@@ -373,6 +371,8 @@ export default function HomePage() {
         <WorkflowGlanceSection />
 
         <FAQSection />
+
+        <ContactUsSection />
 
         <footer className="mt-12 border-t border-slate-200 pt-5 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
           <p>© {new Date().getFullYear()} B Board. Built for focused teams.</p>
