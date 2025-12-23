@@ -27,6 +27,7 @@ function main() {
   runIfExists(dedupeScriptPath, `node ${dedupeScriptPath}`);
 
   run("npx prisma db push --accept-data-loss");
+  run("npm run lint:placeholders");
   run("npm run build");
 }
 
