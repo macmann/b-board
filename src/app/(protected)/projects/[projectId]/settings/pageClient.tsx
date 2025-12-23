@@ -1,7 +1,7 @@
 "use client";
 
 import type { ChangeEvent, FormEvent, KeyboardEvent } from "react";
-import { lazy, Suspense, useCallback, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Role } from "@/lib/prismaEnums";
@@ -16,6 +16,7 @@ const TeamPermissionsTab = lazy(
 const AIAutomationTab = lazy(() => import("./tabs/AIAutomationTab"));
 const AuditSecurityTab = lazy(() => import("./tabs/AuditSecurityTab"));
 const DangerZoneTab = lazy(() => import("./tabs/DangerZoneTab"));
+const BulkOperationsTab = lazy(() => import("./tabs/BulkOperationsTab"));
 
 type ProjectSettingsPageClientProps = {
   project: {
@@ -42,6 +43,17 @@ type ProjectSettingsPageClientProps = {
   aiSettings: {
     backlogGroomingEnabled: boolean;
   };
+  sprints: {
+    id: string;
+    name: string;
+    status: string;
+  }[];
+  epics: {
+    id: string;
+    title: string;
+    status: string;
+  }[];
+  initialTab?: TabKey;
 };
 
 type TabKey =
@@ -50,9 +62,10 @@ type TabKey =
   | "team"
   | "ai"
   | "audit"
-  | "danger";
+  | "danger"
+  | "bulk";
 
-type TabConfig = { id: TabKey; label: string };
+type TabConfig = { id: TabKey; label: string; adminOnly?: boolean };
 
 const tabs: TabConfig[] = [
   { id: "general", label: "General" },
@@ -61,6 +74,7 @@ const tabs: TabConfig[] = [
   { id: "ai", label: "AI & Automation" },
   { id: "audit", label: "Audit & Security" },
   { id: "danger", label: "Danger Zone" },
+  { id: "bulk", label: "Bulk Operations", adminOnly: true },
 ];
 
 export default function ProjectSettingsPageClient({
@@ -68,10 +82,15 @@ export default function ProjectSettingsPageClient({
   members,
   projectRole,
   aiSettings,
+  sprints,
+  epics,
+  initialTab,
 }: ProjectSettingsPageClientProps) {
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<TabKey>("general");
+  const [activeTab, setActiveTab] = useState<TabKey>(
+    initialTab ?? "general"
+  );
   const [name, setName] = useState(project.name);
   const [key, setKey] = useState(project.key);
   const [description, setDescription] = useState(project.description);
@@ -115,6 +134,12 @@ export default function ProjectSettingsPageClient({
     const source = project.key || project.name;
     return source ? source.charAt(0).toUpperCase() : "?";
   }, [project.key, project.name]);
+
+  const visibleTabs = useMemo(() => {
+    const list = tabs.filter((tab) => !tab.adminOnly || isAdmin);
+    if (list.length === 0) return tabs.filter((tab) => tab.id === "general");
+    return list;
+  }, [isAdmin]);
 
   const patchProject = useCallback(async () => {
     try {
@@ -326,17 +351,32 @@ export default function ProjectSettingsPageClient({
 
   const handleTabKeyDown = (
     event: KeyboardEvent<HTMLButtonElement>,
-    index: number
+    index: number,
+    tabsList: TabConfig[]
   ) => {
     if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
 
     event.preventDefault();
     const direction = event.key === "ArrowRight" ? 1 : -1;
-    const nextIndex = (index + direction + tabs.length) % tabs.length;
-    const nextTab = tabs[nextIndex];
+    const nextIndex = (index + direction + tabsList.length) % tabsList.length;
+    const nextTab = tabsList[nextIndex];
     setActiveTab(nextTab.id);
     focusTab(nextTab.id);
   };
+
+  const ensureActiveTabVisible = useCallback(
+    (tabsList: TabConfig[]) => {
+      const isVisible = tabsList.some((tab) => tab.id === activeTab);
+      if (!isVisible && tabsList[0]) {
+        setActiveTab(tabsList[0].id);
+      }
+    },
+    [activeTab]
+  );
+
+  useEffect(() => {
+    ensureActiveTabVisible(visibleTabs);
+  }, [ensureActiveTabVisible, visibleTabs]);
 
   return (
     <div className="w-full space-y-4 px-6 pb-12 lg:px-8">
@@ -358,7 +398,7 @@ export default function ProjectSettingsPageClient({
           role="tablist"
           aria-label="Project settings sections"
         >
-          {tabs.map((tab, index) => {
+          {visibleTabs.map((tab, index) => {
             const isActive = activeTab === tab.id;
             return (
               <button
@@ -369,7 +409,9 @@ export default function ProjectSettingsPageClient({
                 aria-controls={`settings-panel-${tab.id}`}
                 tabIndex={isActive ? 0 : -1}
                 onClick={() => setActiveTab(tab.id)}
-                onKeyDown={(event) => handleTabKeyDown(event, index)}
+                onKeyDown={(event) =>
+                  handleTabKeyDown(event, index, visibleTabs)
+                }
                 className={`whitespace-nowrap rounded-md px-3 py-2 text-sm font-semibold transition ${
                   isActive
                     ? "bg-primary/10 text-primary shadow-sm"
@@ -456,6 +498,15 @@ export default function ProjectSettingsPageClient({
             <AuditSecurityTab
               isAdmin={isAdmin}
               projectId={project.id}
+            />
+          )}
+
+          {activeTab === "bulk" && isAdmin && (
+            <BulkOperationsTab
+              projectId={project.id}
+              members={members}
+              sprints={sprints}
+              epics={epics}
             />
           )}
 

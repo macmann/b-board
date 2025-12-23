@@ -1,3 +1,5 @@
+import { notFound, redirect } from "next/navigation";
+
 import ProjectHeader from "@/components/projects/ProjectHeader";
 import ProjectTabs from "@/components/projects/ProjectTabs";
 import { resolveProjectId, type ProjectParams } from "@/lib/params";
@@ -5,14 +7,8 @@ import { getCurrentProjectContext } from "@/lib/projectContext";
 import prisma from "@/lib/db";
 import { UserRole } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
-import { notFound } from "next/navigation";
 
-import ProjectSettingsPageClient from "./pageClient";
-
-type Props = {
-  params: ProjectParams;
-  searchParams?: Record<string, string | string[] | undefined>;
-};
+import ProjectSettingsPageClient from "../pageClient";
 
 const mapRole = (
   membershipRole: ProjectRole | null,
@@ -22,9 +18,13 @@ const mapRole = (
   return membershipRole;
 };
 
-export default async function ProjectSettingsPage(props: Props) {
-  const params = await props.params;
-  const projectId = await resolveProjectId(params);
+type Props = {
+  params: ProjectParams;
+};
+
+export default async function ProjectBulkOperationsPage({ params }: Props) {
+  const routeParams = await params;
+  const projectId = await resolveProjectId(routeParams);
 
   if (!projectId) {
     notFound();
@@ -36,8 +36,11 @@ export default async function ProjectSettingsPage(props: Props) {
     notFound();
   }
 
-  if (!membership && user.role !== UserRole.ADMIN) {
-    notFound();
+  const projectRole = mapRole((membership?.role as ProjectRole | null) ?? null, user.role ?? null);
+  const isAdmin = projectRole === "ADMIN" || projectRole === "PO";
+
+  if (!isAdmin) {
+    redirect(`/projects/${projectId}/settings`);
   }
 
   const projectWithMeta = await prisma.project.findUnique({
@@ -72,11 +75,6 @@ export default async function ProjectSettingsPage(props: Props) {
   if (!projectWithMeta) {
     notFound();
   }
-
-  const projectRole = mapRole(
-    (membership?.role as ProjectRole | null) ?? null,
-    user.role ?? null
-  );
 
   const roleLabel = projectRole ?? "Member";
 
@@ -116,6 +114,7 @@ export default async function ProjectSettingsPage(props: Props) {
         projectRole={projectRole}
         sprints={projectWithMeta.sprints}
         epics={projectWithMeta.epics}
+        initialTab="bulk"
       />
     </div>
   );
