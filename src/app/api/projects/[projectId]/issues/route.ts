@@ -131,7 +131,7 @@ export async function POST(
         type: validatedType,
         priority: validatedPriority,
         storyPoints: parsedStoryPoints,
-        assigneeId: assigneeId ?? null,
+        ...(assigneeId ? { assignee: { connect: { id: assigneeId } } } : {}),
         epicId: epicId ?? null,
         description: description ?? null,
         status: issueStatus,

@@ -184,17 +184,16 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      const issueData: Prisma.IssueUncheckedCreateInput = {
-        projectId: project.id,
+      const issueData: Prisma.IssueCreateInput = {
+        project: { connect: { id: project.id } },
         key: issueKey,
         type: mapIssueType(issueType),
         title: summary,
         description: description || null,
         status: mapIssueStatus(status),
         storyPoints: parseStoryPoints(storyPoints),
-        assigneeId,
-        epicId,
-        sprintId: null,
+        ...(assigneeId ? { assignee: { connect: { id: assigneeId } } } : {}),
+        ...(epicId ? { epic: { connect: { id: epicId } } } : {}),
         jiraIssueKey: jiraIssueKey || null,
       };
 

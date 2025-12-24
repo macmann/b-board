@@ -190,7 +190,11 @@ export async function PATCH(
           }
         }
 
-        data.assigneeId = assigneeId || null;
+        if (assigneeId) {
+          data.assignee = { connect: { id: assigneeId } };
+        } else {
+          data.assignee = { disconnect: true };
+        }
       }
 
       if (epicId !== undefined) {
@@ -246,7 +250,10 @@ export async function PATCH(
         },
         assigneeId: {
           oldValue: existingIssue.assigneeId ?? null,
-          newValue: data.assigneeId ?? existingIssue.assigneeId ?? null,
+          newValue:
+            assigneeId !== undefined
+              ? assigneeId || null
+              : existingIssue.assigneeId ?? null,
         },
         epicId: {
           oldValue: existingIssue.epicId ?? null,

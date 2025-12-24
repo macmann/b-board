@@ -327,7 +327,11 @@ export async function POST(
               case "ASSIGNEE":
                 oldValue = issue.assigneeId ?? null;
                 newValue = (normalizedValue as string | null) ?? null;
-                data.assigneeId = normalizedValue as string | null;
+                if (normalizedValue) {
+                  data.assignee = { connect: { id: normalizedValue } };
+                } else {
+                  data.assignee = { disconnect: true };
+                }
                 break;
               case "PRIORITY":
                 oldValue = issue.priority;
