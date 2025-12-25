@@ -33,6 +33,7 @@ import { PROJECT_CONTRIBUTOR_ROLES } from "@/lib/roles";
 import { ProjectRole } from "../../../../lib/roles";
 import { canDeleteIssue, canEditIssue } from "../../../../lib/uiPermissions";
 import AuditLogList from "@/components/audit/AuditLogList";
+import InlineMarkdownField from "@/components/markdown/InlineMarkdownField";
 
 type UserSummary = { id: string; name: string } | null;
 
@@ -837,7 +838,6 @@ export default function IssueDetailsPageClient({
           assigneeId: assigneeId || null,
           epicId: epicId || null,
           sprintId: sprintId || null,
-          description,
         }),
       });
 
@@ -867,6 +867,46 @@ export default function IssueDetailsPageClient({
       setIsSaving(false);
     }
   };
+
+  const handleDescriptionSave = useCallback(
+    async (nextValue: string) => {
+      if (!issueId) return;
+      setError("");
+
+      try {
+        const response = await fetch(`/api/issues/${issueId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description: nextValue }),
+        });
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => null);
+          const message = data?.message ?? "Failed to update issue.";
+          setError(message);
+          throw new Error(message);
+        }
+
+        const data = (await response.json()) as IssueDetails;
+        setIssue((prev) =>
+          prev
+            ? {
+                ...prev,
+                description: data.description,
+                updatedAt: data.updatedAt ?? prev.updatedAt,
+              }
+            : data
+        );
+        setDescription(data.description ?? "");
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "An unexpected error occurred while updating the issue.";
+        setError(message);
+        throw new Error(message);
+      }
+    },
+    [issueId]
+  );
 
   const handleDelete = async () => {
     if (!issue) return;
@@ -1250,7 +1290,11 @@ export default function IssueDetailsPageClient({
 
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
             {isLoading ? (
-              <p className="text-sm text-slate-700 dark:text-slate-200">Loading issue...</p>
+              <div className="space-y-4 animate-pulse">
+                <div className="h-6 w-1/3 rounded-full bg-slate-200 dark:bg-slate-800" />
+                <div className="h-4 w-2/3 rounded-full bg-slate-200 dark:bg-slate-800" />
+                <div className="h-24 rounded-2xl bg-slate-200 dark:bg-slate-800" />
+              </div>
             ) : error && !issue ? (
               <p className="text-sm text-red-500">{error}</p>
             ) : issue ? (
@@ -1278,48 +1322,15 @@ export default function IssueDetailsPageClient({
                       <p className="text-xs font-medium text-slate-400 dark:text-slate-500">{issueKey}</p>
                     </div>
 
-                    <div className="mt-6 space-y-2">
-                      <label
-                        className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
-                        htmlFor="description"
-                      >
-                        Description
-                      </label>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Supports Markdown for rich formatting. Try **bold**, _italic_, bullet lists, and links.
-                      </p>
-                      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950/40">
-                        <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900">
-                          <span className="inline-flex h-2 w-2 rounded-full bg-slate-300" />
-                          <span>Markdown supported</span>
-                          <span className="hidden text-[11px] sm:inline">Use # headings, * lists, and `code`</span>
-                        </div>
-                        <textarea
-                          id="description"
-                          name="description"
-                          value={description}
-                          onChange={(event) => setDescription(event.target.value)}
-                          rows={7}
-                          disabled={disableEditing}
-                          className="w-full border-none bg-transparent px-3 pb-3 pt-3 text-sm text-slate-900 outline-none focus:ring-0 dark:text-slate-50"
-                        />
-                      </div>
+                    <div className="mt-6 space-y-4">
+                      <InlineMarkdownField
+                        value={description}
+                        placeholder="Add a description…"
+                        canEdit={!disableEditing}
+                        onSave={handleDescriptionSave}
+                      />
 
-                      <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950/60">
-                        <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2 text-xs text-slate-500 dark:border-slate-800">
-                          <span className="font-semibold uppercase tracking-wide">Preview</span>
-                          <span className="text-[11px]">Rendered Markdown</span>
-                        </div>
-                        <div className="markdown-content px-3 pb-3 pt-2 text-sm text-slate-900 dark:text-slate-100">
-                          {description.trim() ? (
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{description}</ReactMarkdown>
-                          ) : (
-                            <p className="text-slate-500 dark:text-slate-400">Nothing to preview yet.</p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="mt-4 space-y-2">
+                      <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Attachments</p>
                           <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100">
