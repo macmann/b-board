@@ -341,7 +341,11 @@ export async function POST(
               case "SPRINT":
                 oldValue = issue.sprintId ?? null;
                 newValue = (normalizedValue as string | null) ?? null;
-                data.sprintId = normalizedValue as string | null;
+                if (normalizedValue) {
+                  data.sprint = { connect: { id: normalizedValue } };
+                } else {
+                  data.sprint = { disconnect: true };
+                }
                 break;
               default:
                 break;
