@@ -210,8 +210,6 @@ export async function POST(
         response: result.response,
       });
     } catch (error) {
-      await prisma.invitation.delete({ where: { id: invite.id } });
-
       const hint = getEmailErrorHint(error) ?? undefined;
       const message =
         hint ||
@@ -224,6 +222,21 @@ export async function POST(
         hint,
       });
 
+      const errorCode = (error as { code?: string }).code;
+      const isTimeout =
+        errorCode === "ETIMEDOUT" ||
+        errorCode === "ECONNECTION" ||
+        errorCode === "ESOCKET";
+
+      if (isTimeout) {
+        return respond(202, {
+          message: "Email delivery timed out. Share the invite link manually.",
+          hint,
+          inviteUrl,
+        });
+      }
+
+      await prisma.invitation.delete({ where: { id: invite.id } });
       return respond(500, {
         message,
         hint,
