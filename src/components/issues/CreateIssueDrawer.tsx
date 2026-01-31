@@ -162,6 +162,7 @@ export default function CreateIssueDrawer({
                 name="storyPoints"
                 type="number"
                 min="0"
+                step="0.1"
                 value={storyPoints}
                 onChange={(event) => setStoryPoints(event.target.value)}
                 disabled={isReadOnly}
