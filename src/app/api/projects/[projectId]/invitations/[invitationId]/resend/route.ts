@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { resolveAppUrl } from "@/lib/appUrl";
@@ -15,33 +16,58 @@ export async function POST(
   ctx: { params: Promise<Awaited<ProjectParams> & { invitationId: string }> }
 ) {
   const params = await ctx.params;
+  const requestId = randomUUID();
+  const respond = (status: number, body: Record<string, unknown>) =>
+    NextResponse.json(
+      {
+        ok: status >= 200 && status < 300,
+        requestId,
+        ...body,
+      },
+      { status }
+    );
+  const log = (
+    level: "info" | "error",
+    message: string,
+    meta?: Record<string, unknown>
+  ) => {
+    const payload = {
+      level,
+      message,
+      requestId,
+      timestamp: new Date().toISOString(),
+      ...meta,
+    };
+    const logger = level === "error" ? console.error : console.info;
+    logger(payload);
+  };
   const projectId = await resolveProjectId(params);
   const invitationId = params.invitationId;
 
   if (!projectId || !invitationId) {
-    return NextResponse.json(
-      { message: "projectId and invitationId are required" },
-      { status: 400 }
-    );
+    return respond(400, { message: "projectId and invitationId are required" });
   }
 
   const user = await getUserFromRequest(request);
 
   if (!user) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return respond(401, { message: "Unauthorized" });
   }
+
+  log("info", "Resend invite request received", {
+    route: request.nextUrl.pathname,
+    projectId,
+    invitationId,
+  });
 
   try {
     await requireProjectRole(user.id, projectId, PROJECT_ADMIN_ROLES);
   } catch (error) {
     if (error instanceof AuthorizationError) {
-      return NextResponse.json(
-        { message: error.message },
-        { status: error.status }
-      );
+      return respond(error.status, { message: error.message });
     }
 
-    return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    return respond(403, { message: "Forbidden" });
   }
 
   const project = await prisma.project.findUnique({
@@ -50,7 +76,7 @@ export async function POST(
   });
 
   if (!project) {
-    return NextResponse.json({ message: "Project not found" }, { status: 404 });
+    return respond(404, { message: "Project not found" });
   }
 
   const invitation = await prisma.invitation.findFirst({
@@ -58,42 +84,48 @@ export async function POST(
   });
 
   if (!invitation) {
-    return NextResponse.json(
-      { message: "Invitation not found." },
-      { status: 404 }
-    );
+    return respond(404, { message: "Invitation not found." });
   }
 
   const settings = project.settings;
 
+  log("info", "Email settings loaded", {
+    provider: settings?.emailProvider,
+    fromEmail: settings?.emailFromAddress,
+    smtpHost: settings?.smtpHost,
+    smtpPort: settings?.smtpPort,
+    smtpUsername: settings?.smtpUsername,
+  });
+
   if (!settings?.emailProvider) {
-    return NextResponse.json(
-      { message: "Configure an email provider before resending invites." },
-      { status: 400 }
-    );
+    return respond(400, {
+      message: "Configure an email provider before resending invites.",
+    });
   }
 
   if (!settings.emailFromAddress) {
-    return NextResponse.json(
-      { message: "A from email address is required to resend invites." },
-      { status: 400 }
-    );
+    return respond(400, {
+      message: "A from email address is required to resend invites.",
+    });
   }
 
   let inviteUrl = "";
   try {
     inviteUrl = `${resolveAppUrl(request)}/register?token=${invitation.token}`;
   } catch (error) {
-    return NextResponse.json(
-      {
-        message:
-          error instanceof Error
-            ? error.message
-            : "Unable to resolve application URL.",
-      },
-      { status: 500 }
-    );
+    return respond(500, {
+      message:
+        error instanceof Error
+          ? error.message
+          : "Unable to resolve application URL.",
+    });
   }
+
+  log("info", "Attempting to resend invite email", {
+    email: invitation.email,
+    inviteId: invitation.id,
+    inviteUrl,
+  });
 
   try {
     await sendEmail(
@@ -115,6 +147,7 @@ export async function POST(
         html: `<p>You have been invited to join <strong>${project.name}</strong>.</p><p><a href="${inviteUrl}">Accept your invite</a> to get started.</p>`,
       },
       {
+        requestId,
         enableVerify: true,
         transportTimeouts: {
           connection: 12_000,
@@ -123,6 +156,10 @@ export async function POST(
         },
       }
     );
+    log("info", "Invite email resent", {
+      email: invitation.email,
+      inviteId: invitation.id,
+    });
   } catch (error) {
     const hint = getEmailErrorHint(error) ?? undefined;
     const message =
@@ -131,10 +168,12 @@ export async function POST(
         ? error.message
         : "Unable to resend invite email. Please try again.");
 
-    return NextResponse.json(
-      { message, hint },
-      { status: 500 }
-    );
+    log("error", "Failed to resend invite email", {
+      error: error instanceof Error ? error.stack : error,
+      hint,
+    });
+
+    return respond(500, { message, hint });
   }
 
   await prisma.invitation.update({
@@ -144,7 +183,7 @@ export async function POST(
     },
   });
 
-  return NextResponse.json({
+  return respond(200, {
     message: "Invitation resent successfully.",
     inviteUrl,
   });

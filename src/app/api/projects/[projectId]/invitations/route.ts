@@ -4,6 +4,7 @@ import { resolveAppUrl } from "../../../../../lib/appUrl";
 import { Role } from "../../../../../lib/prismaEnums";
 
 import { getUserFromRequest } from "../../../../../lib/auth";
+import { getEmailErrorHint, sendEmail } from "../../../../../lib/email";
 import {
   AuthorizationError,
   requireProjectRole,
@@ -74,6 +75,7 @@ export async function POST(
   ctx: { params: Promise<Awaited<ProjectParams>> }
 ) {
   const params = await ctx.params;
+  const requestId = randomUUID();
   const projectId = await resolveProjectId(params);
 
   if (!projectId) {
@@ -88,7 +90,7 @@ export async function POST(
 
   const project = await prisma.project.findUnique({
     where: { id: projectId },
-    select: { id: true, workspaceId: true },
+    include: { settings: true },
   });
 
   if (!project) {
@@ -142,6 +144,8 @@ export async function POST(
     select: {
       id: true,
       token: true,
+      email: true,
+      role: true,
     },
   });
 
@@ -157,6 +161,89 @@ export async function POST(
   }
 
   const inviteUrl = `${appUrl}/register?token=${invitation.token}`;
+
+  const settings = project.settings;
+
+  if (!settings?.emailProvider) {
+    return NextResponse.json(
+      { message: "Configure an email provider before sending invites." },
+      { status: 400 }
+    );
+  }
+
+  if (!settings.emailFromAddress) {
+    return NextResponse.json(
+      { message: "A from email address is required to send invites." },
+      { status: 400 }
+    );
+  }
+
+  const isSmtpProvider =
+    settings.emailProvider === "SMTP" ||
+    settings.emailProvider === "MS365" ||
+    settings.emailProvider === "GOOGLE_MAIL";
+
+  if (isSmtpProvider) {
+    const missing: string[] = [];
+    if (!settings.smtpHost) missing.push("SMTP host");
+    if (!settings.smtpPort) missing.push("SMTP port");
+    if (!settings.smtpUsername) missing.push("SMTP username");
+    if (!settings.smtpPassword) missing.push("SMTP password");
+
+    if (missing.length) {
+      return NextResponse.json(
+        {
+          message: "SMTP settings are incomplete.",
+          hint: `Provide ${missing.join(", ")} to send email invites.`,
+        },
+        { status: 400 }
+      );
+    }
+  }
+
+  try {
+    await sendEmail(
+      {
+        providerType: settings.emailProvider,
+        fromName: settings.emailFromName,
+        fromEmail: settings.emailFromAddress,
+        smtpHost: settings.smtpHost,
+        smtpPort: settings.smtpPort,
+        smtpUsername: settings.smtpUsername,
+        smtpPassword: settings.smtpPassword,
+        apiUrl: settings.apiUrl,
+        apiKey: settings.apiKey,
+      },
+      {
+        to: invitation.email,
+        subject: `${project.name} board invite`,
+        text: `You have been invited to join ${project.name} as ${invitation.role}. Use this link to get started: ${inviteUrl}`,
+        html: `<p>You have been invited to join <strong>${project.name}</strong> as <strong>${invitation.role}</strong>.</p><p><a href="${inviteUrl}">Accept your invite</a> to get started.</p>`,
+      },
+      {
+        requestId,
+        enableVerify: true,
+        transportTimeouts: {
+          connection: 12_000,
+          greeting: 12_000,
+          socket: 25_000,
+        },
+      }
+    );
+  } catch (error) {
+    await prisma.invitation.delete({ where: { id: invitation.id } });
+    const hint = getEmailErrorHint(error) ?? undefined;
+    const message =
+      hint ||
+      (error instanceof Error
+        ? error.message
+        : "Unable to send invite email. Please try again.");
+
+    return NextResponse.json(
+      { message, hint },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({
     invitationId: invitation.id,
