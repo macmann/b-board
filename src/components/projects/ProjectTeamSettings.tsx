@@ -32,6 +32,7 @@ type Invitation = {
   role: Role;
   createdAt: string;
   expiresAt: string;
+  inviteUrl?: string | null;
 };
 
 const ROLE_OPTIONS = [Role.ADMIN, Role.PO, Role.DEV, Role.QA, Role.VIEWER];
@@ -55,6 +56,7 @@ export default function ProjectTeamSettings({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [inviteUrl, setInviteUrl] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
+  const [copyStatusById, setCopyStatusById] = useState<Record<string, string>>({});
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingActionId, setPendingActionId] = useState<string | null>(null);
@@ -186,6 +188,23 @@ export default function ProjectTeamSettings({
       setCopyStatus("Invite link copied!");
     } catch (err) {
       setCopyStatus("Unable to copy invite link.");
+    }
+  };
+
+  const handleCopyInviteLink = async (invitationId: string, url?: string | null) => {
+    if (!url) return;
+
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopyStatusById((prev) => ({
+        ...prev,
+        [invitationId]: "Invite link copied!",
+      }));
+    } catch (err) {
+      setCopyStatusById((prev) => ({
+        ...prev,
+        [invitationId]: "Unable to copy invite link.",
+      }));
     }
   };
 
@@ -401,6 +420,30 @@ export default function ProjectTeamSettings({
                       <div className="font-medium text-slate-900 dark:text-slate-50">
                         {invitation.email}
                       </div>
+                      {invitation.inviteUrl && (
+                        <div className="mt-2 space-y-1 text-xs text-slate-600 dark:text-slate-300">
+                          <p className="break-all">{invitation.inviteUrl}</p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              className="px-2 py-1 text-xs"
+                              disabled={isPendingAction}
+                              onClick={() =>
+                                handleCopyInviteLink(
+                                  invitation.id,
+                                  invitation.inviteUrl
+                                )
+                              }
+                            >
+                              Copy link
+                            </Button>
+                            {copyStatusById[invitation.id] && (
+                              <span>{copyStatusById[invitation.id]}</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
                       <div className="text-xs text-slate-500 dark:text-slate-400">
                         Expires {new Date(invitation.expiresAt).toLocaleString()}
                       </div>

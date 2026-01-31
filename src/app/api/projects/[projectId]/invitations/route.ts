@@ -60,6 +60,7 @@ export async function GET(
     select: {
       id: true,
       email: true,
+      token: true,
       role: true,
       createdAt: true,
       expiresAt: true,
@@ -67,7 +68,23 @@ export async function GET(
     orderBy: { createdAt: "desc" },
   });
 
-  return NextResponse.json(invitations);
+  let appUrl: string | null = null;
+  try {
+    appUrl = resolveAppUrl(request);
+  } catch (error) {
+    appUrl = null;
+  }
+
+  return NextResponse.json(
+    invitations.map((invitation) => ({
+      id: invitation.id,
+      email: invitation.email,
+      role: invitation.role,
+      createdAt: invitation.createdAt,
+      expiresAt: invitation.expiresAt,
+      inviteUrl: appUrl ? `${appUrl}/register?token=${invitation.token}` : null,
+    }))
+  );
 }
 
 export async function POST(
@@ -231,7 +248,6 @@ export async function POST(
       }
     );
   } catch (error) {
-    await prisma.invitation.delete({ where: { id: invitation.id } });
     const hint = getEmailErrorHint(error) ?? undefined;
     const message =
       hint ||
@@ -239,10 +255,26 @@ export async function POST(
         ? error.message
         : "Unable to send invite email. Please try again.");
 
-    return NextResponse.json(
-      { message, hint },
-      { status: 500 }
-    );
+    const errorCode = (error as { code?: string }).code;
+    const isTimeout =
+      errorCode === "ETIMEDOUT" ||
+      errorCode === "ECONNECTION" ||
+      errorCode === "ESOCKET";
+
+    if (isTimeout) {
+      return NextResponse.json(
+        {
+          message: "Email delivery timed out. Share the invite link manually.",
+          hint,
+          invitationId: invitation.id,
+          inviteUrl,
+        },
+        { status: 202 }
+      );
+    }
+
+    await prisma.invitation.delete({ where: { id: invitation.id } });
+    return NextResponse.json({ message, hint }, { status: 500 });
   }
 
   return NextResponse.json({
