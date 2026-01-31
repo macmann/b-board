@@ -5,6 +5,7 @@ import { getUserFromRequest } from "../../../lib/auth";
 import { jsonOk } from "../../../lib/apiResponse";
 import prisma from "../../../lib/db";
 import { logError } from "../../../lib/logger";
+import { ProjectMemberRole } from "../../../lib/prismaEnums";
 import { ensureGlobalRole, ForbiddenError } from "../../../lib/permissions";
 
 export async function GET(request: NextRequest) {
@@ -88,6 +89,14 @@ export async function POST(request: NextRequest) {
         description,
         isArchived: false,
         workspaceId: workspace.id,
+      },
+    });
+
+    await prisma.projectMember.create({
+      data: {
+        projectId: project.id,
+        userId: user.id,
+        role: ProjectMemberRole.ADMIN,
       },
     });
 
