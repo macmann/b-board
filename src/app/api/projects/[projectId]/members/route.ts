@@ -145,3 +145,70 @@ export async function POST(
 
   return NextResponse.json(membership, { status: 201 });
 }
+
+export async function PATCH(
+  request: NextRequest,
+  ctx: { params: Promise<Awaited<ProjectParams>> }
+) {
+  const params = await ctx.params;
+  const projectId = await resolveProjectId(params);
+
+  if (!projectId) {
+    return NextResponse.json({ message: "projectId is required" }, { status: 400 });
+  }
+
+  const user = await getUserFromRequest(request);
+
+  if (!user) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    await requireProjectRole(user.id, projectId, [Role.ADMIN, Role.PO]);
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return NextResponse.json(
+        { message: error.message },
+        { status: error.status }
+      );
+    }
+
+    return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  }
+
+  const { userId, role } = await request.json();
+
+  if (!userId || !role) {
+    return NextResponse.json(
+      { message: "userId and role are required" },
+      { status: 400 }
+    );
+  }
+
+  const parsedRole = Object.values(Role).includes(role as Role)
+    ? (role as Role)
+    : null;
+
+  if (!parsedRole) {
+    return NextResponse.json({ message: "Invalid role" }, { status: 400 });
+  }
+
+  const membership = await prisma.projectMember.findUnique({
+    where: {
+      projectId_userId: { projectId, userId },
+    },
+  });
+
+  if (!membership) {
+    return NextResponse.json({ message: "Member not found" }, { status: 404 });
+  }
+
+  const updatedMembership = await prisma.projectMember.update({
+    where: {
+      projectId_userId: { projectId, userId },
+    },
+    data: { role: parsedRole },
+  });
+
+  return NextResponse.json(updatedMembership);
+}
