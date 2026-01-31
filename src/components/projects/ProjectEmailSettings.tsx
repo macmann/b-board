@@ -50,11 +50,13 @@ type EmailSettingsResponse = {
 type ProjectEmailSettingsProps = {
   projectId: string;
   projectRole: ProjectRole | null;
+  isWorkspaceAdmin: boolean;
 };
 
 export default function ProjectEmailSettings({
   projectId,
   projectRole,
+  isWorkspaceAdmin,
 }: ProjectEmailSettingsProps) {
   const [settings, setSettings] = useState<EmailSettingsResponse>({
     providerType: null,
@@ -80,8 +82,8 @@ export default function ProjectEmailSettings({
   const [inviteErrorToast, setInviteErrorToast] = useState<string | null>(null);
 
   const canManage = useMemo(
-    () => projectRole === "ADMIN" || projectRole === "PO",
-    [projectRole]
+    () => projectRole === "ADMIN" || projectRole === "PO" || isWorkspaceAdmin,
+    [projectRole, isWorkspaceAdmin]
   );
 
   const loadSettings = async () => {
