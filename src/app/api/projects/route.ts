@@ -12,6 +12,10 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getUserFromRequest(request);
 
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     ensureGlobalRole(user, ["ADMIN"]);
 
     const projects = await prisma.project.findMany({
@@ -43,6 +47,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await getUserFromRequest(request);
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     ensureGlobalRole(user, ["ADMIN"]);
 
