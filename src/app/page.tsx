@@ -66,6 +66,23 @@ export default function HomePage() {
               </svg>
             </a>
             <a
+              href="https://www.linkedin.com/company/bboardx"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Visit B Board on LinkedIn"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-800 transition hover:border-slate-300 hover:bg-white dark:border-slate-700 dark:text-slate-100 dark:hover:border-slate-600 dark:hover:bg-slate-800"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                className="h-5 w-5"
+                fill="currentColor"
+                aria-hidden
+              >
+                <path d="M20.44 20.44h-3.55v-5.56c0-1.32-.02-3.02-1.84-3.02-1.84 0-2.12 1.43-2.12 2.93v5.65H9.38V9h3.41v1.56h.05c.48-.9 1.66-1.84 3.42-1.84 3.66 0 4.33 2.41 4.33 5.54v6.18ZM5.34 7.44a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12Zm-1.78 13h3.55V9H3.56v11.44Z" />
+              </svg>
+            </a>
+            <a
               href="/login"
               className="rounded-full bg-gradient-to-r from-primary to-indigo-500 px-5 py-2 font-semibold text-white shadow-lg shadow-primary/30 transition hover:brightness-110"
             >
