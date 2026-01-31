@@ -61,8 +61,9 @@ export default function ProjectTeamSettings({
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingActionId, setPendingActionId] = useState<string | null>(null);
   const [pendingActionType, setPendingActionType] = useState<
-    "resend" | "delete" | null
+    "resend" | "delete" | "update-role" | null
   >(null);
+  const [roleEdits, setRoleEdits] = useState<Record<string, Role>>({});
 
   const inviteSectionRef = useRef<HTMLDivElement | null>(null);
 
@@ -114,6 +115,18 @@ export default function ProjectTeamSettings({
     fetchTeamData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, allowInvites]);
+
+  useEffect(() => {
+    setRoleEdits(
+      members.reduce(
+        (acc, member) => {
+          acc[member.id] = member.role;
+          return acc;
+        },
+        {} as Record<string, Role>
+      )
+    );
+  }, [members]);
 
   const handleInviteSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -276,6 +289,41 @@ export default function ProjectTeamSettings({
     }
   };
 
+  const handleUpdateMemberRole = async (member: Member) => {
+    if (!allowInvites) return;
+
+    const nextRole = roleEdits[member.id] ?? member.role;
+    if (nextRole === member.role) return;
+
+    setActionStatus(null);
+    setActionError(null);
+    setPendingActionId(member.id);
+    setPendingActionType("update-role");
+
+    try {
+      const response = await fetch(`/api/projects/${projectId}/members`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: member.user.id, role: nextRole }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.message ?? "Unable to update member role.");
+      }
+
+      setActionStatus("Member role updated.");
+      await fetchTeamData();
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "Failed to update the member role."
+      );
+    } finally {
+      setPendingActionId(null);
+      setPendingActionType(null);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {showHeader && (
@@ -374,9 +422,47 @@ export default function ProjectTeamSettings({
                   </div>
 
                   <div className="flex flex-wrap items-center gap-3">
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium uppercase text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                      {member.role}
-                    </span>
+                    {allowInvites ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <select
+                          aria-label={`Role for ${member.user.name || member.user.email}`}
+                          value={roleEdits[member.id] ?? member.role}
+                          onChange={(event) =>
+                            setRoleEdits((prev) => ({
+                              ...prev,
+                              [member.id]: event.target.value as Role,
+                            }))
+                          }
+                          disabled={pendingActionId === member.id}
+                          className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold uppercase text-slate-700 shadow-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                        >
+                          {ROLE_OPTIONS.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="px-2 py-1 text-xs"
+                          disabled={
+                            pendingActionId === member.id ||
+                            (roleEdits[member.id] ?? member.role) === member.role
+                          }
+                          onClick={() => handleUpdateMemberRole(member)}
+                        >
+                          {pendingActionId === member.id &&
+                          pendingActionType === "update-role"
+                            ? "Updating..."
+                            : "Update"}
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium uppercase text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                        {member.role}
+                      </span>
+                    )}
                     {formatJoined(member.createdAt) && (
                       <span className="text-xs text-slate-500 dark:text-slate-400">
                         {formatJoined(member.createdAt)}
