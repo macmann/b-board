@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getUserFromRequest } from "../../../lib/auth";
@@ -63,6 +64,23 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const existingProject = await prisma.project.findUnique({
+      where: {
+        workspaceId_key: {
+          workspaceId: workspace.id,
+          key,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (existingProject) {
+      return NextResponse.json(
+        { error: "Project key already exists in this workspace." },
+        { status: 409 }
+      );
+    }
+
     const project = await prisma.project.create({
       data: {
         key,
@@ -79,6 +97,16 @@ export async function POST(request: NextRequest) {
 
     if (error instanceof ForbiddenError) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return NextResponse.json(
+        { error: "Project key already exists in this workspace." },
+        { status: 409 }
+      );
     }
 
     return NextResponse.json(
