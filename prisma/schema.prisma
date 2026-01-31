@@ -364,7 +364,7 @@ model Issue {
   status       IssueStatus   @default(TODO)
   priority     IssuePriority @default(MEDIUM)
   position     Float         @default(0)
-  storyPoints  Int?
+  storyPoints  Float?
   assigneeId   String?
   reporterId   String?
   jiraIssueKey String?

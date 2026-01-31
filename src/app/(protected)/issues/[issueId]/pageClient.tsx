@@ -1951,6 +1951,7 @@ export default function IssueDetailsPageClient({
                         name="storyPoints"
                         type="number"
                         min="0"
+                        step="0.1"
                         value={storyPoints}
                         onChange={(event) => setStoryPoints(event.target.value)}
                         disabled={disableEditing}
