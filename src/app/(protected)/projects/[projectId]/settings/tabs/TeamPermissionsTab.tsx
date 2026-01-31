@@ -1,4 +1,5 @@
 import ProjectTeamSettings from "@/components/projects/ProjectTeamSettings";
+import ProjectEmailSettings from "@/components/projects/ProjectEmailSettings";
 import { Role } from "@/lib/prismaEnums";
 import { ProjectRole } from "@/lib/roles";
 
@@ -49,9 +50,11 @@ export default function TeamPermissionsTab({
         initialMembers={members}
       />
 
-      <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200">
-        Invite member coming soon.
-      </div>
+      <ProjectEmailSettings
+        projectId={projectId}
+        projectRole={projectRole}
+        isWorkspaceAdmin={isAdmin}
+      />
     </section>
   );
 }
