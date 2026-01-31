@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getUserFromRequest } from "../../../../../lib/auth";
-import prisma from "../../../../../lib/db";
-import { resolveProjectId, type ProjectParams } from "../../../../../lib/params";
-import { AuthorizationError, requireProjectRole } from "../../../../../lib/permissions";
-import { Role } from "../../../../../lib/prismaEnums";
+import { getUserFromRequest } from "@/lib/auth";
+import prisma from "@/lib/db";
+import { resolveProjectId, type ProjectParams } from "@/lib/params";
+import { AuthorizationError, requireProjectRole } from "@/lib/permissions";
+import { Role } from "@/lib/prismaEnums";
 
 const PROJECT_ADMIN_ROLES = [Role.ADMIN, Role.PO];
 
