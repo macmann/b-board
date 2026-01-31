@@ -55,6 +55,12 @@ export default function ProjectTeamSettings({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [inviteUrl, setInviteUrl] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
+  const [actionStatus, setActionStatus] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingActionId, setPendingActionId] = useState<string | null>(null);
+  const [pendingActionType, setPendingActionType] = useState<
+    "resend" | "delete" | null
+  >(null);
 
   const inviteSectionRef = useRef<HTMLDivElement | null>(null);
 
@@ -112,6 +118,8 @@ export default function ProjectTeamSettings({
 
     setError("");
     setCopyStatus("");
+    setActionStatus(null);
+    setActionError(null);
     setIsSubmitting(true);
 
     try {
@@ -181,6 +189,74 @@ export default function ProjectTeamSettings({
     }
   };
 
+  const handleResendInvitation = async (invitationId: string) => {
+    if (!allowInvites) return;
+
+    setActionStatus(null);
+    setActionError(null);
+    setPendingActionId(invitationId);
+    setPendingActionType("resend");
+
+    try {
+      const response = await fetch(
+        `/api/projects/${projectId}/invitations/${invitationId}/resend`,
+        { method: "POST" }
+      );
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.message ?? "Unable to resend the invitation.");
+      }
+
+      const data = await response.json().catch(() => null);
+      if (data?.inviteUrl) {
+        setInviteUrl(String(data.inviteUrl));
+      }
+      setActionStatus(
+        data?.message ?? "Invitation resent successfully."
+      );
+      await fetchTeamData();
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "Failed to resend the invitation."
+      );
+    } finally {
+      setPendingActionId(null);
+      setPendingActionType(null);
+    }
+  };
+
+  const handleDeleteInvitation = async (invitationId: string) => {
+    if (!allowInvites) return;
+
+    setActionStatus(null);
+    setActionError(null);
+    setPendingActionId(invitationId);
+    setPendingActionType("delete");
+
+    try {
+      const response = await fetch(
+        `/api/projects/${projectId}/invitations/${invitationId}`,
+        { method: "DELETE" }
+      );
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.message ?? "Unable to delete the invitation.");
+      }
+
+      setActionStatus("Invitation deleted.");
+      await fetchTeamData();
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "Failed to delete the invitation."
+      );
+    } finally {
+      setPendingActionId(null);
+      setPendingActionType(null);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {showHeader && (
@@ -221,6 +297,18 @@ export default function ProjectTeamSettings({
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
           {error}
+        </div>
+      )}
+
+      {actionError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+          {actionError}
+        </div>
+      )}
+
+      {actionStatus && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200">
+          {actionStatus}
         </div>
       )}
 
@@ -301,24 +389,56 @@ export default function ProjectTeamSettings({
         ) : (
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <div className="divide-y divide-slate-200 dark:divide-slate-800">
-              {pendingInvitations.map((invitation) => (
-                <div
-                  key={invitation.id}
-                  className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                >
-                  <div className="space-y-0.5">
-                    <div className="font-medium text-slate-900 dark:text-slate-50">
-                      {invitation.email}
+              {pendingInvitations.map((invitation) => {
+                const isPendingAction = pendingActionId === invitation.id;
+
+                return (
+                  <div
+                    key={invitation.id}
+                    className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                  >
+                    <div className="space-y-0.5">
+                      <div className="font-medium text-slate-900 dark:text-slate-50">
+                        {invitation.email}
+                      </div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">
+                        Expires {new Date(invitation.expiresAt).toLocaleString()}
+                      </div>
                     </div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400">
-                      Expires {new Date(invitation.expiresAt).toLocaleString()}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium uppercase text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                        {invitation.role}
+                      </span>
+                      {allowInvites && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            className="px-3 py-1.5 text-xs"
+                            disabled={isPendingAction}
+                            onClick={() => handleResendInvitation(invitation.id)}
+                          >
+                            {isPendingAction && pendingActionType === "resend"
+                              ? "Resending..."
+                              : "Resend"}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="px-3 py-1.5 text-xs text-rose-600 hover:text-rose-700"
+                            disabled={isPendingAction}
+                            onClick={() => handleDeleteInvitation(invitation.id)}
+                          >
+                            {isPendingAction && pendingActionType === "delete"
+                              ? "Deleting..."
+                              : "Delete"}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium uppercase text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                    {invitation.role}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
