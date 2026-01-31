@@ -107,11 +107,21 @@ export default function HomePage() {
 
             <div className="flex flex-wrap items-center gap-3">
               <a
-                href="/login"
+                href="<PUT_YOUR_GITHUB_REPO_URL_HERE>"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-primary/30 transition hover:bg-primary/90"
               >
+                ⭐ Star on GitHub
+              </a>
+              <a
+                href="/login"
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-6 py-3 text-sm font-semibold text-slate-800 transition hover:border-slate-300 hover:bg-white dark:border-slate-700 dark:text-slate-100 dark:hover:border-slate-600 dark:hover:bg-slate-800"
+              >
                 Start a sprint
-                <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-medium">2 min setup</span>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                  2 min setup
+                </span>
               </a>
               <a
                 href="#workflow"
@@ -119,7 +129,7 @@ export default function HomePage() {
               >
                 See how it flows
               </a>
-              <p className="text-xs text-slate-500 dark:text-slate-400">No seats to assign. Bring your team and ship together.</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Free &amp; open source Agile board</p>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3">
