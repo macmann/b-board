@@ -169,7 +169,11 @@ export default function FeaturesTab({
         </section>
       )}
 
-      <ProjectEmailSettings projectId={projectId} projectRole={projectRole} />
+      <ProjectEmailSettings
+        projectId={projectId}
+        projectRole={projectRole}
+        isWorkspaceAdmin={isAdmin}
+      />
 
       <ProjectStandupSettings projectId={projectId} projectRole={projectRole} />
     </div>
