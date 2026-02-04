@@ -1353,14 +1353,23 @@ export default function IssueDetailsPageClient({
                                 key={file.id}
                                 className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-slate-700 shadow-sm dark:border-slate-800 dark:text-slate-100"
                               >
-                                <a
-                                  href={file.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="truncate text-sm font-medium text-primary hover:underline"
-                                >
-                                  {file.fileName}
-                                </a>
+                                <div className="flex min-w-0 items-center gap-3">
+                                  <a
+                                    href={file.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="truncate text-sm font-medium text-primary hover:underline"
+                                  >
+                                    {file.fileName}
+                                  </a>
+                                  <a
+                                    href={file.url}
+                                    download={file.fileName}
+                                    className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+                                  >
+                                    Download
+                                  </a>
+                                </div>
                                 <button
                                   type="button"
                                   onClick={() => handleAttachmentDelete(file.id)}
@@ -1579,13 +1588,22 @@ export default function IssueDetailsPageClient({
                                       >
                                         {attachment.fileName}
                                       </a>
-                                      <button
-                                        type="button"
-                                        className="text-[11px] font-semibold text-red-500 hover:text-red-600"
-                                        onClick={() => handleAttachmentDelete(attachment.id)}
-                                      >
-                                        Delete
-                                      </button>
+                                      <div className="flex items-center gap-2">
+                                        <a
+                                          href={attachment.url}
+                                          download={attachment.fileName}
+                                          className="text-[11px] font-semibold text-slate-500 hover:text-slate-700"
+                                        >
+                                          Download
+                                        </a>
+                                        <button
+                                          type="button"
+                                          className="text-[11px] font-semibold text-red-500 hover:text-red-600"
+                                          onClick={() => handleAttachmentDelete(attachment.id)}
+                                        >
+                                          Delete
+                                        </button>
+                                      </div>
                                     </li>
                                   ))}
                                 </ul>
