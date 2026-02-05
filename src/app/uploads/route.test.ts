@@ -3,10 +3,10 @@ import path from "path";
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { deleteUpload, saveUpload } from "@/lib/storage";
+import { deleteUpload, getUploadsDir, saveUpload } from "@/lib/storage";
 
 describe("uploads route", () => {
-  const uploadsDir = path.join(process.cwd(), "public", "uploads");
+  const uploadsDir = path.resolve(getUploadsDir());
 
   afterEach(async () => {
     await fs.rm(uploadsDir, { recursive: true, force: true });

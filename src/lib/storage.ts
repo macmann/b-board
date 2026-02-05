@@ -9,8 +9,20 @@ type SavedFile = {
   size: number;
 };
 
+const DEFAULT_UPLOAD_DIR = path.join(process.cwd(), "data", "uploads");
+
+export function getUploadsDir() {
+  return process.env.UPLOADS_DIR || DEFAULT_UPLOAD_DIR;
+}
+
+export function getUploadPathFromUrl(publicUrl: string) {
+  const uploadsDir = getUploadsDir();
+  const relativePath = publicUrl.replace(/^\/uploads\//, "");
+  return path.join(uploadsDir, relativePath);
+}
+
 export async function ensureUploadDir() {
-  const uploadDir = path.join(process.cwd(), "public", "uploads");
+  const uploadDir = getUploadsDir();
   await fs.mkdir(uploadDir, { recursive: true });
   return uploadDir;
 }
