@@ -42,6 +42,7 @@ export default function AppShell({
     { href: dashboardPath, label: "Dashboard", restricted: true },
     { href: routes.myProjects(), label: "My Projects", restricted: false },
     { href: reportsPath, label: "Reports", restricted: true },
+    { href: routes.profile(), label: "Profile", restricted: false },
   ].filter((link) => !link.restricted || isLeadership);
 
   const projectLinks = currentProjectId
