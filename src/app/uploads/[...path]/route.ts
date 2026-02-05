@@ -3,6 +3,8 @@ import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 import { lookup as lookupMimeType } from "mime-types";
 
+import { getUploadsDir } from "@/lib/storage";
+
 export const runtime = "nodejs";
 
 export async function GET(
@@ -10,7 +12,7 @@ export async function GET(
   context: { params: Promise<{ path: string[] }> }
 ) {
   const { path: pathParts } = await context.params;
-  const uploadsDir = path.resolve(process.cwd(), "public", "uploads");
+  const uploadsDir = path.resolve(getUploadsDir());
   const relativePath = (pathParts ?? []).join("/");
 
   if (!relativePath) {

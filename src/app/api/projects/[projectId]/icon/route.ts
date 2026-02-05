@@ -11,14 +11,14 @@ import {
   requireProjectRole,
 } from "@/lib/permissions";
 import { Role } from "@/lib/prismaEnums";
-import { deleteUpload, saveUpload } from "@/lib/storage";
+import { deleteUpload, getUploadPathFromUrl, saveUpload } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
 const MAX_ICON_SIZE_BYTES = 2 * 1024 * 1024; // 2MB
 
 const getFilePathFromUrl = (url: string) =>
-  path.join(process.cwd(), "public", url.replace(/^\//, ""));
+  path.resolve(getUploadPathFromUrl(url));
 
 export async function POST(
   request: NextRequest,
