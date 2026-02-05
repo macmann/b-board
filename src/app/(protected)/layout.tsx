@@ -33,8 +33,7 @@ export default async function ProtectedLayout({ children }: Props) {
     redirect("/login");
   }
 
-  const currentProjectName =
-    headerList.get("x-current-project-name") ?? "Select a project";
+  const currentProjectName = headerList.get("x-current-project-name") ?? "";
 
   const currentPath =
     headerList.get("x-forwarded-uri") ||

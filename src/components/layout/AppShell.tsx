@@ -27,11 +27,17 @@ export default function AppShell({
   onLogout,
   currentPath,
 }: AppShellProps) {
-  const projectLabel = currentProjectName && currentProjectName.length > 0 ? currentProjectName : "Select a project";
   const normalizedPath = currentPath?.split("?")[0] ?? "";
   const projectMatch = normalizedPath.match(/^\/projects\/([^/]+)/);
   const currentProjectId = projectMatch?.[1];
   const inProjectContext = Boolean(currentProjectId);
+  const trimmedProjectName = currentProjectName?.trim();
+  const projectLabel =
+    trimmedProjectName && trimmedProjectName.length > 0
+      ? trimmedProjectName
+      : inProjectContext
+        ? "Project overview"
+        : "Select a project";
   const dashboardPath = routes.dashboard();
   const reportsPath = routes.reports();
   const showProjectSwitcher = normalizedPath.startsWith(dashboardPath) || normalizedPath.startsWith(reportsPath);
