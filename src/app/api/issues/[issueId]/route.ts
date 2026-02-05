@@ -198,7 +198,11 @@ export async function PATCH(
       }
 
       if (epicId !== undefined) {
-        data.epicId = epicId || null;
+        if (epicId) {
+          data.epic = { connect: { id: epicId } };
+        } else {
+          data.epic = { disconnect: true };
+        }
       }
 
       if (sprintId !== undefined) {
@@ -227,6 +231,9 @@ export async function PATCH(
           newValue: newVal === null ? null : String(newVal),
         });
       };
+
+      const nextEpicId =
+        epicId !== undefined ? (epicId ? epicId : null) : existingIssue.epicId ?? null;
 
       const editableFieldValues: Record<
         EditableIssuePatchField,
@@ -257,7 +264,7 @@ export async function PATCH(
         },
         epicId: {
           oldValue: existingIssue.epicId ?? null,
-          newValue: data.epicId ?? existingIssue.epicId ?? null,
+          newValue: nextEpicId,
         },
       };
 
