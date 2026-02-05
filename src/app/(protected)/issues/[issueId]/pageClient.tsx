@@ -51,6 +51,7 @@ type IssueDetails = {
   sprint: { id: string; name: string } | null;
   epic: { id: string; title: string } | null;
   assignee: UserSummary;
+  secondaryAssignee: UserSummary;
   reporter: UserSummary;
   attachments: Attachment[];
   buildLinks?: IssueBuildLink[];
@@ -330,6 +331,7 @@ export default function IssueDetailsPageClient({
   const [priority, setPriority] = useState<IssuePriority>(IssuePriority.MEDIUM);
   const [storyPoints, setStoryPoints] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
+  const [secondaryAssigneeId, setSecondaryAssigneeId] = useState("");
   const [epicId, setEpicId] = useState("");
   const [sprintId, setSprintId] = useState("");
   const [description, setDescription] = useState("");
@@ -369,6 +371,7 @@ export default function IssueDetailsPageClient({
   const issueIdentifiers = issue
     ? {
         assigneeId: issue.assignee?.id ?? null,
+        secondaryAssigneeId: issue.secondaryAssignee?.id ?? null,
         reporterId: issue.reporter?.id ?? null,
       }
     : null;
@@ -661,6 +664,7 @@ export default function IssueDetailsPageClient({
       setPriority(data.priority);
       setStoryPoints(data.storyPoints?.toString() ?? "");
       setAssigneeId(data.assignee?.id ?? "");
+      setSecondaryAssigneeId(data.secondaryAssignee?.id ?? "");
       setEpicId(data.epic?.id ?? "");
       setSprintId(data.sprint?.id ?? "");
       setDescription(data.description ?? "");
@@ -836,6 +840,7 @@ export default function IssueDetailsPageClient({
           priority,
           storyPoints: storyPoints === "" ? null : Number(storyPoints),
           assigneeId: assigneeId || null,
+          secondaryAssigneeId: secondaryAssigneeId || null,
           epicId: epicId || null,
           sprintId: sprintId || null,
         }),
@@ -855,6 +860,7 @@ export default function IssueDetailsPageClient({
       setPriority(data.priority);
       setStoryPoints(data.storyPoints?.toString() ?? "");
       setAssigneeId(data.assignee?.id ?? "");
+      setSecondaryAssigneeId(data.secondaryAssignee?.id ?? "");
       setEpicId(data.epic?.id ?? "");
       setSprintId(data.sprint?.id ?? "");
       setDescription(data.description ?? "");
@@ -1804,6 +1810,30 @@ export default function IssueDetailsPageClient({
                         name="assignee"
                         value={assigneeId}
                         onChange={(event) => setAssigneeId(event.target.value)}
+                        disabled={disableEditing}
+                        className={baseFieldClasses}
+                      >
+                        <option value="">Unassigned</option>
+                        {assigneeOptions.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label
+                        className="text-sm font-medium text-slate-700 dark:text-slate-200"
+                        htmlFor="secondaryAssignee"
+                      >
+                        Secondary assignee
+                      </label>
+                      <select
+                        id="secondaryAssignee"
+                        name="secondaryAssignee"
+                        value={secondaryAssigneeId}
+                        onChange={(event) => setSecondaryAssigneeId(event.target.value)}
                         disabled={disableEditing}
                         className={baseFieldClasses}
                       >

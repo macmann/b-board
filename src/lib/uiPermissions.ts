@@ -2,6 +2,7 @@ import { PROJECT_ADMIN_ROLES, ProjectRole } from "./roles";
 
 type IssueIdentifiers = {
   assigneeId: string | null;
+  secondaryAssigneeId: string | null;
   reporterId: string | null;
 };
 
@@ -30,7 +31,9 @@ export const canEditIssue = (
   if (role === "VIEWER") return false;
 
   const isAssigneeOrReporter =
-    issue.assigneeId === currentUserId || issue.reporterId === currentUserId;
+    issue.assigneeId === currentUserId ||
+    issue.secondaryAssigneeId === currentUserId ||
+    issue.reporterId === currentUserId;
 
   return (role === "DEV" || role === "QA") && isAssigneeOrReporter;
 };

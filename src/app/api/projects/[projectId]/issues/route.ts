@@ -73,6 +73,7 @@ export async function POST(
       priority = IssuePriority.MEDIUM,
       storyPoints,
       assigneeId,
+      secondaryAssigneeId,
       epicId,
       description,
       sprintId,
@@ -123,6 +124,28 @@ export async function POST(
     const count = await prisma.issue.count({ where: { projectId } });
     const key = `${projectInitial}-${count + 1}`;
 
+    if (assigneeId) {
+      const assigneeMembership = await prisma.projectMember.findUnique({
+        where: { projectId_userId: { projectId, userId: assigneeId } },
+        select: { userId: true },
+      });
+
+      if (!assigneeMembership) {
+        return jsonError("Assignee must be a member of this project", 400);
+      }
+    }
+
+    if (secondaryAssigneeId) {
+      const secondaryAssigneeMembership = await prisma.projectMember.findUnique({
+        where: { projectId_userId: { projectId, userId: secondaryAssigneeId } },
+        select: { userId: true },
+      });
+
+      if (!secondaryAssigneeMembership) {
+        return jsonError("Secondary assignee must be a member of this project", 400);
+      }
+    }
+
     const issue = await prisma.issue.create({
       data: {
         projectId,
@@ -132,6 +155,7 @@ export async function POST(
         priority: validatedPriority,
         storyPoints: parsedStoryPoints,
         assigneeId: assigneeId ?? null,
+        secondaryAssigneeId: secondaryAssigneeId ?? null,
         epicId: epicId ?? null,
         description: description ?? null,
         status: issueStatus,
@@ -142,6 +166,7 @@ export async function POST(
       include: {
         epic: true,
         assignee: true,
+        secondaryAssignee: true,
       },
     });
 
@@ -161,6 +186,7 @@ export async function POST(
           type: issue.type,
           storyPoints: issue.storyPoints,
           assigneeId: issue.assigneeId,
+          secondaryAssigneeId: issue.secondaryAssigneeId,
           epicId: issue.epicId,
           sprintId: issue.sprintId,
           position: issue.position,

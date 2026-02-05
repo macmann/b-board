@@ -119,6 +119,7 @@ export type BuildEnvironment =
 export const IssueHistoryField = {
   STATUS: "STATUS",
   ASSIGNEE: "ASSIGNEE",
+  SECONDARY_ASSIGNEE: "SECONDARY_ASSIGNEE",
   STORY_POINTS: "STORY_POINTS",
   SPRINT: "SPRINT",
   TYPE: "TYPE",
