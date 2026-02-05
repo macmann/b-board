@@ -8,6 +8,7 @@ import {
   PROJECT_VIEWER_ROLES,
 } from "@/lib/permissions";
 import { resolveProjectId, type ProjectParams } from "@/lib/params";
+import { Role } from "@/lib/prismaEnums";
 import { parseDateOnly, parseTimeOnDate } from "@/lib/standupWindow";
 
 const standupInclude = {
@@ -66,17 +67,50 @@ export async function GET(
   }
 
   const dateParam = request.nextUrl.searchParams.get("date");
+  const requestedUserId = request.nextUrl.searchParams.get("userId");
   const date = parseDateOnly(dateParam ?? new Date());
 
   if (!date) {
     return NextResponse.json({ message: "date is required" }, { status: 400 });
   }
 
+  const targetUserId =
+    requestedUserId && requestedUserId !== user.id ? requestedUserId : user.id;
+
+  if (targetUserId !== user.id) {
+    try {
+      await ensureProjectRole(prisma, user.id, projectId, [Role.ADMIN]);
+    } catch (error) {
+      if (error instanceof ForbiddenError) {
+        return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+      }
+
+      throw error;
+    }
+
+    const targetMember = await prisma.projectMember.findUnique({
+      where: {
+        projectId_userId: {
+          projectId,
+          userId: targetUserId,
+        },
+      },
+      select: { userId: true },
+    });
+
+    if (!targetMember) {
+      return NextResponse.json(
+        { message: "User is not a project member" },
+        { status: 404 }
+      );
+    }
+  }
+
   const entry = await prisma.dailyStandupEntry.findUnique({
     where: {
       projectId_userId_date: {
         projectId,
-        userId: user.id,
+        userId: targetUserId,
         date,
       },
     },
@@ -132,6 +166,7 @@ const upsertEntry = async (
 
   const {
     date: dateInput,
+    userId: requestedUserId,
     yesterdayWork,
     todayPlan,
     summaryToday,
@@ -178,6 +213,40 @@ const upsertEntry = async (
     }
   }
 
+  const targetUserId =
+    typeof requestedUserId === "string" && requestedUserId !== user.id
+      ? requestedUserId
+      : user.id;
+
+  if (targetUserId !== user.id) {
+    try {
+      await ensureProjectRole(prisma, user.id, projectId, [Role.ADMIN]);
+    } catch (error) {
+      if (error instanceof ForbiddenError) {
+        return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+      }
+
+      throw error;
+    }
+
+    const targetMember = await prisma.projectMember.findUnique({
+      where: {
+        projectId_userId: {
+          projectId,
+          userId: targetUserId,
+        },
+      },
+      select: { userId: true },
+    });
+
+    if (!targetMember) {
+      return NextResponse.json(
+        { message: "User is not a project member" },
+        { status: 404 }
+      );
+    }
+  }
+
   const issueIds = normalizeIssueIds(issueIdsInput);
   const researchIds = normalizeResearchIds(researchIdsInput);
 
@@ -210,7 +279,7 @@ const upsertEntry = async (
       where: {
         projectId_userId_date: {
           projectId,
-          userId: user.id,
+          userId: targetUserId,
           date,
         },
       },
@@ -224,7 +293,7 @@ const upsertEntry = async (
       },
       create: {
         projectId,
-        userId: user.id,
+        userId: targetUserId,
         date,
         summaryToday: normalizedSummaryToday ?? null,
         progressSinceYesterday: normalizedProgress ?? null,
@@ -239,14 +308,14 @@ const upsertEntry = async (
       where: {
         projectId_userId_date: {
           projectId,
-          userId: user.id,
+          userId: targetUserId,
           date,
         },
       },
       update: { status: "PRESENT" },
       create: {
         projectId,
-        userId: user.id,
+        userId: targetUserId,
         date,
         status: "PRESENT",
       },

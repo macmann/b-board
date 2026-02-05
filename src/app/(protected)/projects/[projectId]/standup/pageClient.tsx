@@ -96,9 +96,17 @@ const getInitials = (value?: string | null) =>
     .slice(0, 2)
     .toUpperCase() ?? "";
 
-const getMyStandupEntryForDate = async (projectId: string, date: string) => {
+const getMyStandupEntryForDate = async (
+  projectId: string,
+  date: string,
+  userId?: string | null
+) => {
+  const params = new URLSearchParams();
+  params.set("date", date);
+  if (userId) params.set("userId", userId);
+
   const response = await fetch(
-    `/api/projects/${projectId}/standup/my?date=${encodeURIComponent(date)}`
+    `/api/projects/${projectId}/standup/my?${params.toString()}`
   );
 
   if (!response.ok) {
@@ -113,12 +121,14 @@ const upsertMyStandupEntry = async (
   projectId: string,
   payload: {
     date: string;
+    userId?: string;
     summaryToday: string | null;
     progressSinceYesterday: string | null;
     blockers: string | null;
     dependencies: string | null;
     notes: string | null;
     issueIds: string[];
+    researchIds: string[];
   }
 ) => {
   const response = await fetch(`/api/projects/${projectId}/standup/my`, {
@@ -285,8 +295,10 @@ export default function StandupPageClient({
 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
+  const canProxyStandup = projectRole === "ADMIN";
   const canViewDashboard = projectRole === "ADMIN" || projectRole === "PO";
   const canViewStandupView = canViewDashboard;
+  const [actingUserId, setActingUserId] = useState(currentUserId);
 
   const yesterdayDate = useMemo(() => {
     const previous = new Date(selectedDate);
@@ -314,6 +326,14 @@ export default function StandupPageClient({
     () => members.find((member) => member.user.id === selectedUserId),
     [members, selectedUserId]
   );
+  const actingMember = useMemo(
+    () => members.find((member) => member.user.id === actingUserId),
+    [actingUserId, members]
+  );
+  const actingUserName =
+    actingMember?.user.name ?? actingMember?.user.email ?? currentUserName;
+  const actingUserEmail =
+    actingMember?.user.email ?? (actingMember ? "No email" : currentUserEmail);
   const yesterdayEntries = standupViewData?.yesterday ?? [];
   const todayEntries = standupViewData?.today ?? [];
 
@@ -333,13 +353,18 @@ export default function StandupPageClient({
 
   useEffect(() => {
     if (!projectId || !mySelectedDate) return;
+    const targetUserId = canProxyStandup ? actingUserId : currentUserId;
 
     const loadEntry = async () => {
       setIsLoadingEntry(true);
       setEntryError("");
 
       try {
-        const entry = await getMyStandupEntryForDate(projectId, mySelectedDate);
+        const entry = await getMyStandupEntryForDate(
+          projectId,
+          mySelectedDate,
+          targetUserId
+        );
         setCurrentEntry(entry);
         setFormState({
           summaryToday: entry?.summaryToday ?? "",
@@ -360,7 +385,7 @@ export default function StandupPageClient({
     };
 
     loadEntry();
-  }, [projectId, mySelectedDate]);
+  }, [actingUserId, canProxyStandup, currentUserId, mySelectedDate, projectId]);
 
   useEffect(() => {
     if (!projectId || !canViewStandupView) return;
@@ -385,6 +410,31 @@ export default function StandupPageClient({
 
     loadMembers();
   }, [canViewStandupView, projectId]);
+
+  useEffect(() => {
+    if (!canProxyStandup) {
+      if (actingUserId !== currentUserId) {
+        setActingUserId(currentUserId);
+      }
+      return;
+    }
+
+    if (!members.length) return;
+
+    const hasActingMember = members.some(
+      (member) => member.user.id === actingUserId
+    );
+
+    if (hasActingMember) return;
+
+    const fallbackMember =
+      members.find((member) => member.user.id === currentUserId) ??
+      members[0] ??
+      null;
+    if (fallbackMember) {
+      setActingUserId(fallbackMember.user.id);
+    }
+  }, [actingUserId, canProxyStandup, currentUserId, members]);
 
   useEffect(() => {
     if (!canViewStandupView || !members.length) return;
@@ -559,8 +609,10 @@ export default function StandupPageClient({
     setEntryError("");
 
     try {
+      const targetUserId = canProxyStandup ? actingUserId : currentUserId;
       const payload = {
         date: mySelectedDate,
+        userId: targetUserId !== currentUserId ? targetUserId : undefined,
         summaryToday: formState.summaryToday.trim() || null,
         progressSinceYesterday: formState.progressSinceYesterday.trim() || null,
         blockers: formState.blockers.trim() || null,
@@ -725,13 +777,38 @@ export default function StandupPageClient({
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
-                  Your standup for {formatDisplayDate(mySelectedDate)}
+                  {canProxyStandup ? "Standup update for" : "Your standup for"}{" "}
+                  {formatDisplayDate(mySelectedDate)}
                 </h2>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  {currentUserName} · {currentUserEmail}
+                  {actingUserName} · {actingUserEmail}
                 </p>
               </div>
               <div className="flex flex-col items-start gap-2 md:items-end">
+                {canProxyStandup && (
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                      Update as
+                    </label>
+                    <select
+                      value={actingUserId}
+                      onChange={(event) => setActingUserId(event.target.value)}
+                      className="min-w-[220px] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
+                    >
+                      {isLoadingMembers && members.length === 0 ? (
+                        <option value={actingUserId}>Loading members...</option>
+                      ) : members.length > 0 ? (
+                        members.map((member) => (
+                          <option key={member.id} value={member.user.id}>
+                            {member.user.name ?? member.user.email ?? "Unnamed member"}
+                          </option>
+                        ))
+                      ) : (
+                        <option value={currentUserId}>{currentUserName}</option>
+                      )}
+                    </select>
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
                     Date
@@ -778,7 +855,7 @@ export default function StandupPageClient({
             {standupMode === "ai" ? (
               <AIStandupAssistant
                 projectId={projectId}
-                userName={currentUserName}
+                userName={actingUserName}
                 onDraftReady={handleDraftReady}
               />
             ) : (
