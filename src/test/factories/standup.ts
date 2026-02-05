@@ -44,6 +44,7 @@ export const buildIssue = (overrides: Partial<Issue> = {}): Issue => ({
   position: overrides.position ?? 0,
   reporterId: overrides.reporterId ?? nextId("user"),
   assigneeId: overrides.assigneeId ?? null,
+  secondaryAssigneeId: overrides.secondaryAssigneeId ?? null,
   sprintId: overrides.sprintId ?? null,
   storyPoints: overrides.storyPoints ?? null,
   epicId: overrides.epicId ?? null,
