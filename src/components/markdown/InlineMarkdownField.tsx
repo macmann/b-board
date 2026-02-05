@@ -140,8 +140,8 @@ export default function InlineMarkdownField({
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={handleKeyDown}
-            rows={8}
-            className="min-h-[160px] w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-primary/30 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-50"
+            rows={16}
+            className="min-h-[320px] w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-primary/30 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-50"
             placeholder={placeholder}
           />
 
@@ -194,7 +194,7 @@ export default function InlineMarkdownField({
           </div>
 
           <div
-            className={`rounded-xl border border-slate-200 bg-white/70 px-4 py-3 text-sm shadow-sm dark:border-slate-800 dark:bg-slate-950/40 ${
+            className={`min-h-[320px] rounded-xl border border-slate-200 bg-white/70 px-4 py-3 text-sm shadow-sm dark:border-slate-800 dark:bg-slate-950/40 ${
               canEdit ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700" : ""
             }`}
             role={canEdit ? "button" : undefined}
