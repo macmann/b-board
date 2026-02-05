@@ -11,6 +11,7 @@ type User = {
   name?: string | null;
   email: string;
   avatarUrl?: string | null;
+  passwordHash: string;
 };
 
 type ProjectMember = {
