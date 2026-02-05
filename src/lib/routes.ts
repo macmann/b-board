@@ -8,6 +8,7 @@ export const routes = {
   dashboard: () => "/dashboard",
   myProjects: () => "/my-projects",
   reports: () => "/reports",
+  profile: () => "/profile",
   projects: () => "/projects",
   myProjectLegacy: () => "/my-project",
   project: {
