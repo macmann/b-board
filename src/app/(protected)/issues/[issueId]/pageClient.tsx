@@ -337,6 +337,7 @@ export default function IssueDetailsPageClient({
   const [description, setDescription] = useState("");
   const [commentBody, setCommentBody] = useState("");
   const [activityTab, setActivityTab] = useState<"comments" | "audit">("comments");
+  const [isActivityOpen, setIsActivityOpen] = useState(false);
 
   const epicOptions = useMemo(() => {
     const options = [] as Array<{ id: string; label: string }>;
@@ -1543,25 +1544,35 @@ export default function IssueDetailsPageClient({
                       <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">Activity</h2>
                       <p className="text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">Conversation & audit trail</p>
                     </div>
-                    <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800">
-                      <button
-                        type="button"
-                        onClick={() => setActivityTab("comments")}
-                        className={activityTabButton("comments")}
-                      >
-                        Comments
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setActivityTab("audit")}
-                        className={activityTabButton("audit")}
-                      >
-                        Audit
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsActivityOpen((prev) => !prev)}
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-100"
+                      aria-expanded={isActivityOpen}
+                    >
+                      {isActivityOpen ? "Collapse" : "Expand"}
+                    </button>
                   </div>
-                  {activityTab === "comments" ? (
+                  {isActivityOpen ? (
                     <>
+                      <div className="mt-4 flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => setActivityTab("comments")}
+                          className={activityTabButton("comments")}
+                        >
+                          Comments
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActivityTab("audit")}
+                          className={activityTabButton("audit")}
+                        >
+                          Audit
+                        </button>
+                      </div>
+                      {activityTab === "comments" ? (
+                        <>
                       <div className="mt-4">
                         {comments.length === 0 ? (
                           <p className="text-sm text-slate-600 dark:text-slate-300">No comments yet.</p>
@@ -1680,14 +1691,16 @@ export default function IssueDetailsPageClient({
                         </button>
                       </form>
                     </>
-                  ) : (
-                    <div className="mt-4">
-                      <AuditLogList
-                        fetchUrl={`/api/issues/${issueId}/audit-logs`}
-                        emptyMessage="No audit entries yet for this issue."
-                      />
-                    </div>
-                  )}
+                      ) : (
+                        <div className="mt-4">
+                          <AuditLogList
+                            fetchUrl={`/api/issues/${issueId}/audit-logs`}
+                            emptyMessage="No audit entries yet for this issue."
+                          />
+                        </div>
+                      )}
+                    </>
+                  ) : null}
                 </section>
               </div>
 
