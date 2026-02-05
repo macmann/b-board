@@ -206,7 +206,11 @@ export async function PATCH(
       }
 
       if (sprintId !== undefined) {
-        data.sprintId = sprintId || null;
+        if (sprintId) {
+          data.sprint = { connect: { id: sprintId } };
+        } else {
+          data.sprint = { disconnect: true };
+        }
       }
 
       const historyEntries = [] as Array<{
@@ -234,6 +238,8 @@ export async function PATCH(
 
       const nextEpicId =
         epicId !== undefined ? (epicId ? epicId : null) : existingIssue.epicId ?? null;
+      const nextSprintId =
+        sprintId !== undefined ? (sprintId ? sprintId : null) : existingIssue.sprintId ?? null;
 
       const editableFieldValues: Record<
         EditableIssuePatchField,
@@ -281,7 +287,7 @@ export async function PATCH(
       trackChange(
         IssueHistoryField.SPRINT,
         existingIssue.sprintId ?? null,
-        data.sprintId ?? existingIssue.sprintId ?? null
+        nextSprintId
       );
 
       const updatedIssue = await prisma.$transaction(async (tx) => {
