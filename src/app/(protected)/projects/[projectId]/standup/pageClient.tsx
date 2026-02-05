@@ -1177,7 +1177,7 @@ export default function StandupPageClient({
           )}
 
           <div className="space-y-3">
-            <div className="hidden gap-3 overflow-x-auto md:flex">
+            <div className="hidden flex-wrap gap-3 md:flex">
               {isLoadingMembers && members.length === 0 ? (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300">
                   Loading members...
@@ -1192,7 +1192,7 @@ export default function StandupPageClient({
                       key={member.id}
                       type="button"
                       onClick={() => setSelectedUserId(member.user.id)}
-                      className={`flex min-w-[200px] items-center gap-3 rounded-lg border px-3 py-2 text-left transition ${
+                      className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition sm:w-[calc(50%-0.75rem)] lg:w-[calc(33.333%-0.75rem)] xl:w-[calc(25%-0.75rem)] ${
                         isActive
                           ? "border-blue-500 bg-blue-50 text-slate-900 shadow-sm dark:border-blue-400/80 dark:bg-blue-900/40 dark:text-slate-50"
                           : "border-slate-200 bg-white text-slate-800 hover:border-blue-200 hover:bg-blue-50/70 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-500/50 dark:hover:bg-slate-800"
