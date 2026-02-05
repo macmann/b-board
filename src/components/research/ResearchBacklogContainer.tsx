@@ -3,11 +3,19 @@
 import { useMemo, useState } from "react";
 
 import type { BacklogTableIssue } from "@/components/issues/BacklogTable";
+import { type SelectOption } from "@/components/issues/InlineEditableCell";
 import ResearchDetailsDrawer from "@/components/research/ResearchDetailsDrawer";
+import ResearchFilterBar from "@/components/research/ResearchFilterBar";
 import ResearchItemDrawer from "@/components/research/ResearchItemDrawer";
 import { Button } from "@/components/ui/Button";
 import ResearchBoard from "./ResearchBoard";
 import ResearchList from "./ResearchList";
+import {
+  defaultResearchFilters,
+  GENERAL_RESEARCH_TYPE_VALUE,
+  researchMatchesFilters,
+  type ResearchFilters,
+} from "./researchFilters";
 import { type ResearchBacklogItem } from "./types";
 
 type ResearchBacklogContainerProps = {
@@ -37,16 +45,58 @@ export default function ResearchBacklogContainer({
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [filters, setFilters] = useState<ResearchFilters>(defaultResearchFilters);
+
+  const filteredItems = useMemo(
+    () => items.filter((item) => researchMatchesFilters(item, filters)),
+    [filters, items]
+  );
 
   const listItems = useMemo(
     () =>
-      [...items].sort(
+      [...filteredItems].sort(
         (a, b) =>
           new Date(b.updatedAt).getTime() -
           new Date(a.updatedAt).getTime()
       ),
-    [items]
+    [filteredItems]
   );
+
+  const assigneeOptions = useMemo<SelectOption[]>(() => {
+    const options = new Map<string, string>();
+    items.forEach((item) => {
+      if (!item.assignee?.id) return;
+      options.set(item.assignee.id, item.assignee.name);
+    });
+
+    return Array.from(options.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [items]);
+
+  const typeOptions = useMemo<SelectOption[]>(() => {
+    const options = new Map<string, string>();
+    let hasGeneral = false;
+
+    items.forEach((item) => {
+      const typeValue = item.researchType?.trim();
+      if (!typeValue) {
+        hasGeneral = true;
+        return;
+      }
+      options.set(typeValue, typeValue);
+    });
+
+    const entries = Array.from(options.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    if (hasGeneral) {
+      entries.unshift({ value: GENERAL_RESEARCH_TYPE_VALUE, label: "General" });
+    }
+
+    return entries;
+  }, [items]);
 
   const handleOpenDetails = (id: string) => {
     setSelectedItemId(id);
@@ -159,6 +209,14 @@ export default function ResearchBacklogContainer({
         </div>
       )}
 
+      <ResearchFilterBar
+        filters={filters}
+        onFiltersChange={setFilters}
+        onClearFilters={() => setFilters(defaultResearchFilters)}
+        assigneeOptions={assigneeOptions}
+        typeOptions={typeOptions}
+      />
+
       {isLoading ? (
         <div className="rounded-xl border border-slate-200 bg-white px-6 py-4 text-sm text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
           Loading research...
@@ -166,7 +224,7 @@ export default function ResearchBacklogContainer({
       ) : view === "board" && enableResearchBoard ? (
         <ResearchBoard
           projectId={projectId}
-          items={items}
+          items={filteredItems}
           canEdit={canEditBoard}
           onOpenDetails={handleOpenDetails}
           onDelete={handleDeleteItem}
