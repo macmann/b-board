@@ -10,6 +10,7 @@ type User = {
   role: Role;
   name?: string | null;
   email: string;
+  avatarUrl?: string | null;
 };
 
 type ProjectMember = {
