@@ -31,6 +31,7 @@ export default function CreateIssueDrawer({
   const [priority, setPriority] = useState<IssuePriority>(IssuePriority.MEDIUM);
   const [storyPoints, setStoryPoints] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
+  const [secondaryAssigneeId, setSecondaryAssigneeId] = useState("");
   const [epicId, setEpicId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string>("");
@@ -41,6 +42,7 @@ export default function CreateIssueDrawer({
     setPriority(IssuePriority.MEDIUM);
     setStoryPoints("");
     setAssigneeId("");
+    setSecondaryAssigneeId("");
     setEpicId("");
   };
 
@@ -61,6 +63,7 @@ export default function CreateIssueDrawer({
           priority,
           storyPoints: storyPoints ? Number(storyPoints) : undefined,
           assigneeId: assigneeId || undefined,
+          secondaryAssigneeId: secondaryAssigneeId || undefined,
           epicId: epicId || undefined,
         }),
       });
@@ -179,6 +182,30 @@ export default function CreateIssueDrawer({
                 name="assignee"
                 value={assigneeId}
                 onChange={(event) => setAssigneeId(event.target.value)}
+                disabled={isReadOnly}
+                className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:disabled:bg-slate-800"
+              >
+                <option value="">Unassigned</option>
+                {assigneeOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label
+                className="text-sm font-medium text-gray-700 dark:text-slate-200"
+                htmlFor="secondaryAssignee"
+              >
+                Secondary assignee
+              </label>
+              <select
+                id="secondaryAssignee"
+                name="secondaryAssignee"
+                value={secondaryAssigneeId}
+                onChange={(event) => setSecondaryAssigneeId(event.target.value)}
                 disabled={isReadOnly}
                 className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:disabled:bg-slate-800"
               >

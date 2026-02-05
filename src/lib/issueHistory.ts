@@ -7,6 +7,7 @@ export type EditableIssuePatchField =
   | "priority"
   | "storyPoints"
   | "assigneeId"
+  | "secondaryAssigneeId"
   | "epicId";
 
 export const EDITABLE_FIELD_TO_HISTORY_FIELD: Record<EditableIssuePatchField, IssueHistoryField> = {
@@ -15,5 +16,6 @@ export const EDITABLE_FIELD_TO_HISTORY_FIELD: Record<EditableIssuePatchField, Is
   priority: IssueHistoryField.PRIORITY,
   storyPoints: IssueHistoryField.STORY_POINTS,
   assigneeId: IssueHistoryField.ASSIGNEE,
+  secondaryAssigneeId: IssueHistoryField.SECONDARY_ASSIGNEE,
   epicId: IssueHistoryField.EPIC,
 };

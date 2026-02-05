@@ -44,6 +44,7 @@ export async function GET(
           sprint: true,
           epic: true,
           assignee: true,
+          secondaryAssignee: true,
           reporter: true,
           attachments: { where: { commentId: null } },
           buildLinks: {
@@ -121,7 +122,9 @@ export async function PATCH(
       if (!isAdminOrPo) {
         const isReporterOrAssignee =
           isDevOrQa &&
-          (user.id === existingIssue.assigneeId || user.id === existingIssue.reporterId);
+          (user.id === existingIssue.assigneeId ||
+            user.id === existingIssue.secondaryAssigneeId ||
+            user.id === existingIssue.reporterId);
 
         if (!isReporterOrAssignee) {
           return jsonError("Forbidden", 403);
@@ -137,6 +140,7 @@ export async function PATCH(
         priority,
         storyPoints,
         assigneeId,
+        secondaryAssigneeId,
         epicId,
         sprintId,
         type,
@@ -194,6 +198,30 @@ export async function PATCH(
           data.assignee = { connect: { id: assigneeId } };
         } else {
           data.assignee = { disconnect: true };
+        }
+      }
+
+      if (secondaryAssigneeId !== undefined) {
+        if (secondaryAssigneeId) {
+          const secondaryAssigneeMembership = await prisma.projectMember.findUnique({
+            where: {
+              projectId_userId: {
+                projectId: existingIssue.projectId,
+                userId: secondaryAssigneeId,
+              },
+            },
+            select: { userId: true },
+          });
+
+          if (!secondaryAssigneeMembership) {
+            return jsonError("Secondary assignee must be a member of this project", 400);
+          }
+        }
+
+        if (secondaryAssigneeId) {
+          data.secondaryAssignee = { connect: { id: secondaryAssigneeId } };
+        } else {
+          data.secondaryAssignee = { disconnect: true };
         }
       }
 
@@ -268,6 +296,13 @@ export async function PATCH(
               ? assigneeId || null
               : existingIssue.assigneeId ?? null,
         },
+        secondaryAssigneeId: {
+          oldValue: existingIssue.secondaryAssigneeId ?? null,
+          newValue:
+            secondaryAssigneeId !== undefined
+              ? secondaryAssigneeId || null
+              : existingIssue.secondaryAssigneeId ?? null,
+        },
         epicId: {
           oldValue: existingIssue.epicId ?? null,
           newValue: nextEpicId,
@@ -299,6 +334,7 @@ export async function PATCH(
             sprint: true,
             epic: true,
             assignee: true,
+            secondaryAssignee: true,
             reporter: true,
             attachments: { where: { commentId: null } },
           },
@@ -335,6 +371,11 @@ export async function PATCH(
       trackAuditChange("type", existingIssue.type, updatedIssue.type);
       trackAuditChange("storyPoints", existingIssue.storyPoints, updatedIssue.storyPoints);
       trackAuditChange("assigneeId", existingIssue.assigneeId, updatedIssue.assigneeId);
+      trackAuditChange(
+        "secondaryAssigneeId",
+        existingIssue.secondaryAssigneeId,
+        updatedIssue.secondaryAssigneeId
+      );
       trackAuditChange("epicId", existingIssue.epicId, updatedIssue.epicId);
       trackAuditChange("sprintId", existingIssue.sprintId, updatedIssue.sprintId);
 

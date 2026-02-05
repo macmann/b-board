@@ -174,6 +174,7 @@ enum EmailProviderType {
 enum IssueHistoryField {
   STATUS
   ASSIGNEE
+  SECONDARY_ASSIGNEE
   STORY_POINTS
   SPRINT
   TYPE
@@ -196,6 +197,7 @@ model User {
   sentInvitations       Invitation[]        @relation("InvitationsSent")
   reportedIssues        Issue[]             @relation("ReportedIssues")
   assignedIssues        Issue[]             @relation("AssignedIssues")
+  secondaryAssignedIssues Issue[]           @relation("SecondaryAssignedIssues")
   comments              Comment[]
   historyEntries        IssueHistory[]
   assignedResearchItems ResearchItem[]      @relation("ResearchItemAssignee")
@@ -366,6 +368,7 @@ model Issue {
   position     Float         @default(0)
   storyPoints  Float?
   assigneeId   String?
+  secondaryAssigneeId String?
   reporterId   String?
   jiraIssueKey String?
   jiraIssueId  String?
@@ -376,6 +379,7 @@ model Issue {
   sprint        Sprint?                 @relation(fields: [sprintId], references: [id], onDelete: SetNull)
   epic          Epic?                   @relation(fields: [epicId], references: [id], onDelete: SetNull)
   assignee      User?                   @relation("AssignedIssues", fields: [assigneeId], references: [id], onDelete: SetNull)
+  secondaryAssignee User?               @relation("SecondaryAssignedIssues", fields: [secondaryAssigneeId], references: [id], onDelete: SetNull)
   reporter      User?                   @relation("ReportedIssues", fields: [reporterId], references: [id], onDelete: SetNull)
   comments      Comment[]
   history       IssueHistory[]
@@ -390,6 +394,7 @@ model Issue {
   @@index([sprintId])
   @@index([epicId])
   @@index([assigneeId])
+  @@index([secondaryAssigneeId])
 }
 
 model Build {
