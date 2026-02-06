@@ -21,17 +21,6 @@ import {
 import { safeLogAudit } from "../../../../lib/auditLogger";
 import { setRequestContextUser, withRequestContext } from "../../../../lib/requestContext";
 
-const fetchSecondaryAssignee = async (secondaryAssigneeId: string | null) => {
-  if (!secondaryAssigneeId) {
-    return null;
-  }
-
-  return prisma.user.findUnique({
-    where: { id: secondaryAssigneeId },
-    select: { id: true, name: true },
-  });
-};
-
 export async function GET(
   request: NextRequest,
   ctx: { params: Promise<{ issueId: string }> }
@@ -55,6 +44,9 @@ export async function GET(
           sprint: true,
           epic: true,
           assignee: true,
+          secondaryAssignee: {
+            select: { id: true, name: true },
+          },
           reporter: true,
           attachments: { where: { commentId: null } },
           buildLinks: {
@@ -80,7 +72,7 @@ export async function GET(
         return jsonError("Issue not found", 404);
       }
 
-      const secondaryAssignee = await fetchSecondaryAssignee(issue.secondaryAssigneeId);
+      const secondaryAssignee = issue.secondaryAssignee ?? null;
 
       return jsonOk({ ...issue, secondaryAssignee });
     } catch (error) {
@@ -346,6 +338,9 @@ export async function PATCH(
             sprint: true,
             epic: true,
             assignee: true,
+            secondaryAssignee: {
+              select: { id: true, name: true },
+            },
             reporter: true,
             attachments: { where: { commentId: null } },
           },
@@ -366,9 +361,7 @@ export async function PATCH(
         return issue;
       });
 
-      const secondaryAssignee = await fetchSecondaryAssignee(
-        updatedIssue.secondaryAssigneeId
-      );
+      const secondaryAssignee = updatedIssue.secondaryAssignee ?? null;
 
       const beforeChanges: Record<string, unknown> = {};
       const afterChanges: Record<string, unknown> = {};
