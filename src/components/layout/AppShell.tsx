@@ -45,7 +45,7 @@ export default function AppShell({
   const showProjectSwitcher = normalizedPath.startsWith(dashboardPath) || normalizedPath.startsWith(reportsPath);
 
   const isLeadership =
-    hasLeadershipAccess ?? user?.role === Role.ADMIN || user?.role === Role.PO;
+    hasLeadershipAccess ?? (user?.role === Role.ADMIN || user?.role === Role.PO);
 
   const workspaceLinks = [
     { href: dashboardPath, label: "Dashboard", restricted: true },
