@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import ProjectHeader from "@/components/projects/ProjectHeader";
 import ProjectTabs from "@/components/projects/ProjectTabs";
 import prisma from "@/lib/db";
-import { resolveProjectId, type ProjectParams } from "@/lib/params";
+import { resolveProjectId, type BuildParams } from "@/lib/params";
 import { getCurrentProjectContext } from "@/lib/projectContext";
 import {
   BuildEnvironment,
@@ -17,7 +17,7 @@ import { ProjectRole } from "@/lib/roles";
 import BuildDetailsPageClient from "./pageClient";
 
 type Props = {
-  params: ProjectParams & { buildId: string };
+  params: BuildParams;
 };
 
 type LinkedIssue = {
@@ -41,7 +41,7 @@ const mapRole = (
 };
 
 export default async function BuildDetailsPage({ params }: Props) {
-  const resolvedParams = await params;
+  const resolvedParams = params && "then" in params ? await params : params;
   const projectId = await resolveProjectId(resolvedParams);
   const buildId = resolvedParams?.buildId;
 
