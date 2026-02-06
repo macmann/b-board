@@ -1401,13 +1401,13 @@ export default function StandupPageClient({
                 <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">
                   AI Summary for {formatDisplayDate(summaryDate)}
                 </h3>
-                <div className="text-sm text-slate-600 dark:text-slate-300">
+                <div className="text-sm text-slate-700 dark:text-slate-200">
                   {isLoadingSummary ? (
                     <p>Generating summary...</p>
                   ) : summary?.summary ? (
                     <MarkdownRenderer
                       content={summary.summary ?? ""}
-                      className="prose prose-sm max-w-none text-slate-700 dark:prose-invert"
+                      className="prose prose-sm max-w-none text-slate-700 dark:text-slate-200 dark:prose-invert"
                     />
                   ) : (
                     <p>No summary available yet for this date.</p>
