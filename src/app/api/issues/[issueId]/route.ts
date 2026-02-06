@@ -21,6 +21,17 @@ import {
 import { safeLogAudit } from "../../../../lib/auditLogger";
 import { setRequestContextUser, withRequestContext } from "../../../../lib/requestContext";
 
+const fetchSecondaryAssignee = async (secondaryAssigneeId: string | null) => {
+  if (!secondaryAssigneeId) {
+    return null;
+  }
+
+  return prisma.user.findUnique({
+    where: { id: secondaryAssigneeId },
+    select: { id: true, name: true },
+  });
+};
+
 export async function GET(
   request: NextRequest,
   ctx: { params: Promise<{ issueId: string }> }
@@ -44,7 +55,6 @@ export async function GET(
           sprint: true,
           epic: true,
           assignee: true,
-          secondaryAssignee: true,
           reporter: true,
           attachments: { where: { commentId: null } },
           buildLinks: {
@@ -70,7 +80,9 @@ export async function GET(
         return jsonError("Issue not found", 404);
       }
 
-      return jsonOk(issue);
+      const secondaryAssignee = await fetchSecondaryAssignee(issue.secondaryAssigneeId);
+
+      return jsonOk({ ...issue, secondaryAssignee });
     } catch (error) {
       logError("Failed to fetch issue", error);
       return jsonError("Something went wrong", 500);
@@ -334,7 +346,6 @@ export async function PATCH(
             sprint: true,
             epic: true,
             assignee: true,
-            secondaryAssignee: true,
             reporter: true,
             attachments: { where: { commentId: null } },
           },
@@ -354,6 +365,10 @@ export async function PATCH(
 
         return issue;
       });
+
+      const secondaryAssignee = await fetchSecondaryAssignee(
+        updatedIssue.secondaryAssigneeId
+      );
 
       const beforeChanges: Record<string, unknown> = {};
       const afterChanges: Record<string, unknown> = {};
@@ -399,7 +414,7 @@ export async function PATCH(
         }
       }
 
-      return jsonOk(updatedIssue);
+      return jsonOk({ ...updatedIssue, secondaryAssignee });
     } catch (error) {
       logError("Failed to update issue", error);
       return jsonError("Something went wrong", 500);
