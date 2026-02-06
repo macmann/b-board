@@ -41,8 +41,9 @@ const mapRole = (
 };
 
 export default async function BuildDetailsPage({ params }: Props) {
-  const projectId = await resolveProjectId(params);
-  const buildId = params.buildId;
+  const resolvedParams = await params;
+  const projectId = await resolveProjectId(resolvedParams);
+  const buildId = resolvedParams?.buildId;
 
   if (!projectId || !buildId) {
     notFound();
