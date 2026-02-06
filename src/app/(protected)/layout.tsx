@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 
 import AppShell from "@/components/layout/AppShell";
 import { getUserFromRequest } from "../../lib/auth";
+import prisma from "../../lib/db";
+import { Role } from "../../lib/prismaEnums";
 
 type Props = {
   children: ReactNode;
@@ -32,6 +34,17 @@ export default async function ProtectedLayout({ children }: Props) {
   if (!user) {
     redirect("/login");
   }
+
+  const leadershipMembership = await prisma.projectMember.findFirst({
+    where: {
+      userId: user.id,
+      role: { in: [Role.ADMIN, Role.PO] },
+    },
+    select: { id: true },
+  });
+
+  const hasLeadershipAccess =
+    user.role === Role.ADMIN || user.role === Role.PO || Boolean(leadershipMembership);
 
   const currentProjectName = headerList.get("x-current-project-name") ?? "";
 
@@ -68,6 +81,7 @@ export default async function ProtectedLayout({ children }: Props) {
       currentPath={currentPath}
       onLogout={logout}
       user={user}
+      hasLeadershipAccess={hasLeadershipAccess}
     >
       {children}
     </AppShell>

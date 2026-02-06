@@ -214,12 +214,6 @@ export default async function DashboardPage() {
     redirect(routes.login());
   }
 
-  const isLeadership = user.role === Role.ADMIN || user.role === Role.PO;
-
-  if (!isLeadership) {
-    redirect(routes.myProjects());
-  }
-
   const memberships = await prisma.projectMember.findMany({
     where: { userId: user.id },
     include: {
@@ -233,6 +227,16 @@ export default async function DashboardPage() {
     },
     orderBy: { createdAt: "asc" },
   });
+
+  const hasLeadershipMembership = memberships.some(
+    (membership) => membership.role === Role.ADMIN || membership.role === Role.PO
+  );
+  const isLeadership =
+    user.role === Role.ADMIN || user.role === Role.PO || hasLeadershipMembership;
+
+  if (!isLeadership) {
+    redirect(routes.myProjects());
+  }
 
   const projectIds = memberships.map((membership) => membership.project.id);
 
