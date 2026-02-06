@@ -48,7 +48,6 @@ export default function AppShell({
     { href: dashboardPath, label: "Dashboard", restricted: true },
     { href: routes.myProjects(), label: "My Projects", restricted: false },
     { href: reportsPath, label: "Reports", restricted: true },
-    { href: routes.profile(), label: "Profile", restricted: false },
   ].filter((link) => !link.restricted || isLeadership);
 
   const projectLinks = currentProjectId
@@ -147,6 +146,25 @@ export default function AppShell({
                 <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{user.name ?? "Admin"}</div>
                 <div className="text-xs text-slate-500 dark:text-slate-400">{user.email ?? "admin@bboard.com"}</div>
               </div>
+            )}
+            {user && (
+              <Button asChild aria-label="Profile settings" size="sm" variant="secondary">
+                <Link href={routes.profile()}>
+                  <svg
+                    aria-hidden="true"
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="1.8"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M12 9.25a2.75 2.75 0 1 0 0 5.5 2.75 2.75 0 0 0 0-5.5Z" />
+                    <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2.2 2.2 0 1 1-3.1 3.1l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2.2 2.2 0 0 1-4.4 0v-.1a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a2.2 2.2 0 1 1-3.1-3.1l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2.2 2.2 0 0 1 0-4.4h.1a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a2.2 2.2 0 1 1 3.1-3.1l.1.1a1 1 0 0 0 1.1.2h.1a1 1 0 0 0 .6-.9V4a2.2 2.2 0 1 1 4.4 0v.1a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a2.2 2.2 0 1 1 3.1 3.1l-.1.1a1 1 0 0 0-.2 1.1v.1a1 1 0 0 0 .9.6H20a2.2 2.2 0 0 1 0 4.4h-.1a1 1 0 0 0-.9.6Z" />
+                  </svg>
+                </Link>
+              </Button>
             )}
             {onLogout && (
               <form action={onLogout} className="shrink-0">
