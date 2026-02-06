@@ -22,6 +22,17 @@ import { getNextIssuePosition } from "../../../../../lib/issuePosition";
 import { resolveProjectId, type ProjectParams } from "../../../../../lib/params";
 import { logError } from "../../../../../lib/logger";
 
+const fetchSecondaryAssignee = async (secondaryAssigneeId: string | null) => {
+  if (!secondaryAssigneeId) {
+    return null;
+  }
+
+  return prisma.user.findUnique({
+    where: { id: secondaryAssigneeId },
+    select: { id: true, name: true },
+  });
+};
+
 export async function POST(
   request: NextRequest,
   ctx: { params: Promise<Awaited<ProjectParams>> }
@@ -166,9 +177,10 @@ export async function POST(
       include: {
         epic: true,
         assignee: true,
-        secondaryAssignee: true,
       },
     });
+
+    const secondaryAssignee = await fetchSecondaryAssignee(issue.secondaryAssigneeId);
 
     try {
       await safeLogAudit({
@@ -196,6 +208,6 @@ export async function POST(
       logError("Failed to record audit log for issue creation", auditError);
     }
 
-    return NextResponse.json(issue, { status: 201 });
+    return NextResponse.json({ ...issue, secondaryAssignee }, { status: 201 });
   });
 }
