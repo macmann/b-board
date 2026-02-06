@@ -15,6 +15,7 @@ type AppShellProps = {
   user?: { name?: string | null; email?: string | null; role?: Role | null } | null;
   onLogout?: () => Promise<void> | void;
   currentPath?: string | null;
+  hasLeadershipAccess?: boolean;
 };
 
 const classNames = (...classes: Array<string | null | false | undefined>) =>
@@ -26,6 +27,7 @@ export default function AppShell({
   user,
   onLogout,
   currentPath,
+  hasLeadershipAccess,
 }: AppShellProps) {
   const normalizedPath = currentPath?.split("?")[0] ?? "";
   const projectMatch = normalizedPath.match(/^\/projects\/([^/]+)/);
@@ -42,7 +44,8 @@ export default function AppShell({
   const reportsPath = routes.reports();
   const showProjectSwitcher = normalizedPath.startsWith(dashboardPath) || normalizedPath.startsWith(reportsPath);
 
-  const isLeadership = user?.role === Role.ADMIN || user?.role === Role.PO;
+  const isLeadership =
+    hasLeadershipAccess ?? user?.role === Role.ADMIN || user?.role === Role.PO;
 
   const workspaceLinks = [
     { href: dashboardPath, label: "Dashboard", restricted: true },
