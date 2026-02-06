@@ -15,6 +15,8 @@ type Attachment = {
 
 type MemberOption = { id: string; name: string };
 
+const researchTypeOptions = ["Customer", "Pipeline", "Technology", "Competitor Analysis"];
+
 type ResearchItemDrawerProps = {
   projectId: string;
   isReadOnly: boolean;
@@ -50,6 +52,8 @@ export default function ResearchItemDrawer({
   const [title, setTitle] = useState(initialValues?.title ?? "");
   const [description, setDescription] = useState(initialValues?.description ?? "");
   const [type, setType] = useState(initialValues?.type ?? "");
+  const availableResearchTypes =
+    type && !researchTypeOptions.includes(type) ? [type, ...researchTypeOptions] : researchTypeOptions;
   const [priority, setPriority] = useState<ResearchPriority>(
     initialValues?.priority ?? ResearchPriority.MEDIUM
   );
@@ -317,15 +321,21 @@ export default function ResearchItemDrawer({
               <label className={labelClass} htmlFor="type">
                 Research Type
               </label>
-              <input
+              <select
                 id="type"
                 name="type"
                 value={type ?? ""}
                 onChange={(event) => setType(event.target.value)}
                 disabled={isReadOnly}
-                placeholder="e.g. User Interview"
                 className={inputClass}
-              />
+              >
+                <option value="">Select a research type</option>
+                {availableResearchTypes.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="flex flex-col gap-2">
