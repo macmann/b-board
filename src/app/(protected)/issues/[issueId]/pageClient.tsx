@@ -418,6 +418,7 @@ export default function IssueDetailsPageClient({
     ? new Date(issue.updatedAt).toLocaleString()
     : "Recently";
   const issueKey = issue?.key ?? issue?.id ?? issueId;
+  const reporterName = issue?.reporter?.name ?? "Unknown";
 
   const buildStatusLabels: Record<BuildStatus, string> = {
     [BuildStatus.PLANNED]: "Planned",
@@ -1814,6 +1815,13 @@ export default function IssueDetailsPageClient({
                 <div className="rounded-2xl border border-slate-200 bg-white/70 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Assignment</p>
                   <div className="mt-3 space-y-4">
+                    <div className="space-y-1.5">
+                      <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Reporter</p>
+                      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+                        {reporterName}
+                      </div>
+                    </div>
+
                     <div className="space-y-1.5">
                       <label className="text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="assignee">
                         Assignee
