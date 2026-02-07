@@ -16,6 +16,7 @@ export const routes = {
     backlog: (projectId: string) => `${projectBase(projectId)}/backlog`,
     board: (projectId: string) => `${projectBase(projectId)}/board`,
     builds: (projectId: string) => `${projectBase(projectId)}/builds`,
+    epics: (projectId: string) => `${projectBase(projectId)}/epics`,
     build: (projectId: string, buildId: string) =>
       `${projectBase(projectId)}/builds/${buildId}`,
     sprints: (projectId: string) => `${projectBase(projectId)}/sprints`,

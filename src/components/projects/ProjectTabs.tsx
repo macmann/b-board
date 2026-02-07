@@ -5,6 +5,7 @@ type ProjectTabKey =
   | "board"
   | "builds"
   | "sprints"
+  | "epics"
   | "reports"
   | "qa"
   | "standup"
@@ -20,6 +21,7 @@ const tabs: { key: ProjectTabKey; label: string }[] = [
   { key: "board", label: "Board" },
   { key: "builds", label: "Builds" },
   { key: "sprints", label: "Sprints" },
+  { key: "epics", label: "Epics" },
   { key: "reports", label: "Reports" },
   { key: "qa", label: "QA" },
   { key: "standup", label: "Standup" },
