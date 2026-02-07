@@ -76,9 +76,9 @@ export async function GET(
 
     if ((!summaryText || forceRefresh) && typeof saveProjectStandupSummary === "function") {
       try {
-        summaryText = (
-          await saveProjectStandupSummary(projectId, date, entries)
-        )?.summary;
+        summaryText =
+          (await saveProjectStandupSummary(projectId, date, entries))?.summary ??
+          "";
       } catch (err) {
         summaryText = existingSummary?.summary ?? "";
       }
@@ -99,6 +99,7 @@ export async function GET(
     return NextResponse.json({
       date: formatDateOnly(date),
       summary: summaryText,
+      entries,
       members,
     });
   } catch (error) {
