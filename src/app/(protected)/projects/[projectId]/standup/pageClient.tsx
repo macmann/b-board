@@ -74,6 +74,18 @@ type StandupFormState = {
   notes: string;
 };
 
+type FacilitatorNote = {
+  id: string;
+  projectId: string;
+  teammateId: string;
+  authorId: string;
+  date: string;
+  text: string;
+  createdAt: string;
+  resolved: boolean;
+  resolvedAt: string | null;
+};
+
 type ToastMessage = {
   id: string;
   type: "success" | "error" | "warning";
@@ -87,6 +99,12 @@ const formatDisplayDate = (value: string) =>
     year: "numeric",
     month: "short",
     day: "numeric",
+  });
+
+const formatTimeOnly = (value: string) =>
+  new Date(value).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
   });
 
 const getInitials = (value?: string | null) =>
@@ -190,6 +208,84 @@ const getProjectMembers = async (projectId: string) => {
   return (await response.json()) as ProjectMemberSummary[];
 };
 
+const getFacilitatorNotes = async (
+  projectId: string,
+  options: { teammateId: string; date: string; authorId?: string }
+) => {
+  const params = new URLSearchParams();
+  params.set("teammateId", options.teammateId);
+  params.set("date", options.date);
+  if (options.authorId) params.set("authorId", options.authorId);
+
+  const response = await fetch(
+    `/api/projects/${projectId}/standup/facilitator-notes?${params.toString()}`
+  );
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.message ?? "Unable to load facilitator notes");
+  }
+
+  return (await response.json()) as FacilitatorNote[];
+};
+
+const createFacilitatorNote = async (
+  projectId: string,
+  payload: { teammateId: string; date: string; text: string }
+) => {
+  const response = await fetch(
+    `/api/projects/${projectId}/standup/facilitator-notes`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.message ?? "Unable to save facilitator note");
+  }
+
+  return (await response.json()) as FacilitatorNote;
+};
+
+const updateFacilitatorNote = async (
+  projectId: string,
+  noteId: string,
+  payload: { text?: string; resolved?: boolean }
+) => {
+  const response = await fetch(
+    `/api/projects/${projectId}/standup/facilitator-notes/${noteId}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.message ?? "Unable to update facilitator note");
+  }
+
+  return (await response.json()) as FacilitatorNote;
+};
+
+const deleteFacilitatorNote = async (projectId: string, noteId: string) => {
+  const response = await fetch(
+    `/api/projects/${projectId}/standup/facilitator-notes/${noteId}`,
+    { method: "DELETE" }
+  );
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.message ?? "Unable to delete facilitator note");
+  }
+
+  return (await response.json()) as { ok: boolean };
+};
+
 const getStandupUserView = async (
   projectId: string,
   userId: string,
@@ -265,6 +361,13 @@ export default function StandupPageClient({
     useState<StandupUserViewResponse | null>(null);
   const [isLoadingStandupView, setIsLoadingStandupView] = useState(false);
   const [standupViewError, setStandupViewError] = useState("");
+  const [facilitatorNotes, setFacilitatorNotes] = useState<FacilitatorNote[]>([]);
+  const [isLoadingFacilitatorNotes, setIsLoadingFacilitatorNotes] = useState(false);
+  const [facilitatorNotesError, setFacilitatorNotesError] = useState("");
+  const [newFacilitatorNote, setNewFacilitatorNote] = useState("");
+  const [isSavingFacilitatorNote, setIsSavingFacilitatorNote] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteText, setEditingNoteText] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [queueSortMode, setQueueSortMode] = useState<
     "suggested" | "alphabetical"
@@ -406,6 +509,7 @@ export default function StandupPageClient({
   }, [orderedQueue, queueIndex]);
   const standupViewTopRef = useRef<HTMLDivElement | null>(null);
   const notesInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const facilitatorNoteInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const addToast = useCallback((toast: Omit<ToastMessage, "id">) => {
     const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -620,6 +724,60 @@ export default function StandupPageClient({
   }, [activeTab, canViewStandupView, projectId, selectedUserId, standupDateInput]);
 
   useEffect(() => {
+    if (
+      !projectId ||
+      activeTab !== "standup-view" ||
+      !canViewStandupView ||
+      !selectedUserId
+    ) {
+      setFacilitatorNotes([]);
+      return;
+    }
+
+    let isCancelled = false;
+    setIsLoadingFacilitatorNotes(true);
+    setFacilitatorNotesError("");
+    setEditingNoteId(null);
+    setEditingNoteText("");
+
+    getFacilitatorNotes(projectId, {
+      teammateId: selectedUserId,
+      date: standupDateInput,
+      authorId: currentUserId,
+    })
+      .then((data) => {
+        if (!isCancelled) {
+          setFacilitatorNotes(data);
+        }
+      })
+      .catch((error) => {
+        if (isCancelled) return;
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Unable to load facilitator notes";
+        setFacilitatorNotesError(message);
+        setFacilitatorNotes([]);
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsLoadingFacilitatorNotes(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    activeTab,
+    canViewStandupView,
+    currentUserId,
+    projectId,
+    selectedUserId,
+    standupDateInput,
+  ]);
+
+  useEffect(() => {
     if (!projectId) return;
 
     if (issueSearchTimeout.current) {
@@ -701,6 +859,102 @@ export default function StandupPageClient({
 
   const handleResearchRemove = (researchItemId: string) => {
     setSelectedResearch((prev) => prev.filter((item) => item.id !== researchItemId));
+  };
+
+  const handleCreateFacilitatorNote = async () => {
+    if (!projectId || !selectedUserId) return;
+    const trimmed = newFacilitatorNote.trim();
+    if (!trimmed) {
+      addToast({ type: "warning", message: "Add a note before saving." });
+      facilitatorNoteInputRef.current?.focus();
+      return;
+    }
+
+    setIsSavingFacilitatorNote(true);
+
+    try {
+      const note = await createFacilitatorNote(projectId, {
+        teammateId: selectedUserId,
+        date: standupDateInput,
+        text: trimmed,
+      });
+      setFacilitatorNotes((prev) => [note, ...prev]);
+      setNewFacilitatorNote("");
+      addToast({ type: "success", message: "Facilitator note saved." });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to save facilitator note";
+      addToast({ type: "error", message });
+    } finally {
+      setIsSavingFacilitatorNote(false);
+    }
+  };
+
+  const handleEditFacilitatorNote = (note: FacilitatorNote) => {
+    setEditingNoteId(note.id);
+    setEditingNoteText(note.text);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingNoteId(null);
+    setEditingNoteText("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!projectId || !editingNoteId) return;
+    const trimmed = editingNoteText.trim();
+    if (!trimmed) {
+      addToast({ type: "warning", message: "Note text cannot be empty." });
+      return;
+    }
+
+    try {
+      const updated = await updateFacilitatorNote(projectId, editingNoteId, {
+        text: trimmed,
+      });
+      setFacilitatorNotes((prev) =>
+        prev.map((note) => (note.id === updated.id ? updated : note))
+      );
+      addToast({ type: "success", message: "Facilitator note updated." });
+      handleCancelEdit();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to update facilitator note";
+      addToast({ type: "error", message });
+    }
+  };
+
+  const handleToggleResolved = async (note: FacilitatorNote) => {
+    if (!projectId) return;
+    try {
+      const updated = await updateFacilitatorNote(projectId, note.id, {
+        resolved: !note.resolved,
+      });
+      setFacilitatorNotes((prev) =>
+        prev.map((item) => (item.id === updated.id ? updated : item))
+      );
+      addToast({
+        type: "success",
+        message: updated.resolved ? "Note resolved." : "Note reopened.",
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to update facilitator note";
+      addToast({ type: "error", message });
+    }
+  };
+
+  const handleDeleteFacilitatorNote = async (noteId: string) => {
+    if (!projectId) return;
+    try {
+      await deleteFacilitatorNote(projectId, noteId);
+      setFacilitatorNotes((prev) => prev.filter((note) => note.id !== noteId));
+      addToast({ type: "success", message: "Facilitator note removed." });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to delete facilitator note";
+      addToast({ type: "error", message });
+    }
   };
 
   const handleDraftReady = useCallback(
@@ -1652,14 +1906,138 @@ export default function StandupPageClient({
                 <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                   Keep private reminders while you guide the stand-up.
                 </p>
-                <ul className="mt-3 space-y-2 text-sm text-slate-700 dark:text-slate-200">
-                  <li className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-800/60">
-                    Confirm blockers with {standupViewData?.user.name ?? selectedMember?.user.name ?? "the team"}.
-                  </li>
-                  <li className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-800/60">
-                    Capture any cross-team dependencies.
-                  </li>
-                </ul>
+                <div className="mt-3 space-y-3 text-sm text-slate-700 dark:text-slate-200">
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      New note
+                    </label>
+                    <textarea
+                      ref={facilitatorNoteInputRef}
+                      value={newFacilitatorNote}
+                      onChange={(event) => setNewFacilitatorNote(event.target.value)}
+                      rows={3}
+                      placeholder={`Note about ${
+                        standupViewData?.user.name ??
+                        selectedMember?.user.name ??
+                        "this teammate"
+                      }`}
+                      className="w-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
+                    />
+                    <div className="flex justify-end">
+                      <Button
+                        size="sm"
+                        onClick={handleCreateFacilitatorNote}
+                        disabled={isSavingFacilitatorNote}
+                      >
+                        {isSavingFacilitatorNote ? "Saving..." : "Save note"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {facilitatorNotesError && (
+                    <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100">
+                      {facilitatorNotesError}
+                    </p>
+                  )}
+
+                  {isLoadingFacilitatorNotes ? (
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Loading notes...
+                    </p>
+                  ) : facilitatorNotes.length === 0 ? (
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      No facilitator notes yet.
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {facilitatorNotes.map((note) => {
+                        const isEditing = editingNoteId === note.id;
+                        return (
+                          <li
+                            key={note.id}
+                            className="space-y-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-800/60"
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div className="flex-1 space-y-2">
+                                {isEditing ? (
+                                  <textarea
+                                    value={editingNoteText}
+                                    onChange={(event) =>
+                                      setEditingNoteText(event.target.value)
+                                    }
+                                    rows={3}
+                                    className="w-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50"
+                                  />
+                                ) : (
+                                  <p
+                                    className={`whitespace-pre-line text-sm ${
+                                      note.resolved
+                                        ? "text-slate-400 line-through dark:text-slate-400"
+                                        : "text-slate-800 dark:text-slate-100"
+                                    }`}
+                                  >
+                                    {note.text}
+                                  </p>
+                                )}
+                                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                                  <span>Added {formatTimeOnly(note.createdAt)}</span>
+                                  {note.resolved && note.resolvedAt && (
+                                    <span>Resolved {formatTimeOnly(note.resolvedAt)}</span>
+                                  )}
+                                  {note.resolved && (
+                                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
+                                      Resolved
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {isEditing ? (
+                                  <>
+                                    <Button size="sm" onClick={handleSaveEdit}>
+                                      Save
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="secondary"
+                                      onClick={handleCancelEdit}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      variant="secondary"
+                                      onClick={() => handleEditFacilitatorNote(note)}
+                                    >
+                                      Edit
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="secondary"
+                                      onClick={() => handleToggleResolved(note)}
+                                    >
+                                      {note.resolved ? "Reopen" : "Resolve"}
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => handleDeleteFacilitatorNote(note.id)}
+                                    >
+                                      Delete
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
               </div>
             </div>
           </div>
