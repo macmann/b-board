@@ -81,7 +81,11 @@ export default function EpicsPageClient({
         throw new Error(data?.message ?? "Unable to load epics.");
       }
 
-      setEpics(data?.epics ?? []);
+      const nextEpics = (data?.epics ?? []).map((epic: EpicSummary & { issues?: EpicStory[] }) => ({
+        ...epic,
+        stories: epic.stories ?? epic.issues ?? [],
+      }));
+      setEpics(nextEpics);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load epics.");
       setEpics([]);
