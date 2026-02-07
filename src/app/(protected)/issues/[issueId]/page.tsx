@@ -64,12 +64,19 @@ export default async function IssueDetailsPage({ params }: Props) {
     orderBy: { createdAt: "desc" },
   });
 
+  const epics = await prisma.epic.findMany({
+    where: { projectId: issue.projectId },
+    select: { id: true, title: true },
+    orderBy: { createdAt: "desc" },
+  });
+
   return (
     <IssueDetailsPageClient
       issueId={issue.id}
       projectRole={projectRole}
       currentUserId={context.user?.id ?? null}
       initialSprints={sprints}
+      initialEpics={epics}
     />
   );
 }
