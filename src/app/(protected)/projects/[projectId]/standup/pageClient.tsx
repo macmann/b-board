@@ -92,6 +92,8 @@ type ToastMessage = {
   message: string;
 };
 
+type StandupEntryStatus = "missing" | "partial" | "updated";
+
 const toDateInput = (date: Date) => date.toISOString().split("T")[0];
 
 const formatDisplayDate = (value: string) =>
@@ -115,6 +117,35 @@ const getInitials = (value?: string | null) =>
     .join("")
     .slice(0, 2)
     .toUpperCase() ?? "";
+
+const getMissingStandupSections = (entry?: StandupEntry | StandupEntryWithUser | null) => {
+  if (!entry) {
+    return {
+      progress: true,
+      today: true,
+      blockers: true,
+      dependencies: true,
+      linkedWork: true,
+    };
+  }
+
+  return {
+    progress: !entry.progressSinceYesterday?.trim(),
+    today: !entry.summaryToday?.trim(),
+    blockers: !entry.blockers?.trim(),
+    dependencies: !entry.dependencies?.trim(),
+    linkedWork: entry.issues.length + entry.research.length === 0,
+  };
+};
+
+const getStandupEntryStatus = (
+  entry?: StandupEntry | StandupEntryWithUser | null
+): StandupEntryStatus => {
+  if (!entry) return "missing";
+  const missingSections = getMissingStandupSections(entry);
+  const hasMissing = Object.values(missingSections).some(Boolean);
+  return hasMissing ? "partial" : "updated";
+};
 
 const getMyStandupEntryForDate = async (
   projectId: string,
@@ -442,18 +473,18 @@ export default function StandupPageClient({
     [yesterdayDateInput]
   );
   const queueStatusByUserId = useMemo(() => {
-    const statusMap = new Map<string, "missing" | "incomplete" | "complete">();
+    const statusMap = new Map<string, StandupEntryStatus>();
     standupQueueEntries.forEach((entry) => {
-      statusMap.set(entry.user.id, entry.isComplete ? "complete" : "incomplete");
+      statusMap.set(entry.user.id, getStandupEntryStatus(entry));
     });
     return statusMap;
   }, [standupQueueEntries]);
   const orderedQueue = useMemo(() => {
     const roleOrder: ProjectRole[] = ["ADMIN", "PO", "DEV", "QA", "VIEWER"];
-    const statusPriority: Record<"missing" | "incomplete" | "complete", number> = {
+    const statusPriority: Record<StandupEntryStatus, number> = {
       missing: 0,
-      incomplete: 1,
-      complete: 2,
+      partial: 1,
+      updated: 2,
     };
     const entries = members.map((member, index) => {
       const displayName =
@@ -502,6 +533,15 @@ export default function StandupPageClient({
     actingMember?.user.email ?? (actingMember ? "No email" : currentUserEmail);
   const yesterdayEntries = standupViewData?.yesterday ?? [];
   const todayEntries = standupViewData?.today ?? [];
+  const todayEntry = todayEntries[0] ?? null;
+  const todayMissingSections = useMemo(
+    () => getMissingStandupSections(todayEntry),
+    [todayEntry]
+  );
+  const todayStatus = useMemo(
+    () => getStandupEntryStatus(todayEntry),
+    [todayEntry]
+  );
   const upcomingQueue = useMemo(() => {
     if (!orderedQueue.length) return [];
     const startIndex = Math.min(queueIndex + 1, orderedQueue.length);
@@ -1641,9 +1681,13 @@ export default function StandupPageClient({
                 orderedQueue.map((member) => {
                   const isActive = member.user.id === selectedUserId;
                   const initials = getInitials(member.user.name ?? member.user.email);
-                  const statusDot = isActive
-                    ? "bg-emerald-500"
-                    : "bg-slate-300 dark:bg-slate-600";
+                  const status = queueStatusByUserId.get(member.user.id) ?? "missing";
+                  const statusDot =
+                    status === "updated"
+                      ? "bg-emerald-500"
+                      : status === "partial"
+                        ? "bg-amber-400"
+                        : "bg-slate-300 dark:bg-slate-600";
 
                   return (
                     <button
@@ -1742,24 +1786,37 @@ export default function StandupPageClient({
               <div className="grid gap-4 md:grid-cols-2">
                 {[
                   {
+                    key: "yesterday",
                     title: `Yesterday (${formattedYesterdayDate})`,
                     entries: yesterdayEntries,
-                    empty: "No standup update for yesterday.",
+                    empty: "No standup update for yesterday",
                   },
                   {
+                    key: "today",
                     title: `Today (${formattedStandupDate})`,
                     entries: todayEntries,
                     empty: "No standup update for today yet.",
                   },
-                ].map((section) => (
+                ].map((section) => {
+                  const isTodaySection = section.key === "today";
+                  const highlightMissing = isTodaySection && todayStatus === "partial";
+
+                  return (
                   <div
                     key={section.title}
                     className="rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
                   >
                     <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/70">
-                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-                        {section.title}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+                          {section.title}
+                        </p>
+                        {isTodaySection && todayStatus === "partial" && (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-200">
+                            🟡 Partial
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
                         {standupViewData?.user.name ??
                           selectedMember?.user.name ??
@@ -1787,12 +1844,14 @@ export default function StandupPageClient({
                               </p>
                               <span
                                 className={`inline-flex items-center rounded-full px-2 py-1 text-[11px] font-semibold ${
-                                  entry.isComplete
+                                  getStandupEntryStatus(entry) === "updated"
                                     ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
                                     : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
                                 }`}
                               >
-                                {entry.isComplete ? "Complete" : "Incomplete"}
+                                {getStandupEntryStatus(entry) === "updated"
+                                  ? "Complete"
+                                  : "Incomplete"}
                               </span>
                             </div>
 
@@ -1801,7 +1860,13 @@ export default function StandupPageClient({
                                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                                   Progress
                                 </p>
-                                <p className="mt-1 whitespace-pre-line rounded-md border border-slate-200 bg-white p-3 leading-relaxed dark:border-slate-700 dark:bg-slate-900">
+                                <p
+                                  className={`mt-1 whitespace-pre-line rounded-md border p-3 leading-relaxed ${
+                                    highlightMissing && todayMissingSections.progress
+                                      ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-600/60 dark:bg-amber-950/40 dark:text-amber-100"
+                                      : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"
+                                  }`}
+                                >
                                   {entry.progressSinceYesterday ?? "—"}
                                 </p>
                               </div>
@@ -1809,7 +1874,13 @@ export default function StandupPageClient({
                                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                                   Today
                                 </p>
-                                <p className="mt-1 whitespace-pre-line rounded-md border border-slate-200 bg-white p-3 leading-relaxed dark:border-slate-700 dark:bg-slate-900">
+                                <p
+                                  className={`mt-1 whitespace-pre-line rounded-md border p-3 leading-relaxed ${
+                                    highlightMissing && todayMissingSections.today
+                                      ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-600/60 dark:bg-amber-950/40 dark:text-amber-100"
+                                      : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"
+                                  }`}
+                                >
                                   {entry.summaryToday ?? "—"}
                                 </p>
                               </div>
@@ -1820,7 +1891,13 @@ export default function StandupPageClient({
                                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                                   Blockers
                                 </p>
-                                <p className="mt-1 whitespace-pre-line rounded-md border border-slate-200 bg-white p-3 text-sm leading-relaxed text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+                                <p
+                                  className={`mt-1 whitespace-pre-line rounded-md border p-3 text-sm leading-relaxed ${
+                                    highlightMissing && todayMissingSections.blockers
+                                      ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-600/60 dark:bg-amber-950/40 dark:text-amber-100"
+                                      : "border-slate-200 bg-white text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                                  }`}
+                                >
                                   {entry.blockers ?? "—"}
                                 </p>
                               </div>
@@ -1828,7 +1905,13 @@ export default function StandupPageClient({
                                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                                   Dependencies
                                 </p>
-                                <p className="mt-1 whitespace-pre-line rounded-md border border-slate-200 bg-white p-3 text-sm leading-relaxed text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+                                <p
+                                  className={`mt-1 whitespace-pre-line rounded-md border p-3 text-sm leading-relaxed ${
+                                    highlightMissing && todayMissingSections.dependencies
+                                      ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-600/60 dark:bg-amber-950/40 dark:text-amber-100"
+                                      : "border-slate-200 bg-white text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                                  }`}
+                                >
                                   {entry.dependencies ?? "—"}
                                 </p>
                               </div>
@@ -1838,14 +1921,23 @@ export default function StandupPageClient({
                               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                                 Linked work
                               </p>
-                              <div className="mt-1">{renderLinkedWork(entry)}</div>
+                              <div
+                                className={`mt-1 rounded-md ${
+                                  highlightMissing && todayMissingSections.linkedWork
+                                    ? "border border-amber-300 bg-amber-50 p-3 dark:border-amber-600/60 dark:bg-amber-950/40"
+                                    : ""
+                                }`}
+                              >
+                                {renderLinkedWork(entry)}
+                              </div>
                             </div>
                           </div>
                         ))
                       )}
                     </div>
                   </div>
-                ))}
+                );
+                })}
               </div>
             </div>
 
@@ -1888,12 +1980,24 @@ export default function StandupPageClient({
                     </p>
                   ) : (
                     upcomingQueue.map((member) => (
-                      <p
+                      <div
                         key={member.id}
-                        className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-800/60"
+                        className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-800/60"
                       >
+                        <span
+                          aria-hidden="true"
+                          className={`h-2.5 w-2.5 rounded-full ${
+                            (queueStatusByUserId.get(member.user.id) ?? "missing") ===
+                            "updated"
+                              ? "bg-emerald-500"
+                              : (queueStatusByUserId.get(member.user.id) ?? "missing") ===
+                                  "partial"
+                                ? "bg-amber-400"
+                                : "bg-slate-300 dark:bg-slate-600"
+                          }`}
+                        />
                         {member.user.name ?? member.user.email}
-                      </p>
+                      </div>
                     ))
                   )}
                 </div>
