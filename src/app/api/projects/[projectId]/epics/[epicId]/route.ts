@@ -4,12 +4,12 @@ import { jsonError, jsonOk } from "@/lib/apiResponse";
 import { getUserFromRequest } from "@/lib/auth";
 import prisma from "@/lib/db";
 import { AuthorizationError, requireProjectRole } from "@/lib/permissions";
-import { resolveProjectId, type ProjectParams } from "@/lib/params";
+import { resolveProjectId } from "@/lib/params";
 import { Role } from "@/lib/prismaEnums";
 
 export async function DELETE(
   request: NextRequest,
-  ctx: { params: Promise<Awaited<ProjectParams & { epicId: string }>> }
+  ctx: { params: Promise<{ projectId: string; epicId: string }> }
 ) {
   const params = await ctx.params;
   const projectId = await resolveProjectId(params);
