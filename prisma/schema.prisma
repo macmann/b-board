@@ -209,6 +209,8 @@ model User {
   createdBuilds         Build[]             @relation("BuildCreatedBy")
   createdTestCases      TestCase[]          @relation("TestCaseCreatedBy")
   testExecutions        TestExecution[]     @relation("TestExecutionExecutedBy")
+  facilitatorNotesAuthored FacilitatorNote[] @relation("FacilitatorNoteAuthor")
+  facilitatorNotesForTeammate FacilitatorNote[] @relation("FacilitatorNoteTeammate")
 }
 
 model Workspace {
@@ -267,6 +269,7 @@ model Project {
   aiSuggestions      AISuggestion[]
   builds             Build[]
   testCases          TestCase[]
+  facilitatorNotes   FacilitatorNote[]
 
   @@unique([workspaceId, key])
 }
@@ -659,6 +662,26 @@ model StandupAttendance {
   @@unique([projectId, userId, date])
   @@index([projectId])
   @@index([userId])
+}
+
+model FacilitatorNote {
+  id         String   @id @default(cuid())
+  projectId  String
+  teammateId String
+  date       DateTime @db.Date
+  authorId   String
+  text       String
+  createdAt  DateTime @default(now())
+  resolved   Boolean  @default(false)
+  resolvedAt DateTime?
+
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  teammate User    @relation("FacilitatorNoteTeammate", fields: [teammateId], references: [id], onDelete: Cascade)
+  author   User    @relation("FacilitatorNoteAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, date])
+  @@index([projectId, teammateId])
+  @@index([authorId])
 }
 
 model InviteToken {
