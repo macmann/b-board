@@ -276,6 +276,7 @@ model ProjectSettings {
   projectId          String             @unique
   standupWindowStart String?
   standupWindowEnd   String?
+  standupWeekendDisabled Boolean         @default(false)
   emailProvider      EmailProviderType?
   emailFromName      String?
   emailFromAddress   String?

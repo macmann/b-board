@@ -26,3 +26,21 @@ export const parseTimeOnDate = (baseDate: Date, time: string): Date | null => {
   result.setHours(hours, minutes, 0, 0);
   return result;
 };
+
+export const getPreviousStandupDate = (
+  baseDate: Date,
+  skipWeekends: boolean
+): Date => {
+  const previous = new Date(baseDate);
+  previous.setDate(previous.getDate() - 1);
+
+  if (!skipWeekends) {
+    return previous;
+  }
+
+  while (previous.getDay() === 0 || previous.getDay() === 6) {
+    previous.setDate(previous.getDate() - 1);
+  }
+
+  return previous;
+};

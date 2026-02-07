@@ -7,6 +7,7 @@ import AIStandupAssistant from "@/components/standup/AIStandupAssistant";
 import { Button } from "@/components/ui/Button";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import { ProjectRole } from "@/lib/roles";
+import { getPreviousStandupDate } from "@/lib/standupWindow";
 
 type StandupIssue = {
   id: string;
@@ -62,6 +63,7 @@ type StandupUserViewResponse = {
   user: { id: string; name: string; avatarUrl?: string | null };
   today: StandupEntry[];
   yesterday: StandupEntry[];
+  yesterdayDate: string;
 };
 
 type StandupFormState = {
@@ -300,11 +302,16 @@ export default function StandupPageClient({
   const canViewStandupView = canViewDashboard;
   const [actingUserId, setActingUserId] = useState(currentUserId);
 
+  const fallbackYesterdayDate = useMemo(
+    () => getPreviousStandupDate(selectedDate, false),
+    [selectedDate]
+  );
   const yesterdayDate = useMemo(() => {
-    const previous = new Date(selectedDate);
-    previous.setDate(previous.getDate() - 1);
-    return previous;
-  }, [selectedDate]);
+    if (standupViewData?.yesterdayDate) {
+      return new Date(standupViewData.yesterdayDate);
+    }
+    return fallbackYesterdayDate;
+  }, [fallbackYesterdayDate, standupViewData?.yesterdayDate]);
 
   const standupDateInput = useMemo(
     () => toDateInput(selectedDate),

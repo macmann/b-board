@@ -8,7 +8,7 @@ import {
   PROJECT_ADMIN_ROLES,
 } from "@/lib/permissions";
 import { resolveProjectId, type ProjectParams } from "@/lib/params";
-import { parseDateOnly } from "@/lib/standupWindow";
+import { getPreviousStandupDate, parseDateOnly } from "@/lib/standupWindow";
 
 const standupInclude = {
   issues: { include: { issue: true } },
@@ -64,8 +64,15 @@ export async function GET(
     return NextResponse.json({ message: "User not found in project" }, { status: 404 });
   }
 
-  const yesterdayDate = new Date(todayDate);
-  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const settings = await prisma.projectSettings.findUnique({
+    where: { projectId },
+    select: { standupWeekendDisabled: true },
+  });
+
+  const yesterdayDate = getPreviousStandupDate(
+    todayDate,
+    settings?.standupWeekendDisabled ?? false
+  );
 
   const [todayEntries, yesterdayEntries] = await Promise.all([
     prisma.dailyStandupEntry.findMany({
@@ -88,5 +95,6 @@ export async function GET(
     },
     today: todayEntries,
     yesterday: yesterdayEntries,
+    yesterdayDate: yesterdayDate.toISOString(),
   });
 }
