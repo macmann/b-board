@@ -57,13 +57,18 @@ export default function EpicsPageClient({
   const [epics, setEpics] = useState<EpicSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [deletingEpicId, setDeletingEpicId] = useState<string | null>(null);
+  const [editingEpicId, setEditingEpicId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [epicStatus, setEpicStatus] = useState<EpicStatus>(initialStatus);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editStatus, setEditStatus] = useState<EpicStatus>(initialStatus);
 
   const storyCount = useMemo(
     () => epics.reduce((total, epic) => total + epic.stories.length, 0),
@@ -180,6 +185,74 @@ export default function EpicsPageClient({
       setError(err instanceof Error ? err.message : "Failed to delete epic.");
     } finally {
       setDeletingEpicId(null);
+    }
+  };
+
+  const handleEditEpic = (epic: EpicSummary) => {
+    setEditingEpicId(epic.id);
+    setEditTitle(epic.title);
+    setEditDescription(epic.description ?? "");
+    setEditStatus(epic.status);
+    setError(null);
+    setStatus(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingEpicId(null);
+    setEditTitle("");
+    setEditDescription("");
+    setEditStatus(initialStatus);
+  };
+
+  const handleUpdateEpic = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!canManageEpics) {
+      setError("You do not have permission to edit epics.");
+      return;
+    }
+
+    const trimmedTitle = editTitle.trim();
+    if (!trimmedTitle) {
+      setError("Epic title is required.");
+      return;
+    }
+
+    if (!editingEpicId) {
+      setError("Select an epic to update.");
+      return;
+    }
+
+    setIsUpdating(true);
+    setError(null);
+    setStatus(null);
+
+    try {
+      const response = await fetch(
+        `/api/projects/${projectId}/epics/${editingEpicId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: trimmedTitle,
+            description: editDescription.trim() || null,
+            status: editStatus,
+          }),
+        }
+      );
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.message ?? "Unable to update epic.");
+      }
+
+      setStatus("Epic updated successfully.");
+      handleCancelEdit();
+      await fetchEpics();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update epic.");
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -309,21 +382,97 @@ export default function EpicsPageClient({
                         {statusLabels[epic.status]}
                       </Badge>
                       {canManageEpics && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => handleDeleteEpic(epic.id)}
-                          disabled={deletingEpicId === epic.id}
-                        >
-                          {deletingEpicId === epic.id ? "Deleting..." : "Delete"}
-                        </Button>
+                        <>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => handleEditEpic(epic)}
+                            disabled={editingEpicId === epic.id}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => handleDeleteEpic(epic.id)}
+                            disabled={deletingEpicId === epic.id}
+                          >
+                            {deletingEpicId === epic.id ? "Deleting..." : "Delete"}
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>
-                  {epic.description && (
-                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                      {epic.description}
-                    </p>
+                  {editingEpicId === epic.id ? (
+                    <form className="mt-3 space-y-3" onSubmit={handleUpdateEpic}>
+                      <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
+                        <div className="space-y-1.5">
+                          <label
+                            className="text-sm font-medium text-slate-700 dark:text-slate-200"
+                            htmlFor={`epic-title-${epic.id}`}
+                          >
+                            Epic title
+                          </label>
+                          <input
+                            id={`epic-title-${epic.id}`}
+                            value={editTitle}
+                            onChange={(event) => setEditTitle(event.target.value)}
+                            className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                            disabled={isUpdating}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label
+                            className="text-sm font-medium text-slate-700 dark:text-slate-200"
+                            htmlFor={`epic-status-${epic.id}`}
+                          >
+                            Status
+                          </label>
+                          <select
+                            id={`epic-status-${epic.id}`}
+                            value={editStatus}
+                            onChange={(event) => setEditStatus(event.target.value as EpicStatus)}
+                            className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                            disabled={isUpdating}
+                          >
+                            {Object.values(EpicStatus).map((statusOption) => (
+                              <option key={statusOption} value={statusOption}>
+                                {statusLabels[statusOption]}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label
+                          className="text-sm font-medium text-slate-700 dark:text-slate-200"
+                          htmlFor={`epic-description-${epic.id}`}
+                        >
+                          Description
+                        </label>
+                        <textarea
+                          id={`epic-description-${epic.id}`}
+                          value={editDescription}
+                          onChange={(event) => setEditDescription(event.target.value)}
+                          className="min-h-[90px] w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                          disabled={isUpdating}
+                        />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <Button type="submit" disabled={isUpdating}>
+                          {isUpdating ? "Saving..." : "Save changes"}
+                        </Button>
+                        <Button type="button" variant="secondary" onClick={handleCancelEdit}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </form>
+                  ) : (
+                    epic.description && (
+                      <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                        {epic.description}
+                      </p>
+                    )
                   )}
                   <div className="mt-3 space-y-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
