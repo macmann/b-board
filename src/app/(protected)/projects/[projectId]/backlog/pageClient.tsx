@@ -83,6 +83,7 @@ type BacklogPageClientProps = {
   backlogGroups: BacklogGroup[];
   assigneeOptions: Option[];
   epicOptions: Option[];
+  backlogGroomingEnabled: boolean;
   enableResearchBoard: boolean;
   researchItems: ResearchBacklogItem[];
   initialSegment?: "product" | "research";
@@ -95,6 +96,7 @@ export default function BacklogPageClient({
   backlogGroups: initialBacklogGroups,
   assigneeOptions: initialAssigneeOptions,
   epicOptions: initialEpicOptions,
+  backlogGroomingEnabled,
   enableResearchBoard,
   researchItems: initialResearchItems,
   initialSegment = "product",
@@ -449,9 +451,9 @@ export default function BacklogPageClient({
   }, [projectId]);
 
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectId || !backlogGroomingEnabled) return;
     fetchSuggestions();
-  }, [fetchSuggestions, projectId]);
+  }, [backlogGroomingEnabled, fetchSuggestions, projectId]);
 
   const handleAnalyze = useCallback(async () => {
     setIsAnalyzing(true);
@@ -837,117 +839,121 @@ export default function BacklogPageClient({
       {activeSegment === "product" && (
         <div className="space-y-4">
           <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="space-y-1">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-                  Grooming Inbox
-                </p>
-                <p className="text-sm text-slate-600 dark:text-slate-300">
-                  AI drafts are grouped by issue. Review before applying.
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                  <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold uppercase text-slate-700 shadow-inner dark:bg-slate-800 dark:text-slate-200">
-                    AI
-                  </span>
-                  <span>Only</span>
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
-                    checked={aiOnly}
-                    onChange={(event) => setAiOnly(event.target.checked)}
-                  />
-                </label>
-                <button
-                  type="button"
-                  onClick={handleAnalyze}
-                  disabled={isAnalyzing}
-                  className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
-                >
-                  {isAnalyzing ? "Starting..." : "AI Groom backlog"}
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-3 text-sm dark:border-slate-800 dark:bg-slate-900/60">
-              {isLoadingSuggestions ? (
-                <p className="text-slate-600 dark:text-slate-300">Loading AI drafts...</p>
-              ) : suggestionError ? (
-                <p className="text-red-500">{suggestionError}</p>
-              ) : suggestionGroups.length === 0 ? (
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200">No AI drafts yet.</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Run grooming to generate suggestions.</p>
+            {backlogGroomingEnabled && (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                      Grooming Inbox
+                    </p>
+                    <p className="text-sm text-slate-600 dark:text-slate-300">
+                      AI drafts are grouped by issue. Review before applying.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold uppercase text-slate-700 shadow-inner dark:bg-slate-800 dark:text-slate-200">
+                        AI
+                      </span>
+                      <span>Only</span>
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                        checked={aiOnly}
+                        onChange={(event) => setAiOnly(event.target.checked)}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleAnalyze}
+                      disabled={isAnalyzing}
+                      className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
+                    >
+                      {isAnalyzing ? "Starting..." : "AI Groom backlog"}
+                    </button>
+                  </div>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {suggestionGroups.map((group) => {
-                    const issue = suggestionIssueMap.get(group.targetId);
-                    const issueIdForNavigation = issue?.id ?? group.targetId;
-                    return (
-                      <div
-                        key={group.targetId}
-                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm dark:border-slate-700 dark:bg-slate-900"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-                              {issue?.title ?? "Issue"}
-                            </p>
-                            <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                              {issue?.key ?? group.targetId}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => router.push(`/issues/${issueIdForNavigation}`)}
-                            className="inline-flex items-center rounded-full border border-primary/30 px-3 py-1 text-xs font-semibold text-primary transition hover:bg-primary/10"
+
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-3 text-sm dark:border-slate-800 dark:bg-slate-900/60">
+                  {isLoadingSuggestions ? (
+                    <p className="text-slate-600 dark:text-slate-300">Loading AI drafts...</p>
+                  ) : suggestionError ? (
+                    <p className="text-red-500">{suggestionError}</p>
+                  ) : suggestionGroups.length === 0 ? (
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-slate-700 dark:text-slate-200">No AI drafts yet.</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Run grooming to generate suggestions.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {suggestionGroups.map((group) => {
+                        const issue = suggestionIssueMap.get(group.targetId);
+                        const issueIdForNavigation = issue?.id ?? group.targetId;
+                        return (
+                          <div
+                            key={group.targetId}
+                            className="rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm dark:border-slate-700 dark:bg-slate-900"
                           >
-                            Review
-                          </button>
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {group.suggestions.map((suggestion) => {
-                            const code =
-                              typeof suggestion.payload?.code === "string"
-                                ? suggestion.payload.code
-                                : undefined;
-                            const confidence =
-                              typeof suggestion.confidence === "number"
-                                ? Math.round(suggestion.confidence * 100)
-                                : null;
-
-                            return (
-                              <span
-                                key={suggestion.id}
-                                className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+                                  {issue?.title ?? "Issue"}
+                                </p>
+                                <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                  {issue?.key ?? group.targetId}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => router.push(`/issues/${issueIdForNavigation}`)}
+                                className="inline-flex items-center rounded-full border border-primary/30 px-3 py-1 text-xs font-semibold text-primary transition hover:bg-primary/10"
                               >
-                                <span className="rounded-full bg-slate-200 px-2 text-[10px] font-bold uppercase text-slate-700 dark:bg-slate-700 dark:text-slate-200">
-                                  AI flag
-                                </span>
-                                {code ? (
-                                  <span className="rounded-full bg-primary/10 px-2 py-[2px] text-[10px] uppercase tracking-wide text-primary">
-                                    {code}
+                                Review
+                              </button>
+                            </div>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {group.suggestions.map((suggestion) => {
+                                const code =
+                                  typeof suggestion.payload?.code === "string"
+                                    ? suggestion.payload.code
+                                    : undefined;
+                                const confidence =
+                                  typeof suggestion.confidence === "number"
+                                    ? Math.round(suggestion.confidence * 100)
+                                    : null;
+
+                                return (
+                                  <span
+                                    key={suggestion.id}
+                                    className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                  >
+                                    <span className="rounded-full bg-slate-200 px-2 text-[10px] font-bold uppercase text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                                      AI flag
+                                    </span>
+                                    {code ? (
+                                      <span className="rounded-full bg-primary/10 px-2 py-[2px] text-[10px] uppercase tracking-wide text-primary">
+                                        {code}
+                                      </span>
+                                    ) : (
+                                      <span>{suggestion.title}</span>
+                                    )}
+                                    {confidence !== null && (
+                                      <span className="text-[10px] text-slate-500">
+                                        {confidence}% confidence
+                                      </span>
+                                    )}
                                   </span>
-                                ) : (
-                                  <span>{suggestion.title}</span>
-                                )}
-                                {confidence !== null && (
-                                  <span className="text-[10px] text-slate-500">
-                                    {confidence}% confidence
-                                  </span>
-                                )}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </>
+            )}
           </div>
 
           {isLoading ? (

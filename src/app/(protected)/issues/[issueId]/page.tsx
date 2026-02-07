@@ -70,6 +70,10 @@ export default async function IssueDetailsPage({ params }: Props) {
     orderBy: { createdAt: "desc" },
   });
 
+  const aiSettings = await prisma.projectAISettings.findUnique({
+    where: { projectId: issue.projectId },
+  });
+
   return (
     <IssueDetailsPageClient
       issueId={issue.id}
@@ -77,6 +81,7 @@ export default async function IssueDetailsPage({ params }: Props) {
       currentUserId={context.user?.id ?? null}
       initialSprints={sprints}
       initialEpics={epics}
+      backlogGroomingEnabled={aiSettings?.backlogGroomingEnabled ?? false}
     />
   );
 }

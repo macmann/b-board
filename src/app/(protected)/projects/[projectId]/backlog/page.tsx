@@ -51,7 +51,7 @@ export default async function ProjectBacklogPage(props: Props) {
 
   const roleLabel = projectRole ?? "Member";
 
-  const [backlogProject, projectMembers, epics] = await Promise.all([
+  const [backlogProject, projectMembers, epics, aiSettings] = await Promise.all([
     prisma.project.findUnique({
       where: { id: projectId },
       include: {
@@ -81,6 +81,7 @@ export default async function ProjectBacklogPage(props: Props) {
       select: { id: true, title: true },
       orderBy: { createdAt: "asc" },
     }),
+    prisma.projectAISettings.findUnique({ where: { projectId } }),
   ]);
 
   const researchItems: ResearchBacklogItem[] = project.enableResearchBoard
@@ -182,6 +183,7 @@ export default async function ProjectBacklogPage(props: Props) {
         backlogGroups={backlogGroups}
         assigneeOptions={assigneeOptions}
         epicOptions={epicOptions}
+        backlogGroomingEnabled={aiSettings?.backlogGroomingEnabled ?? false}
         enableResearchBoard={project.enableResearchBoard}
         researchItems={researchItems}
         initialSegment={activeSegment}

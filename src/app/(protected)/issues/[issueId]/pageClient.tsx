@@ -135,6 +135,7 @@ type IssueDetailsPageClientProps = {
   currentUserId: string | null;
   initialSprints: SprintSummary[];
   initialEpics: EpicSummary[];
+  backlogGroomingEnabled: boolean;
 };
 
 type AISuggestionCardProps = {
@@ -290,6 +291,7 @@ export default function IssueDetailsPageClient({
   currentUserId,
   initialSprints,
   initialEpics,
+  backlogGroomingEnabled,
 }: IssueDetailsPageClientProps) {
   const router = useRouter();
 
@@ -829,9 +831,9 @@ export default function IssueDetailsPageClient({
   }, [issueId]);
 
   useEffect(() => {
-    if (!issue?.project?.id || !issue?.id) return;
+    if (!issue?.project?.id || !issue?.id || !backlogGroomingEnabled) return;
     void fetchSuggestions(issue.project.id, issue.id);
-  }, [fetchSuggestions, issue?.id, issue?.project?.id]);
+  }, [backlogGroomingEnabled, fetchSuggestions, issue?.id, issue?.project?.id]);
 
   useEffect(() => {
     if (!canEditBuildLinks) return undefined;
@@ -1447,119 +1449,121 @@ export default function IssueDetailsPageClient({
                 </form>
 
               <div className="space-y-6">
-                <div className="rounded-2xl border border-slate-200 bg-white/70 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                        AI Suggestions
-                      </p>
-                      <p className="text-sm text-slate-600 dark:text-slate-300">AI drafts. Review before applying.</p>
+                {backlogGroomingEnabled && (
+                  <div className="rounded-2xl border border-slate-200 bg-white/70 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          AI Suggestions
+                        </p>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">AI drafts. Review before applying.</p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={triggerAutofill}
+                          disabled={isGeneratingAutofill}
+                          className="inline-flex items-center rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
+                        >
+                          {isGeneratingAutofill ? "Generating..." : "Generate draft"}
+                        </button>
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase text-slate-700 shadow-inner dark:bg-slate-800 dark:text-slate-200">
+                          AI draft
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={triggerAutofill}
-                        disabled={isGeneratingAutofill}
-                        className="inline-flex items-center rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
-                      >
-                        {isGeneratingAutofill ? "Generating..." : "Generate draft"}
-                      </button>
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold uppercase text-slate-700 shadow-inner dark:bg-slate-800 dark:text-slate-200">
-                        AI draft
-                      </span>
-                    </div>
-                  </div>
 
-                  <div className="mt-3 space-y-3">
-                    {autofillError && (
-                      <p className="text-sm text-red-500">{autofillError}</p>
-                    )}
-                    {isLoadingSuggestions ? (
-                      <p className="text-sm text-slate-600 dark:text-slate-300">Loading suggestions...</p>
-                ) : suggestionError ? (
-                      <p className="text-sm text-red-500">{suggestionError}</p>
-                    ) : suggestions.length === 0 ? (
-                      <p className="text-sm text-slate-600 dark:text-slate-300">
-                        No AI drafts yet. Trigger backlog grooming to see ideas here.
-                      </p>
-                    ) : (
-                      <>
-                        <AISuggestionRow>
-                          {autofillSuggestion ? (
-                            <AISuggestionCard
-                              suggestion={autofillSuggestion}
-                              onPrimaryAction={() => applyAutofill(autofillSuggestion)}
-                              primaryActionLabel={
-                                autofillSuggestion.status === "APPLIED"
-                                  ? "Applied"
-                                  : isApplying
-                                    ? "Applying..."
-                                    : "Apply"
-                              }
-                              onReject={() => handleDecision(autofillSuggestion.id, "REJECT")}
-                              onSnooze={(days) => handleDecision(autofillSuggestion.id, "SNOOZE", days)}
-                              onPreview={() => setPreviewSuggestion(autofillSuggestion)}
-                              decisionLoadingId={decisionLoadingId}
-                              disableActions={isApplying || autofillSuggestion.status === "APPLIED"}
-                              caption={
-                                <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 shadow-inner dark:bg-emerald-900/50 dark:text-emerald-100">
-                                  {autofillSuggestion.status ?? "PROPOSED"}
-                                </span>
-                              }
-                            />
-                          ) : (
-                            <div className="flex min-w-[260px] max-w-[320px] flex-1 flex-shrink-0 flex-col justify-between rounded-xl border border-dashed border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-700 shadow-inner dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-200">
-                              <div className="space-y-1">
-                                <p className="font-semibold text-slate-900 dark:text-slate-50">Generate a user story draft</p>
-                                <p className="text-sm text-slate-600 dark:text-slate-300">
-                                  Kickstart a user story with an AI-generated draft.
-                                </p>
+                    <div className="mt-3 space-y-3">
+                      {autofillError && (
+                        <p className="text-sm text-red-500">{autofillError}</p>
+                      )}
+                      {isLoadingSuggestions ? (
+                        <p className="text-sm text-slate-600 dark:text-slate-300">Loading suggestions...</p>
+                      ) : suggestionError ? (
+                        <p className="text-sm text-red-500">{suggestionError}</p>
+                      ) : suggestions.length === 0 ? (
+                        <p className="text-sm text-slate-600 dark:text-slate-300">
+                          No AI drafts yet. Trigger backlog grooming to see ideas here.
+                        </p>
+                      ) : (
+                        <>
+                          <AISuggestionRow>
+                            {autofillSuggestion ? (
+                              <AISuggestionCard
+                                suggestion={autofillSuggestion}
+                                onPrimaryAction={() => applyAutofill(autofillSuggestion)}
+                                primaryActionLabel={
+                                  autofillSuggestion.status === "APPLIED"
+                                    ? "Applied"
+                                    : isApplying
+                                      ? "Applying..."
+                                      : "Apply"
+                                }
+                                onReject={() => handleDecision(autofillSuggestion.id, "REJECT")}
+                                onSnooze={(days) => handleDecision(autofillSuggestion.id, "SNOOZE", days)}
+                                onPreview={() => setPreviewSuggestion(autofillSuggestion)}
+                                decisionLoadingId={decisionLoadingId}
+                                disableActions={isApplying || autofillSuggestion.status === "APPLIED"}
+                                caption={
+                                  <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 shadow-inner dark:bg-emerald-900/50 dark:text-emerald-100">
+                                    {autofillSuggestion.status ?? "PROPOSED"}
+                                  </span>
+                                }
+                              />
+                            ) : (
+                              <div className="flex min-w-[260px] max-w-[320px] flex-1 flex-shrink-0 flex-col justify-between rounded-xl border border-dashed border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-700 shadow-inner dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-200">
+                                <div className="space-y-1">
+                                  <p className="font-semibold text-slate-900 dark:text-slate-50">Generate a user story draft</p>
+                                  <p className="text-sm text-slate-600 dark:text-slate-300">
+                                    Kickstart a user story with an AI-generated draft.
+                                  </p>
+                                </div>
+                                <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
+                                  <button
+                                    type="button"
+                                    onClick={triggerAutofill}
+                                    disabled={isGeneratingAutofill}
+                                    className="inline-flex items-center rounded-full bg-primary px-3 py-1 text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
+                                  >
+                                    {isGeneratingAutofill ? "Generating..." : "Generate"}
+                                  </button>
+                                </div>
                               </div>
-                              <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
-                                <button
-                                  type="button"
-                                  onClick={triggerAutofill}
-                                  disabled={isGeneratingAutofill}
-                                  className="inline-flex items-center rounded-full bg-primary px-3 py-1 text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
-                                >
-                                  {isGeneratingAutofill ? "Generating..." : "Generate"}
-                                </button>
-                              </div>
-                            </div>
+                            )}
+
+                            {otherSuggestions.map((suggestion) => (
+                              <AISuggestionCard
+                                key={suggestion.id}
+                                suggestion={suggestion}
+                                onAccept={() => handleDecision(suggestion.id, "ACCEPT")}
+                                onReject={() => handleDecision(suggestion.id, "REJECT")}
+                                onSnooze={(days) => handleDecision(suggestion.id, "SNOOZE", days)}
+                                decisionLoadingId={decisionLoadingId}
+                                onPreview={
+                                  suggestion.suggestionType === "IMPROVE_TEXT"
+                                    ? () => setPreviewSuggestion(suggestion)
+                                    : undefined
+                                }
+                                onPrimaryAction={
+                                  suggestion.suggestionType === "IMPROVE_TEXT"
+                                    ? () => openApplyModal(suggestion)
+                                    : undefined
+                                }
+                                primaryActionLabel={
+                                  suggestion.suggestionType === "IMPROVE_TEXT" ? "Apply edits" : undefined
+                                }
+                              />
+                            ))}
+                          </AISuggestionRow>
+
+                          {autofillActionError && (
+                            <p className="text-sm text-red-500">{autofillActionError}</p>
                           )}
-
-                          {otherSuggestions.map((suggestion) => (
-                            <AISuggestionCard
-                              key={suggestion.id}
-                              suggestion={suggestion}
-                              onAccept={() => handleDecision(suggestion.id, "ACCEPT")}
-                              onReject={() => handleDecision(suggestion.id, "REJECT")}
-                              onSnooze={(days) => handleDecision(suggestion.id, "SNOOZE", days)}
-                              decisionLoadingId={decisionLoadingId}
-                              onPreview={
-                                suggestion.suggestionType === "IMPROVE_TEXT"
-                                  ? () => setPreviewSuggestion(suggestion)
-                                  : undefined
-                              }
-                              onPrimaryAction={
-                                suggestion.suggestionType === "IMPROVE_TEXT"
-                                  ? () => openApplyModal(suggestion)
-                                  : undefined
-                              }
-                              primaryActionLabel={
-                                suggestion.suggestionType === "IMPROVE_TEXT" ? "Apply edits" : undefined
-                              }
-                            />
-                          ))}
-                        </AISuggestionRow>
-
-                        {autofillActionError && (
-                          <p className="text-sm text-red-500">{autofillActionError}</p>
-                        )}
-                      </>
-                    )}
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                   <div className="flex flex-wrap items-center justify-between gap-3">
