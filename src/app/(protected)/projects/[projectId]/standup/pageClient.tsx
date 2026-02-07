@@ -266,6 +266,15 @@ export default function StandupPageClient({
   const [isLoadingStandupView, setIsLoadingStandupView] = useState(false);
   const [standupViewError, setStandupViewError] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [queueSortMode, setQueueSortMode] = useState<
+    "suggested" | "alphabetical"
+  >("suggested");
+  const [queueIndex, setQueueIndex] = useState(0);
+  const [standupQueueEntries, setStandupQueueEntries] = useState<
+    StandupEntryWithUser[]
+  >([]);
+  const [isLoadingQueueEntries, setIsLoadingQueueEntries] = useState(false);
+  const [queueEntriesError, setQueueEntriesError] = useState("");
 
   const [formState, setFormState] = useState<StandupFormState>({
     summaryToday: "",
@@ -329,13 +338,56 @@ export default function StandupPageClient({
     () => formatDisplayDate(yesterdayDateInput),
     [yesterdayDateInput]
   );
+  const queueStatusByUserId = useMemo(() => {
+    const statusMap = new Map<string, "missing" | "incomplete" | "complete">();
+    standupQueueEntries.forEach((entry) => {
+      statusMap.set(entry.user.id, entry.isComplete ? "complete" : "incomplete");
+    });
+    return statusMap;
+  }, [standupQueueEntries]);
+  const orderedQueue = useMemo(() => {
+    const roleOrder: ProjectRole[] = ["ADMIN", "PO", "DEV", "QA", "VIEWER"];
+    const statusPriority: Record<"missing" | "incomplete" | "complete", number> = {
+      missing: 0,
+      incomplete: 1,
+      complete: 2,
+    };
+    const entries = members.map((member, index) => {
+      const displayName =
+        member.user.name ?? member.user.email ?? "Unnamed member";
+      const roleIndex = roleOrder.indexOf(member.role);
+      const status = queueStatusByUserId.get(member.user.id) ?? "missing";
+      return {
+        member,
+        index,
+        displayName,
+        normalizedName: displayName.toLocaleLowerCase(),
+        roleIndex: roleIndex === -1 ? roleOrder.length : roleIndex,
+        statusPriority: statusPriority[status],
+      };
+    });
+
+    entries.sort((a, b) => {
+      if (queueSortMode === "alphabetical") {
+        const nameComparison = a.normalizedName.localeCompare(b.normalizedName);
+        if (nameComparison !== 0) return nameComparison;
+        return a.index - b.index;
+      }
+
+      const roleComparison = a.roleIndex - b.roleIndex;
+      if (roleComparison !== 0) return roleComparison;
+      const statusComparison = a.statusPriority - b.statusPriority;
+      if (statusComparison !== 0) return statusComparison;
+      const nameComparison = a.normalizedName.localeCompare(b.normalizedName);
+      if (nameComparison !== 0) return nameComparison;
+      return a.index - b.index;
+    });
+
+    return entries.map((entry) => entry.member);
+  }, [members, queueSortMode, queueStatusByUserId]);
   const selectedMember = useMemo(
-    () => members.find((member) => member.user.id === selectedUserId),
-    [members, selectedUserId]
-  );
-  const selectedMemberIndex = useMemo(
-    () => members.findIndex((member) => member.user.id === selectedUserId),
-    [members, selectedUserId]
+    () => orderedQueue.find((member) => member.user.id === selectedUserId),
+    [orderedQueue, selectedUserId]
   );
   const actingMember = useMemo(
     () => members.find((member) => member.user.id === actingUserId),
@@ -347,6 +399,13 @@ export default function StandupPageClient({
     actingMember?.user.email ?? (actingMember ? "No email" : currentUserEmail);
   const yesterdayEntries = standupViewData?.yesterday ?? [];
   const todayEntries = standupViewData?.today ?? [];
+  const upcomingQueue = useMemo(() => {
+    if (!orderedQueue.length) return [];
+    const startIndex = Math.min(queueIndex + 1, orderedQueue.length);
+    return orderedQueue.slice(startIndex, startIndex + 2);
+  }, [orderedQueue, queueIndex]);
+  const standupViewTopRef = useRef<HTMLDivElement | null>(null);
+  const notesInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const addToast = useCallback((toast: Omit<ToastMessage, "id">) => {
     const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -448,19 +507,76 @@ export default function StandupPageClient({
   }, [actingUserId, canProxyStandup, currentUserId, members]);
 
   useEffect(() => {
-    if (!canViewStandupView || !members.length) return;
+    if (!canViewStandupView || !orderedQueue.length) return;
 
-    const hasSelectedMember = members.some(
+    const hasSelectedMember = orderedQueue.some(
       (member) => member.user.id === selectedUserId
     );
 
     if (hasSelectedMember) return;
 
-    const currentMember = members.find(
+    const currentMember = orderedQueue.find(
       (member) => member.user.id === currentUserId
     );
-    setSelectedUserId(currentMember?.user.id ?? members[0]?.user.id ?? null);
-  }, [canViewStandupView, currentUserId, members, selectedUserId]);
+    setSelectedUserId(
+      currentMember?.user.id ?? orderedQueue[0]?.user.id ?? null
+    );
+  }, [canViewStandupView, currentUserId, orderedQueue, selectedUserId]);
+
+  useEffect(() => {
+    if (!orderedQueue.length) {
+      setQueueIndex(0);
+      return;
+    }
+
+    const nextIndex = orderedQueue.findIndex(
+      (member) => member.user.id === selectedUserId
+    );
+
+    if (nextIndex === -1) {
+      setSelectedUserId(orderedQueue[0].user.id);
+      setQueueIndex(0);
+      return;
+    }
+
+    if (nextIndex !== queueIndex) {
+      setQueueIndex(nextIndex);
+    }
+  }, [orderedQueue, queueIndex, selectedUserId]);
+
+  useEffect(() => {
+    if (!projectId || !canViewStandupView || activeTab !== "standup-view") {
+      return;
+    }
+
+    let isCancelled = false;
+    setIsLoadingQueueEntries(true);
+    setQueueEntriesError("");
+
+    getStandupSummaryForProjectAndDate(projectId, { date: standupDateInput })
+      .then((data) => {
+        if (isCancelled) return;
+        setStandupQueueEntries(data.entries);
+      })
+      .catch((error) => {
+        if (isCancelled) return;
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Unable to load standup queue status";
+        setQueueEntriesError(message);
+        setStandupQueueEntries([]);
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsLoadingQueueEntries(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [activeTab, canViewStandupView, projectId, standupDateInput]);
 
   useEffect(() => {
     if (
@@ -686,6 +802,76 @@ export default function StandupPageClient({
     if (activeTab !== "team-dashboard") return;
     loadSummary();
   }, [activeTab, loadSummary]);
+
+  const scrollStandupViewToTop = useCallback(() => {
+    if (standupViewTopRef.current) {
+      standupViewTopRef.current.scrollIntoView({ behavior: "smooth" });
+      return;
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
+  const moveQueueSelection = useCallback(
+    (direction: -1 | 1) => {
+      if (!orderedQueue.length) return;
+      setQueueIndex((prevIndex) => {
+        const nextIndex = Math.min(
+          Math.max(prevIndex + direction, 0),
+          orderedQueue.length - 1
+        );
+        const nextMember = orderedQueue[nextIndex];
+        if (nextMember && nextMember.user.id !== selectedUserId) {
+          setSelectedUserId(nextMember.user.id);
+        }
+        if (nextIndex !== prevIndex) {
+          scrollStandupViewToTop();
+        }
+        return nextIndex;
+      });
+    },
+    [orderedQueue, scrollStandupViewToTop, selectedUserId]
+  );
+
+  useEffect(() => {
+    if (activeTab !== "standup-view") return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        moveQueueSelection(-1);
+        return;
+      }
+
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        moveQueueSelection(1);
+        return;
+      }
+
+      if (event.key === "n" || event.key === "N") {
+        if (notesInputRef.current) {
+          event.preventDefault();
+          notesInputRef.current.focus();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeTab, moveQueueSelection]);
 
   const handleCopySummary = async () => {
     if (!summary?.summary) return;
@@ -951,6 +1137,7 @@ export default function StandupPageClient({
                       Notes
                     </label>
                     <textarea
+                      ref={notesInputRef}
                       value={formState.notes}
                       onChange={(event) =>
                         setFormState((prev) => ({ ...prev, notes: event.target.value }))
@@ -1148,7 +1335,10 @@ export default function StandupPageClient({
         )}
 
       {activeTab === "standup-view" && canViewStandupView && (
-        <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div
+          ref={standupViewTopRef}
+          className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+        >
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="space-y-1">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
@@ -1189,12 +1379,12 @@ export default function StandupPageClient({
 
           <div className="space-y-3">
             <div className="hidden grid-cols-2 gap-3 md:grid lg:grid-cols-3 xl:grid-cols-4">
-              {isLoadingMembers && members.length === 0 ? (
+              {isLoadingMembers && orderedQueue.length === 0 ? (
                 <div className="col-span-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300">
                   Loading members...
                 </div>
               ) : (
-                members.map((member) => {
+                orderedQueue.map((member) => {
                   const isActive = member.user.id === selectedUserId;
                   const initials = getInitials(member.user.name ?? member.user.email);
                   const statusDot = isActive
@@ -1253,7 +1443,7 @@ export default function StandupPageClient({
                 <option value="" disabled>
                   {isLoadingMembers ? "Loading members..." : "Choose a user"}
                 </option>
-                {members.map((member) => (
+                {orderedQueue.map((member) => (
                   <option key={member.id} value={member.user.id}>
                     {member.user.name ?? member.user.email}
                   </option>
@@ -1418,13 +1608,40 @@ export default function StandupPageClient({
                 <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                   Rotate through teammates to keep the flow going.
                 </p>
+                {isLoadingQueueEntries && (
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    Updating queue status...
+                  </p>
+                )}
+                {queueEntriesError && (
+                  <p className="mt-2 text-xs text-amber-600 dark:text-amber-300">
+                    {queueEntriesError}
+                  </p>
+                )}
                 <div className="mt-3 space-y-2 text-sm text-slate-700 dark:text-slate-200">
-                  <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-800/60">
-                    {members[0]?.user.name ?? "Add teammates to the project to fill the queue."}
-                  </p>
-                  <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-800/60">
-                    {members[1]?.user.name ?? "Invite another teammate."}
-                  </p>
+                  {orderedQueue.length === 0 ? (
+                    <>
+                      <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-800/60">
+                        Add teammates to the project to fill the queue.
+                      </p>
+                      <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-800/60">
+                        Invite another teammate.
+                      </p>
+                    </>
+                  ) : upcomingQueue.length === 0 ? (
+                    <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-800/60">
+                      End of the queue.
+                    </p>
+                  ) : (
+                    upcomingQueue.map((member) => (
+                      <p
+                        key={member.id}
+                        className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-800/60"
+                      >
+                        {member.user.name ?? member.user.email}
+                      </p>
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -1449,36 +1666,54 @@ export default function StandupPageClient({
 
           <div className="sticky bottom-0 z-10 -mx-6 mt-4 border-t border-slate-200 bg-white px-6 py-3 dark:border-slate-800 dark:bg-slate-900">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
+              <div className="space-y-1">
                 <p className="text-xs text-slate-500 dark:text-slate-400">Current teammate</p>
                 <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">
                   {standupViewData?.user.name ?? selectedMember?.user.name ?? "Select a user"}
                 </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {orderedQueue.length > 0
+                    ? `Position ${queueIndex + 1} of ${orderedQueue.length}`
+                    : "Queue empty"}
+                </p>
               </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="secondary"
-                  disabled={!members.length || selectedMemberIndex <= 0}
-                  onClick={() => {
-                    const previousMember = members[selectedMemberIndex - 1];
-                    if (previousMember) setSelectedUserId(previousMember.user.id);
-                  }}
-                >
-                  Prev
-                </Button>
-                <Button
-                  disabled={
-                    !members.length ||
-                    selectedMemberIndex < 0 ||
-                    selectedMemberIndex === members.length - 1
-                  }
-                  onClick={() => {
-                    const nextMember = members[selectedMemberIndex + 1];
-                    if (nextMember) setSelectedUserId(nextMember.user.id);
-                  }}
-                >
-                  Next
-                </Button>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                    Order
+                  </label>
+                  <select
+                    value={queueSortMode}
+                    onChange={(event) =>
+                      setQueueSortMode(
+                        event.target.value === "alphabetical"
+                          ? "alphabetical"
+                          : "suggested"
+                      )
+                    }
+                    className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  >
+                    <option value="suggested">Suggested</option>
+                    <option value="alphabetical">Alphabetical</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    disabled={!orderedQueue.length || queueIndex <= 0}
+                    onClick={() => moveQueueSelection(-1)}
+                  >
+                    Prev
+                  </Button>
+                  <Button
+                    disabled={
+                      !orderedQueue.length || queueIndex >= orderedQueue.length - 1
+                    }
+                    onClick={() => moveQueueSelection(1)}
+                  >
+                    Next
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
