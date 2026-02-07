@@ -21,6 +21,7 @@ import { jsonError } from "../../../../../lib/apiResponse";
 import { getNextIssuePosition } from "../../../../../lib/issuePosition";
 import { resolveProjectId, type ProjectParams } from "../../../../../lib/params";
 import { logError } from "../../../../../lib/logger";
+import { sendAssigneeNotification } from "../../../../../lib/issueNotifications";
 
 const fetchSecondaryAssignee = async (secondaryAssigneeId: string | null) => {
   if (!secondaryAssigneeId) {
@@ -55,6 +56,7 @@ export async function POST(
 
     const project = await prisma.project.findUnique({
       where: { id: projectId },
+      include: { settings: true },
     });
 
     if (!project) {
@@ -206,6 +208,26 @@ export async function POST(
       });
     } catch (auditError) {
       logError("Failed to record audit log for issue creation", auditError);
+    }
+
+    if (issue.assignee) {
+      try {
+        await sendAssigneeNotification({
+          project,
+          issue: {
+            id: issue.id,
+            key: issue.key ?? null,
+            title: issue.title,
+            status: issue.status,
+          },
+          assignee: {
+            name: issue.assignee.name ?? null,
+            email: issue.assignee.email ?? null,
+          },
+        });
+      } catch (emailError) {
+        logError("Failed to send assignee notification", emailError);
+      }
     }
 
     return NextResponse.json({ ...issue, secondaryAssignee }, { status: 201 });

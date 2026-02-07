@@ -39,6 +39,7 @@ type EmailSettingsResponse = {
   providerType: ProviderType | null;
   fromName: string;
   fromEmail: string;
+  assignmentNotificationsEnabled: boolean;
   smtpHost: string;
   smtpPort: number | null;
   smtpUsername: string;
@@ -62,6 +63,7 @@ export default function ProjectEmailSettings({
     providerType: null,
     fromName: "",
     fromEmail: "",
+    assignmentNotificationsEnabled: true,
     smtpHost: "",
     smtpPort: null,
     smtpUsername: "",
@@ -348,6 +350,45 @@ export default function ProjectEmailSettings({
 
       <form onSubmit={handleSaveSettings} className="space-y-4">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="md:col-span-2">
+            <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/50">
+              <div>
+                <p className="text-sm font-medium text-slate-900 dark:text-slate-50">
+                  Assignment notification emails
+                </p>
+                <p className="text-xs text-slate-600 dark:text-slate-300">
+                  Send an email when a teammate is assigned to a ticket.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={settings.assignmentNotificationsEnabled}
+                aria-label="Toggle assignment notification emails"
+                disabled={disabled}
+                onClick={() =>
+                  !disabled &&
+                  setSettings((prev) => ({
+                    ...prev,
+                    assignmentNotificationsEnabled: !prev.assignmentNotificationsEnabled,
+                  }))
+                }
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${
+                  settings.assignmentNotificationsEnabled
+                    ? "bg-primary"
+                    : "bg-slate-200 dark:bg-slate-700"
+                } ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ${
+                    settings.assignmentNotificationsEnabled
+                      ? "translate-x-5"
+                      : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
           <div className="space-y-1">
             <label className={labelClasses} htmlFor="providerType">
               Email provider

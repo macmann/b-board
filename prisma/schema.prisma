@@ -283,6 +283,7 @@ model ProjectSettings {
   emailProvider      EmailProviderType?
   emailFromName      String?
   emailFromAddress   String?
+  emailAssignmentNotifications Boolean @default(true)
   smtpHost           String?
   smtpPort           Int?
   smtpUsername       String?

@@ -20,6 +20,7 @@ import {
 } from "../../../../lib/issueHistory";
 import { safeLogAudit } from "../../../../lib/auditLogger";
 import { setRequestContextUser, withRequestContext } from "../../../../lib/requestContext";
+import { sendAssigneeNotification } from "../../../../lib/issueNotifications";
 
 export async function GET(
   request: NextRequest,
@@ -334,7 +335,7 @@ export async function PATCH(
           where: { id: issueId },
           data,
           include: {
-            project: true,
+            project: { include: { settings: true } },
             sprint: true,
             epic: true,
             assignee: true,
@@ -404,6 +405,30 @@ export async function PATCH(
           });
         } catch (auditError) {
           logError("Failed to record audit log for issue update", auditError);
+        }
+      }
+
+      if (
+        existingIssue.assigneeId !== updatedIssue.assigneeId &&
+        updatedIssue.assigneeId &&
+        updatedIssue.assignee
+      ) {
+        try {
+          await sendAssigneeNotification({
+            project: updatedIssue.project,
+            issue: {
+              id: updatedIssue.id,
+              key: updatedIssue.key ?? null,
+              title: updatedIssue.title,
+              status: updatedIssue.status,
+            },
+            assignee: {
+              name: updatedIssue.assignee.name ?? null,
+              email: updatedIssue.assignee.email ?? null,
+            },
+          });
+        } catch (emailError) {
+          logError("Failed to send assignee notification", emailError);
         }
       }
 
