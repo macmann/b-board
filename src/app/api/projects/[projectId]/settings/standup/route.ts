@@ -37,9 +37,11 @@ const toMinutes = (value: string): number | null => {
 const mapResponse = (settings: {
   standupWindowStart: string | null;
   standupWindowEnd: string | null;
+  standupWeekendDisabled: boolean | null;
 }) => ({
   standupWindowStart: settings.standupWindowStart,
   standupWindowEnd: settings.standupWindowEnd,
+  standupWeekendDisabled: settings.standupWeekendDisabled ?? false,
   enabled: Boolean(settings.standupWindowStart && settings.standupWindowEnd),
 });
 
@@ -78,6 +80,7 @@ export async function GET(
     mapResponse({
       standupWindowStart: settings?.standupWindowStart ?? null,
       standupWindowEnd: settings?.standupWindowEnd ?? null,
+      standupWeekendDisabled: settings?.standupWeekendDisabled ?? false,
     })
   );
 }
@@ -110,7 +113,12 @@ export async function PUT(
   }
 
   const body = await request.json();
-  const { enabled, standupWindowStart, standupWindowEnd } = body ?? {};
+  const {
+    enabled,
+    standupWindowStart,
+    standupWindowEnd,
+    standupWeekendDisabled,
+  } = body ?? {};
 
   if (typeof enabled !== "boolean") {
     return NextResponse.json(
@@ -118,6 +126,18 @@ export async function PUT(
       { status: 400 }
     );
   }
+
+  if (
+    standupWeekendDisabled !== undefined &&
+    typeof standupWeekendDisabled !== "boolean"
+  ) {
+    return NextResponse.json(
+      { message: "standupWeekendDisabled must be a boolean when provided." },
+      { status: 400 }
+    );
+  }
+
+  const weekendDisabled = standupWeekendDisabled ?? false;
 
   if (enabled) {
     if (!isValidTime(standupWindowStart) || !isValidTime(standupWindowEnd)) {
@@ -147,11 +167,13 @@ export async function PUT(
     update: {
       standupWindowStart: enabled ? standupWindowStart : null,
       standupWindowEnd: enabled ? standupWindowEnd : null,
+      standupWeekendDisabled: weekendDisabled,
     },
     create: {
       projectId,
       standupWindowStart: enabled ? standupWindowStart : null,
       standupWindowEnd: enabled ? standupWindowEnd : null,
+      standupWeekendDisabled: weekendDisabled,
     },
   });
 

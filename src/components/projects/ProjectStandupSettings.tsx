@@ -7,6 +7,7 @@ import { ProjectRole } from "@/lib/roles";
 type StandupSettingsResponse = {
   standupWindowStart: string | null;
   standupWindowEnd: string | null;
+  standupWeekendDisabled?: boolean;
   enabled?: boolean;
 };
 
@@ -35,6 +36,7 @@ export default function ProjectStandupSettings({
   const [enabled, setEnabled] = useState(false);
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("09:30");
+  const [weekendDisabled, setWeekendDisabled] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [status, setStatus] = useState<string | null>(null);
@@ -75,6 +77,7 @@ export default function ProjectStandupSettings({
         setEnabled(nextEnabled);
         setStartTime(data.standupWindowStart ?? "09:00");
         setEndTime(data.standupWindowEnd ?? "09:30");
+        setWeekendDisabled(Boolean(data.standupWeekendDisabled));
         setStatus(null);
       } catch (fetchError) {
         if (!isMounted) return;
@@ -149,6 +152,7 @@ export default function ProjectStandupSettings({
             enabled,
             standupWindowStart: enabled ? startTime : null,
             standupWindowEnd: enabled ? endTime : null,
+            standupWeekendDisabled: weekendDisabled,
           }),
         }
       );
@@ -176,6 +180,9 @@ export default function ProjectStandupSettings({
       setEndTime(
         (data as StandupSettingsResponse).standupWindowEnd ??
           (enabled ? endTime : "09:30")
+      );
+      setWeekendDisabled(
+        Boolean((data as StandupSettingsResponse).standupWeekendDisabled)
       );
       setStatus("Stand-up settings updated successfully.");
     } catch (submitError) {
@@ -245,6 +252,38 @@ export default function ProjectStandupSettings({
               <span
                 className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ${
                   enabled ? "translate-x-5" : "translate-x-1"
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/50">
+            <div>
+              <p className="text-sm font-medium text-slate-900 dark:text-slate-50">
+                Disable weekend standups
+              </p>
+              <p className="text-xs text-slate-600 dark:text-slate-300">
+                When enabled, Monday&apos;s yesterday column shows the last working day (Friday).
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={weekendDisabled}
+              aria-label="Toggle weekend standup disablement"
+              disabled={!canManage}
+              onClick={() => canManage && setWeekendDisabled((prev) => !prev)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 dark:focus:ring-offset-slate-900 ${
+                weekendDisabled
+                  ? "bg-primary"
+                  : "bg-slate-200 dark:bg-slate-700"
+              } ${
+                !canManage ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+              }`}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ${
+                  weekendDisabled ? "translate-x-5" : "translate-x-1"
                 }`}
               />
             </button>
