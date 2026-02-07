@@ -16,6 +16,7 @@ const mapResponse = (settings: {
   emailProvider: keyof typeof EmailProviderType | null;
   emailFromName: string | null;
   emailFromAddress: string | null;
+  emailAssignmentNotifications: boolean | null;
   smtpHost: string | null;
   smtpPort: number | null;
   smtpUsername: string | null;
@@ -26,6 +27,7 @@ const mapResponse = (settings: {
   providerType: settings.emailProvider ?? null,
   fromName: settings.emailFromName ?? "",
   fromEmail: settings.emailFromAddress ?? "",
+  assignmentNotificationsEnabled: settings.emailAssignmentNotifications ?? true,
   smtpHost: settings.smtpHost ?? "",
   smtpPort: settings.smtpPort,
   smtpUsername: settings.smtpUsername ?? "",
@@ -67,6 +69,10 @@ const ensureValidBody = (body: any) => {
     : "";
   const apiUrl = body?.apiUrl ? String(body.apiUrl).trim() : "";
   const apiKey = body?.apiKey ? String(body.apiKey).trim() : "";
+  const assignmentNotificationsEnabled =
+    typeof body?.assignmentNotificationsEnabled === "boolean"
+      ? body.assignmentNotificationsEnabled
+      : true;
 
   if (providerType && !fromEmail) {
     throw new Error("From email is required when email is enabled.");
@@ -101,6 +107,7 @@ const ensureValidBody = (body: any) => {
     smtpPassword,
     apiUrl,
     apiKey,
+    assignmentNotificationsEnabled,
   };
 };
 
@@ -141,6 +148,7 @@ export async function GET(
         emailProvider: null,
         emailFromName: "",
         emailFromAddress: "",
+        emailAssignmentNotifications: true,
         smtpHost: "",
         smtpPort: null,
         smtpUsername: "",
@@ -223,6 +231,7 @@ export async function PUT(
       emailProvider,
       emailFromName: parsedSettings.fromName || null,
       emailFromAddress: parsedSettings.fromEmail || null,
+      emailAssignmentNotifications: parsedSettings.assignmentNotificationsEnabled,
       smtpHost: parsedSettings.smtpHost || null,
       smtpPort: parsedSettings.smtpPort || null,
       smtpUsername: parsedSettings.smtpUsername || null,
@@ -235,6 +244,7 @@ export async function PUT(
       emailProvider,
       emailFromName: parsedSettings.fromName || null,
       emailFromAddress: parsedSettings.fromEmail || null,
+      emailAssignmentNotifications: parsedSettings.assignmentNotificationsEnabled,
       smtpHost: parsedSettings.smtpHost || null,
       smtpPort: parsedSettings.smtpPort || null,
       smtpUsername: parsedSettings.smtpUsername || null,
