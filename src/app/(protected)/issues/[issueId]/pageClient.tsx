@@ -124,11 +124,17 @@ type SprintSummary = {
   status: SprintStatus;
 };
 
+type EpicSummary = {
+  id: string;
+  title: string;
+};
+
 type IssueDetailsPageClientProps = {
   issueId: string;
   projectRole: ProjectRole | null;
   currentUserId: string | null;
   initialSprints: SprintSummary[];
+  initialEpics: EpicSummary[];
 };
 
 type AISuggestionCardProps = {
@@ -283,6 +289,7 @@ export default function IssueDetailsPageClient({
   projectRole,
   currentUserId,
   initialSprints,
+  initialEpics,
 }: IssueDetailsPageClientProps) {
   const router = useRouter();
 
@@ -341,11 +348,21 @@ export default function IssueDetailsPageClient({
 
   const epicOptions = useMemo(() => {
     const options = [] as Array<{ id: string; label: string }>;
-    if (issue?.epic) {
+    const seen = new Set<string>();
+
+    initialEpics.forEach((epic) => {
+      if (!seen.has(epic.id)) {
+        options.push({ id: epic.id, label: epic.title });
+        seen.add(epic.id);
+      }
+    });
+
+    if (issue?.epic && !seen.has(issue.epic.id)) {
       options.push({ id: issue.epic.id, label: issue.epic.title });
     }
+
     return options;
-  }, [issue]);
+  }, [initialEpics, issue]);
 
   const sprintOptions = useMemo(() => {
     const options = [] as Array<{ id: string; label: string }>;

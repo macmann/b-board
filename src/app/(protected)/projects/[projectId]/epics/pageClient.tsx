@@ -57,6 +57,7 @@ export default function EpicsPageClient({
   const [epics, setEpics] = useState<EpicSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingEpicId, setDeletingEpicId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
 
@@ -142,6 +143,43 @@ export default function EpicsPageClient({
       setError(err instanceof Error ? err.message : "Failed to create epic.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDeleteEpic = async (epicId: string) => {
+    if (!canManageEpics) {
+      setError("You do not have permission to delete epics.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Delete this epic? Linked stories will remain but no longer be associated."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingEpicId(epicId);
+    setError(null);
+    setStatus(null);
+
+    try {
+      const response = await fetch(`/api/projects/${projectId}/epics/${epicId}`, {
+        method: "DELETE",
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.message ?? "Unable to delete epic.");
+      }
+
+      setStatus("Epic deleted successfully.");
+      await fetchEpics();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete epic.");
+    } finally {
+      setDeletingEpicId(null);
     }
   };
 
@@ -266,9 +304,21 @@ export default function EpicsPageClient({
                         {epic.stories.length} linked {epic.stories.length === 1 ? "story" : "stories"}
                       </p>
                     </div>
-                    <Badge variant={statusVariants[epic.status]}>
-                      {statusLabels[epic.status]}
-                    </Badge>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant={statusVariants[epic.status]}>
+                        {statusLabels[epic.status]}
+                      </Badge>
+                      {canManageEpics && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleDeleteEpic(epic.id)}
+                          disabled={deletingEpicId === epic.id}
+                        >
+                          {deletingEpicId === epic.id ? "Deleting..." : "Delete"}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   {epic.description && (
                     <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
