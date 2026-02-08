@@ -98,7 +98,12 @@ export default function CreateIssueDrawer({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/30 animate-fade-in" />
         <Dialog.Content className="fixed right-0 top-0 flex h-full w-[420px] flex-col gap-4 bg-white p-6 shadow-xl animate-slide-in-right dark:bg-slate-950 dark:text-slate-50">
-          <Dialog.Title className="mb-2 text-lg font-semibold">Create New Issue</Dialog.Title>
+          <div className="space-y-1">
+            <Dialog.Title className="text-lg font-semibold">Create New Issue</Dialog.Title>
+            <Dialog.Description className="text-sm text-slate-500 dark:text-slate-300">
+              Capture a new issue for this project.
+            </Dialog.Description>
+          </div>
 
           <form className="grid gap-4" onSubmit={handleSubmit}>
             <div className="flex flex-col gap-2">
