@@ -231,12 +231,12 @@ export default function ResearchItemDrawer({
       <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/30 animate-fade-in" />
-        <Dialog.Content className="fixed right-0 top-0 flex h-full w-[440px] flex-col gap-4 bg-white p-6 shadow-xl animate-slide-in-right dark:bg-slate-950 dark:text-slate-50">
+        <Dialog.Content className="fixed right-0 top-0 flex h-full w-[440px] flex-col gap-4 overflow-hidden bg-white p-6 shadow-xl animate-slide-in-right dark:bg-slate-950 dark:text-slate-50">
           <Dialog.Title className="mb-2 text-lg font-semibold">
             {isEdit ? "Edit Research Item" : "Create Research Item"}
           </Dialog.Title>
 
-          <form className="grid gap-4" onSubmit={handleSubmit}>
+          <form className="grid flex-1 gap-4 overflow-y-auto pr-1" onSubmit={handleSubmit}>
             <div className="flex flex-col gap-2">
               <label className={labelClass} htmlFor="title">
                 Title
