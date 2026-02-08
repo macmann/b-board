@@ -191,6 +191,7 @@ export default function ResearchBacklogContainer({
             projectId={projectId}
             isReadOnly={isReadOnly}
             mode="create"
+            typeOptions={typeOptions}
             trigger={<Button disabled={isReadOnly}>Create Research Item</Button>}
             onSuccess={onRefresh}
           />
@@ -238,6 +239,7 @@ export default function ResearchBacklogContainer({
         researchItemId={selectedItemId}
         isReadOnly={isReadOnly}
         issues={projectIssues}
+        typeOptions={typeOptions}
         open={isDetailOpen}
         onClose={() => {
           setSelectedItemId(null);

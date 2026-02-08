@@ -5,6 +5,8 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { ResearchDecision, ResearchPriority } from "@prisma/client";
 
 import { ResearchStatus } from "@/lib/prismaEnums";
+import { type SelectOption } from "@/components/issues/InlineEditableCell";
+import { GENERAL_RESEARCH_TYPE_VALUE } from "./researchFilters";
 import { Button } from "../ui/Button";
 
 type Attachment = {
@@ -21,6 +23,7 @@ type ResearchItemDrawerProps = {
   mode: "create" | "edit";
   trigger: React.ReactNode;
   researchItemId?: string;
+  typeOptions?: SelectOption[];
   initialValues?: {
     title: string;
     description: string | null;
@@ -42,6 +45,7 @@ export default function ResearchItemDrawer({
   mode,
   trigger,
   researchItemId,
+  typeOptions = [],
   initialValues,
   onSuccess,
   onForbidden,
@@ -67,6 +71,8 @@ export default function ResearchItemDrawer({
   const [attachments, setAttachments] = useState<Attachment[]>(initialValues?.attachments ?? []);
   const [isUploading, setIsUploading] = useState(false);
   const [attachmentError, setAttachmentError] = useState("");
+  const [customType, setCustomType] = useState("");
+  const [typeSelection, setTypeSelection] = useState("");
 
   useEffect(() => {
     if (!open || members.length > 0) return;
@@ -221,6 +227,31 @@ export default function ResearchItemDrawer({
     () => [...members].sort((a, b) => a.name.localeCompare(b.name)),
     [members]
   );
+  const normalizedTypeOptions = useMemo(
+    () =>
+      typeOptions.filter((option) => option.value !== GENERAL_RESEARCH_TYPE_VALUE),
+    [typeOptions]
+  );
+  const typeOptionValues = useMemo(
+    () => new Set(normalizedTypeOptions.map((option) => option.value)),
+    [normalizedTypeOptions]
+  );
+
+  useEffect(() => {
+    if (type) {
+      if (typeOptionValues.has(type)) {
+        setTypeSelection(type);
+        setCustomType("");
+      } else {
+        setTypeSelection("__custom__");
+        setCustomType(type);
+      }
+      return;
+    }
+
+    setTypeSelection("");
+    setCustomType("");
+  }, [type, typeOptionValues]);
 
   const inputClass =
     "rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:placeholder:text-slate-400 dark:disabled:bg-slate-800";
@@ -317,15 +348,42 @@ export default function ResearchItemDrawer({
               <label className={labelClass} htmlFor="type">
                 Research Type
               </label>
-              <input
+              <select
                 id="type"
                 name="type"
-                value={type ?? ""}
-                onChange={(event) => setType(event.target.value)}
+                value={typeSelection}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  setTypeSelection(nextValue);
+                  if (nextValue === "__custom__") {
+                    setType(customType);
+                    return;
+                  }
+                  setType(nextValue);
+                }}
                 disabled={isReadOnly}
-                placeholder="e.g. User Interview"
                 className={inputClass}
-              />
+              >
+                <option value="">General</option>
+                {normalizedTypeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+                <option value="__custom__">Custom type...</option>
+              </select>
+              {typeSelection === "__custom__" && (
+                <input
+                  value={customType}
+                  onChange={(event) => {
+                    setCustomType(event.target.value);
+                    setType(event.target.value);
+                  }}
+                  disabled={isReadOnly}
+                  placeholder="e.g. User Interview"
+                  className={inputClass}
+                />
+              )}
             </div>
 
             <div className="flex flex-col gap-2">
