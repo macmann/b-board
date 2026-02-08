@@ -105,7 +105,7 @@ export default function CreateIssueDrawer({
             </Dialog.Description>
           </div>
 
-          <form className="grid gap-4" onSubmit={handleSubmit}>
+          <form className="flex flex-1 flex-col gap-4 overflow-y-auto" onSubmit={handleSubmit}>
             <div className="flex flex-col gap-2">
               <label className="text-sm font-medium text-gray-700 dark:text-slate-200" htmlFor="title">
                 Title
@@ -246,7 +246,7 @@ export default function CreateIssueDrawer({
 
             {error && <p className="text-sm text-red-500">{error}</p>}
 
-            <div className="flex justify-end gap-2">
+            <div className="mt-auto flex justify-end gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
               <Dialog.Close asChild>
                 <Button type="button" variant="secondary">
                   Cancel
