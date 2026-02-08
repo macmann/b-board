@@ -107,7 +107,7 @@ export default function CreateIssueDrawer({
 
           <form className="flex flex-1 flex-col gap-4 overflow-y-auto" onSubmit={handleSubmit}>
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-slate-200" htmlFor="title">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="title">
                 Title
               </label>
               <input
@@ -117,12 +117,12 @@ export default function CreateIssueDrawer({
                 onChange={(event) => setTitle(event.target.value)}
                 required
                 disabled={isReadOnly}
-                className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:placeholder:text-slate-400 dark:disabled:bg-slate-800"
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:placeholder:text-slate-400 dark:disabled:bg-slate-800"
               />
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-slate-200" htmlFor="type">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="type">
                 Type
               </label>
               <select
@@ -131,7 +131,7 @@ export default function CreateIssueDrawer({
                 value={type}
                 onChange={(event) => setType(event.target.value as IssueType)}
                 disabled={isReadOnly}
-                className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:disabled:bg-slate-800"
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:disabled:bg-slate-800"
               >
                 {Object.values(IssueType).map((option) => (
                   <option key={option} value={option}>
@@ -142,7 +142,7 @@ export default function CreateIssueDrawer({
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-slate-200" htmlFor="priority">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="priority">
                 Priority
               </label>
               <select
@@ -151,7 +151,7 @@ export default function CreateIssueDrawer({
                 value={priority}
                 onChange={(event) => setPriority(event.target.value as IssuePriority)}
                 disabled={isReadOnly}
-                className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:disabled:bg-slate-800"
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:disabled:bg-slate-800"
               >
                 {Object.values(IssuePriority).map((option) => (
                   <option key={option} value={option}>
@@ -162,7 +162,7 @@ export default function CreateIssueDrawer({
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-slate-200" htmlFor="storyPoints">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="storyPoints">
                 Story Points
               </label>
               <input
@@ -174,12 +174,12 @@ export default function CreateIssueDrawer({
                 value={storyPoints}
                 onChange={(event) => setStoryPoints(event.target.value)}
                 disabled={isReadOnly}
-                className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:placeholder:text-slate-400 dark:disabled:bg-slate-800"
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:placeholder:text-slate-400 dark:disabled:bg-slate-800"
               />
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-slate-200" htmlFor="assignee">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="assignee">
                 Assignee
               </label>
               <select
@@ -188,7 +188,7 @@ export default function CreateIssueDrawer({
                 value={assigneeId}
                 onChange={(event) => setAssigneeId(event.target.value)}
                 disabled={isReadOnly}
-                className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:disabled:bg-slate-800"
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:disabled:bg-slate-800"
               >
                 <option value="">Unassigned</option>
                 {assigneeOptions.map((option) => (
@@ -201,7 +201,7 @@ export default function CreateIssueDrawer({
 
             <div className="flex flex-col gap-2">
               <label
-                className="text-sm font-medium text-gray-700 dark:text-slate-200"
+                className="block text-sm font-medium text-slate-700 dark:text-slate-200"
                 htmlFor="secondaryAssignee"
               >
                 Secondary assignee
@@ -212,7 +212,7 @@ export default function CreateIssueDrawer({
                 value={secondaryAssigneeId}
                 onChange={(event) => setSecondaryAssigneeId(event.target.value)}
                 disabled={isReadOnly}
-                className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:disabled:bg-slate-800"
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:disabled:bg-slate-800"
               >
                 <option value="">Unassigned</option>
                 {assigneeOptions.map((option) => (
@@ -224,7 +224,7 @@ export default function CreateIssueDrawer({
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-gray-700 dark:text-slate-200" htmlFor="epic">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="epic">
                 Epic
               </label>
               <select
@@ -233,7 +233,7 @@ export default function CreateIssueDrawer({
                 value={epicId}
                 onChange={(event) => setEpicId(event.target.value)}
                 disabled={isReadOnly}
-                className="rounded-md border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:disabled:bg-slate-800"
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:disabled:bg-slate-800"
               >
                 <option value="">No epic</option>
                 {epicOptions.map((option) => (
