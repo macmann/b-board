@@ -123,8 +123,8 @@ const getMissingStandupSections = (entry?: StandupEntry | StandupEntryWithUser |
     return {
       progress: true,
       today: true,
-      blockers: true,
-      dependencies: true,
+      blockers: false,
+      dependencies: false,
       linkedWork: true,
     };
   }
@@ -132,8 +132,8 @@ const getMissingStandupSections = (entry?: StandupEntry | StandupEntryWithUser |
   return {
     progress: !entry.progressSinceYesterday?.trim(),
     today: !entry.summaryToday?.trim(),
-    blockers: !entry.blockers?.trim(),
-    dependencies: !entry.dependencies?.trim(),
+    blockers: false,
+    dependencies: false,
     linkedWork: entry.issues.length + entry.research.length === 0,
   };
 };
@@ -143,7 +143,10 @@ const getStandupEntryStatus = (
 ): StandupEntryStatus => {
   if (!entry) return "missing";
   const missingSections = getMissingStandupSections(entry);
-  const hasMissing = Object.values(missingSections).some(Boolean);
+  const hasMissing =
+    missingSections.progress ||
+    missingSections.today ||
+    missingSections.linkedWork;
   return hasMissing ? "partial" : "updated";
 };
 
@@ -1355,7 +1358,7 @@ export default function StandupPageClient({
                   <div className="h-full flex flex-col">
                     <div className="flex items-center justify-between">
                       <label className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-                        Progress since yesterday
+                        Yesterday
                       </label>
                       {currentEntry?.isComplete && (
                         <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-100">
@@ -1858,7 +1861,7 @@ export default function StandupPageClient({
                             <div className="space-y-2 text-sm text-slate-800 dark:text-slate-200">
                               <div>
                                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                                  Progress
+                                  Yesterday
                                 </p>
                                 <p
                                   className={`mt-1 whitespace-pre-line rounded-md border p-3 leading-relaxed ${
@@ -2335,7 +2338,7 @@ export default function StandupPageClient({
                         <td className="px-4 py-3 space-y-3 text-slate-800 dark:text-slate-200">
                           <div>
                             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                              Progress
+                              Yesterday
                             </p>
                             <p className="mt-1 whitespace-pre-line rounded-md border border-slate-200 bg-slate-50 p-3 text-sm leading-relaxed dark:border-slate-700 dark:bg-slate-800">
                               {entry.progressSinceYesterday ?? "—"}
