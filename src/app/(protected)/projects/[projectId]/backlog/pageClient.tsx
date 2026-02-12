@@ -51,6 +51,30 @@ export type BacklogGroup = {
 const containerIdForGroup = (group: BacklogGroup) =>
   group.type === "sprint" ? `sprint:${group.id}` : "backlog";
 
+const SPRINT_STATUS_PRIORITY: Record<SprintStatus, number> = {
+  [SprintStatus.ACTIVE]: 0,
+  [SprintStatus.PLANNED]: 1,
+  [SprintStatus.COMPLETED]: 2,
+};
+
+const sortBacklogGroups = (groups: BacklogGroup[]) => {
+  const sprintGroups = groups
+    .filter((group) => group.type === "sprint")
+    .sort((a, b) => {
+      const aPriority = a.status ? SPRINT_STATUS_PRIORITY[a.status] ?? 99 : 99;
+      const bPriority = b.status ? SPRINT_STATUS_PRIORITY[b.status] ?? 99 : 99;
+
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority;
+      }
+
+      return a.name.localeCompare(b.name);
+    });
+
+  const backlogOnlyGroups = groups.filter((group) => group.type === "backlog");
+  return [...sprintGroups, ...backlogOnlyGroups];
+};
+
 type Option = { id: string; label: string };
 
 type BacklogResponse = {
@@ -104,7 +128,7 @@ export default function BacklogPageClient({
   const router = useRouter();
 
   const [backlogGroups, setBacklogGroups] = useState<BacklogGroup[]>(
-    initialBacklogGroups
+    sortBacklogGroups(initialBacklogGroups)
   );
   const [assigneeOptions, setAssigneeOptions] = useState<Option[]>(
     initialAssigneeOptions
@@ -137,6 +161,15 @@ export default function BacklogPageClient({
   const [filters, setFilters] = useState<BacklogFilters>(defaultBacklogFilters);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [hasInitializedFilters, setHasInitializedFilters] = useState(false);
+  const [collapsedSprintState, setCollapsedSprintState] = useState<
+    Record<string, boolean>
+  >(() =>
+    Object.fromEntries(
+      initialBacklogGroups
+        .filter((group) => group.type === "sprint")
+        .map((group) => [group.id, group.status === SprintStatus.COMPLETED])
+    )
+  );
 
   const INCOMPLETE_STORY_FLAG = "INCOMPLETE_STORY_FLAG";
 
@@ -350,7 +383,7 @@ export default function BacklogPageClient({
       }
 
       const data: BacklogResponse = await response.json();
-      setBacklogGroups(data.groups ?? []);
+      setBacklogGroups(sortBacklogGroups(data.groups ?? []));
       setAssigneeOptions(
         data.members?.map((member) => ({
           id: member.id,
@@ -374,6 +407,24 @@ export default function BacklogPageClient({
     if (!projectId) return;
     fetchBacklogGroups();
   }, [fetchBacklogGroups, projectId]);
+
+  useEffect(() => {
+    setCollapsedSprintState((previous) => {
+      const next = { ...previous };
+
+      backlogGroups.forEach((group) => {
+        if (group.type !== "sprint") {
+          return;
+        }
+
+        if (next[group.id] === undefined) {
+          next[group.id] = group.status === SprintStatus.COMPLETED;
+        }
+      });
+
+      return next;
+    });
+  }, [backlogGroups]);
 
   const refreshAssignees = useCallback(async () => {
     if (!projectId) return;
@@ -703,6 +754,7 @@ export default function BacklogPageClient({
     const isSprint = group.type === "sprint";
     const containerId = containerIdForGroup(group);
     const { setNodeRef, isOver } = useDroppable({ id: containerId });
+    const isCollapsed = isSprint && Boolean(collapsedSprintState[group.id]);
 
     return (
       <section
@@ -715,22 +767,46 @@ export default function BacklogPageClient({
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
             {isSprint ? `Sprint: ${group.name}` : "Product Backlog"}
           </h2>
-          {isSprint && group.status && (
-            <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-              {group.status}
-            </span>
+          {isSprint && (
+            <div className="flex items-center gap-2">
+              {group.status && (
+                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                  {group.status}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setCollapsedSprintState((previous) => ({
+                    ...previous,
+                    [group.id]: !previous[group.id],
+                  }));
+                }}
+                className="inline-flex items-center rounded-full border border-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                aria-expanded={!isCollapsed}
+                aria-label={`${isCollapsed ? "Expand" : "Collapse"} sprint ${group.name}`}
+              >
+                {isCollapsed ? "Expand" : "Collapse"}
+              </button>
+            </div>
           )}
         </div>
 
-        <BacklogTable
-          issues={group.issues}
-          onIssueClick={handleRowClick}
-          onIssueUpdate={handleIssueUpdate}
-          assigneeOptions={assigneeSelectOptions}
-          epicOptions={epicSelectOptions}
-          isReadOnly={isReadOnly}
-          disableDrag={!canReorder}
-        />
+        {!isCollapsed ? (
+          <BacklogTable
+            issues={group.issues}
+            onIssueClick={handleRowClick}
+            onIssueUpdate={handleIssueUpdate}
+            assigneeOptions={assigneeSelectOptions}
+            epicOptions={epicSelectOptions}
+            isReadOnly={isReadOnly}
+            disableDrag={!canReorder}
+          />
+        ) : (
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {group.issues.length} issue{group.issues.length === 1 ? "" : "s"}
+          </p>
+        )}
       </section>
     );
   };
