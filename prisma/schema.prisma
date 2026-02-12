@@ -280,6 +280,7 @@ model ProjectSettings {
   standupWindowStart String?
   standupWindowEnd   String?
   standupWeekendDisabled Boolean         @default(false)
+  standupSequence    String?
   emailProvider      EmailProviderType?
   emailFromName      String?
   emailFromAddress   String?
