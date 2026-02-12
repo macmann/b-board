@@ -27,6 +27,23 @@ vi.mock("@/components/research/ResearchBacklogContainer", () => ({
 
 const backlogGroups: BacklogGroup[] = [
   {
+    id: "sprint-3",
+    name: "Sprint 3",
+    type: "sprint",
+    status: SprintStatus.COMPLETED,
+    issues: [
+      {
+        id: "3",
+        key: "PRJ-3",
+        title: "Completed sprint issue",
+        type: IssueType.TASK,
+        status: IssueStatus.DONE,
+        priority: IssuePriority.LOW,
+        assignee: null,
+      },
+    ],
+  },
+  {
     id: "sprint-1",
     name: "Sprint 1",
     type: "sprint",
@@ -42,6 +59,13 @@ const backlogGroups: BacklogGroup[] = [
         assignee: { id: "user-1", name: "Alice" },
       },
     ],
+  },
+  {
+    id: "sprint-2",
+    name: "Sprint 2",
+    type: "sprint",
+    status: SprintStatus.PLANNED,
+    issues: [],
   },
   {
     id: "backlog",
@@ -116,6 +140,21 @@ describe("Backlog filters integration", () => {
     expect(await screen.findByText("Backlog")).toBeInTheDocument();
     expect(screen.getByText("Implement filters")).toBeInTheDocument();
     expect(screen.getByText("Done work")).toBeInTheDocument();
+    expect(screen.getByText("1 issue")).toBeInTheDocument();
+
+    const groupHeadings = screen
+      .getAllByRole("heading", { level: 2 })
+      .map((heading) => heading.textContent);
+    expect(groupHeadings.slice(1, 5)).toEqual([
+      "Sprint: Sprint 1",
+      "Sprint: Sprint 2",
+      "Sprint: Sprint 3",
+      "Product Backlog",
+    ]);
+
+    expect(
+      screen.getByRole("button", { name: "Expand sprint Sprint 3" })
+    ).toHaveAttribute("aria-expanded", "false");
 
     await user.click(screen.getByRole("button", { name: /status/i }));
     await user.click(screen.getByRole("checkbox", { name: "DONE" }));
