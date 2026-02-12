@@ -6,6 +6,7 @@ import { ResearchDecision, ResearchObservationType, ResearchPriority } from "@pr
 
 import { ResearchStatus } from "@/lib/prismaEnums";
 import type { BacklogTableIssue } from "../issues/BacklogTable";
+import type { SelectOption } from "../issues/InlineEditableCell";
 import { Button } from "../ui/Button";
 import ResearchItemDrawer from "./ResearchItemDrawer";
 
@@ -53,6 +54,7 @@ type ResearchDetailsDrawerProps = {
   researchItemId: string | null;
   isReadOnly: boolean;
   issues: BacklogTableIssue[];
+  typeOptions: SelectOption[];
   open: boolean;
   onClose: () => void;
   onUpdated?: () => Promise<void> | void;
@@ -80,6 +82,7 @@ export default function ResearchDetailsDrawer({
   researchItemId,
   isReadOnly,
   issues,
+  typeOptions,
   open,
   onClose,
   onUpdated,
@@ -378,6 +381,7 @@ export default function ResearchDetailsDrawer({
                   projectId={detail.projectId}
                   isReadOnly={isReadOnly}
                   mode="edit"
+                  typeOptions={typeOptions}
                   trigger={
                     <Button variant="ghost" disabled={isReadOnly}>
                       Edit
