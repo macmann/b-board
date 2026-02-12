@@ -434,6 +434,8 @@ export default function StandupPageClient({
   >("suggested");
   const [savedSequenceUserIds, setSavedSequenceUserIds] = useState<string[]>([]);
   const [customSequenceUserIds, setCustomSequenceUserIds] = useState<string[]>([]);
+  const [draggedSequenceUserId, setDraggedSequenceUserId] = useState<string | null>(null);
+  const [dragOverSequenceUserId, setDragOverSequenceUserId] = useState<string | null>(null);
   const [isSavingSequence, setIsSavingSequence] = useState(false);
   const [sequenceError, setSequenceError] = useState("");
   const [queueIndex, setQueueIndex] = useState(0);
@@ -1234,6 +1236,21 @@ export default function StandupPageClient({
     [selectedUserId]
   );
 
+  const moveCustomSequenceUser = useCallback((sourceUserId: string, targetUserId: string) => {
+    if (sourceUserId === targetUserId) return;
+
+    setCustomSequenceUserIds((current) => {
+      const sourceIndex = current.findIndex((userId) => userId === sourceUserId);
+      const targetIndex = current.findIndex((userId) => userId === targetUserId);
+      if (sourceIndex < 0 || targetIndex < 0) return current;
+
+      const next = [...current];
+      const [movedUserId] = next.splice(sourceIndex, 1);
+      next.splice(targetIndex, 0, movedUserId);
+      return next;
+    });
+  }, []);
+
   const handleSaveCustomSequence = useCallback(async () => {
     setIsSavingSequence(true);
     setSequenceError("");
@@ -1806,6 +1823,7 @@ export default function StandupPageClient({
               ) : (
                 orderedQueue.map((member) => {
                   const isActive = member.user.id === selectedUserId;
+                  const isDragOverTarget = dragOverSequenceUserId === member.user.id;
                   const initials = getInitials(member.user.name ?? member.user.email);
                   const status = queueStatusByUserId.get(member.user.id) ?? "missing";
                   const statusDot =
@@ -1820,10 +1838,47 @@ export default function StandupPageClient({
                       key={member.id}
                       type="button"
                       onClick={() => setSelectedUserId(member.user.id)}
+                      draggable={queueSortMode === "custom"}
+                      onDragStart={(event) => {
+                        if (queueSortMode !== "custom") return;
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", member.user.id);
+                        setDraggedSequenceUserId(member.user.id);
+                        setDragOverSequenceUserId(member.user.id);
+                        setSelectedUserId(member.user.id);
+                      }}
+                      onDragOver={(event) => {
+                        if (queueSortMode !== "custom" || !draggedSequenceUserId) return;
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = "move";
+                        if (dragOverSequenceUserId !== member.user.id) {
+                          setDragOverSequenceUserId(member.user.id);
+                        }
+                      }}
+                      onDrop={(event) => {
+                        if (queueSortMode !== "custom") return;
+                        event.preventDefault();
+                        const sourceUserId = event.dataTransfer.getData("text/plain") || draggedSequenceUserId;
+                        if (!sourceUserId) return;
+                        moveCustomSequenceUser(sourceUserId, member.user.id);
+                        setSelectedUserId(sourceUserId);
+                        setDraggedSequenceUserId(null);
+                        setDragOverSequenceUserId(null);
+                      }}
+                      onDragEnd={() => {
+                        setDraggedSequenceUserId(null);
+                        setDragOverSequenceUserId(null);
+                      }}
                       className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-left transition ${
                         isActive
                           ? "border-blue-500 bg-blue-50 text-slate-900 shadow-sm dark:border-blue-400/80 dark:bg-blue-900/40 dark:text-slate-50"
                           : "border-slate-200 bg-white text-slate-800 hover:border-blue-200 hover:bg-blue-50/70 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-500/50 dark:hover:bg-slate-800"
+                      } ${
+                        isDragOverTarget && queueSortMode === "custom"
+                          ? "ring-2 ring-blue-300 dark:ring-blue-500/70"
+                          : ""
+                      } ${
+                        draggedSequenceUserId === member.user.id ? "opacity-70" : ""
                       }`}
                     >
                       <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-slate-200 text-sm font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-100">
@@ -1874,6 +1929,12 @@ export default function StandupPageClient({
                 ))}
               </select>
             </div>
+
+            {queueSortMode === "custom" && orderedQueue.length > 1 && (
+              <p className="hidden text-xs text-slate-500 dark:text-slate-400 md:block">
+                Drag teammate cards to reorder the standup sequence, then save order.
+              </p>
+            )}
           </div>
 
           <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
