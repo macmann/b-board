@@ -361,6 +361,32 @@ const getStandupSummaryForProjectAndDate = async (
   return (await response.json()) as StandupSummaryResponse;
 };
 
+const getStandupSequence = async (projectId: string) => {
+  const response = await fetch(`/api/projects/${projectId}/standup/sequence`);
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.message ?? "Unable to load standup sequence");
+  }
+
+  return (await response.json()) as { sequenceUserIds: string[] };
+};
+
+const saveStandupSequence = async (projectId: string, sequenceUserIds: string[]) => {
+  const response = await fetch(`/api/projects/${projectId}/standup/sequence`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sequenceUserIds }),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.message ?? "Unable to save standup sequence");
+  }
+
+  return (await response.json()) as { sequenceUserIds: string[] };
+};
+
 type StandupPageClientProps = {
   projectId: string;
   projectRole: ProjectRole | null;
@@ -404,8 +430,12 @@ export default function StandupPageClient({
   const [editingNoteText, setEditingNoteText] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [queueSortMode, setQueueSortMode] = useState<
-    "suggested" | "alphabetical"
+    "suggested" | "alphabetical" | "custom"
   >("suggested");
+  const [savedSequenceUserIds, setSavedSequenceUserIds] = useState<string[]>([]);
+  const [customSequenceUserIds, setCustomSequenceUserIds] = useState<string[]>([]);
+  const [isSavingSequence, setIsSavingSequence] = useState(false);
+  const [sequenceError, setSequenceError] = useState("");
   const [queueIndex, setQueueIndex] = useState(0);
   const [standupQueueEntries, setStandupQueueEntries] = useState<
     StandupEntryWithUser[]
@@ -504,7 +534,19 @@ export default function StandupPageClient({
       };
     });
 
+    const customIndexByUserId = new Map(
+      customSequenceUserIds.map((userId, index) => [userId, index])
+    );
+
     entries.sort((a, b) => {
+      if (queueSortMode === "custom") {
+        const aIndex = customIndexByUserId.get(a.member.user.id);
+        const bIndex = customIndexByUserId.get(b.member.user.id);
+        const aOrder = aIndex ?? Number.MAX_SAFE_INTEGER;
+        const bOrder = bIndex ?? Number.MAX_SAFE_INTEGER;
+        if (aOrder !== bOrder) return aOrder - bOrder;
+      }
+
       if (queueSortMode === "alphabetical") {
         const nameComparison = a.normalizedName.localeCompare(b.normalizedName);
         if (nameComparison !== 0) return nameComparison;
@@ -521,7 +563,13 @@ export default function StandupPageClient({
     });
 
     return entries.map((entry) => entry.member);
-  }, [members, queueSortMode, queueStatusByUserId]);
+  }, [customSequenceUserIds, members, queueSortMode, queueStatusByUserId]);
+  const isSequenceDirty = useMemo(() => {
+    if (customSequenceUserIds.length !== savedSequenceUserIds.length) return true;
+    return customSequenceUserIds.some(
+      (userId, index) => userId !== savedSequenceUserIds[index]
+    );
+  }, [customSequenceUserIds, savedSequenceUserIds]);
   const selectedMember = useMemo(
     () => orderedQueue.find((member) => member.user.id === selectedUserId),
     [orderedQueue, selectedUserId]
@@ -627,6 +675,43 @@ export default function StandupPageClient({
 
     loadMembers();
   }, [canViewStandupView, projectId]);
+
+  useEffect(() => {
+    if (!projectId || !canViewStandupView) return;
+
+    let isCancelled = false;
+
+    getStandupSequence(projectId)
+      .then((data) => {
+        if (isCancelled) return;
+        setSavedSequenceUserIds(data.sequenceUserIds);
+      })
+      .catch((error) => {
+        if (isCancelled) return;
+        setSequenceError(
+          error instanceof Error ? error.message : "Unable to load standup sequence"
+        );
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [canViewStandupView, projectId]);
+
+  useEffect(() => {
+    if (!members.length) {
+      setCustomSequenceUserIds([]);
+      return;
+    }
+
+    const memberIds = new Set(members.map((member) => member.user.id));
+    const normalizedSaved = savedSequenceUserIds.filter((userId) => memberIds.has(userId));
+    const missingIds = members
+      .map((member) => member.user.id)
+      .filter((userId) => !normalizedSaved.includes(userId));
+
+    setCustomSequenceUserIds([...normalizedSaved, ...missingIds]);
+  }, [members, savedSequenceUserIds]);
 
   useEffect(() => {
     if (!canProxyStandup) {
@@ -1128,6 +1213,44 @@ export default function StandupPageClient({
     },
     [orderedQueue, scrollStandupViewToTop, selectedUserId]
   );
+
+
+  const moveCustomSequence = useCallback(
+    (direction: -1 | 1) => {
+      if (!selectedUserId) return;
+
+      setCustomSequenceUserIds((current) => {
+        const index = current.findIndex((userId) => userId === selectedUserId);
+        if (index < 0) return current;
+
+        const nextIndex = index + direction;
+        if (nextIndex < 0 || nextIndex >= current.length) return current;
+
+        const next = [...current];
+        [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+        return next;
+      });
+    },
+    [selectedUserId]
+  );
+
+  const handleSaveCustomSequence = useCallback(async () => {
+    setIsSavingSequence(true);
+    setSequenceError("");
+
+    try {
+      const response = await saveStandupSequence(projectId, customSequenceUserIds);
+      setSavedSequenceUserIds(response.sequenceUserIds);
+      addToast({ type: "success", message: "Standup sequence saved." });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to save standup sequence";
+      setSequenceError(message);
+      addToast({ type: "error", message });
+    } finally {
+      setIsSavingSequence(false);
+    }
+  }, [addToast, customSequenceUserIds, projectId]);
 
   useEffect(() => {
     if (activeTab !== "standup-view") return;
@@ -2173,15 +2296,42 @@ export default function StandupPageClient({
                       setQueueSortMode(
                         event.target.value === "alphabetical"
                           ? "alphabetical"
-                          : "suggested"
+                          : event.target.value === "custom"
+                            ? "custom"
+                            : "suggested"
                       )
                     }
                     className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   >
                     <option value="suggested">Suggested</option>
                     <option value="alphabetical">Alphabetical</option>
+                    <option value="custom">Custom</option>
                   </select>
                 </div>
+                {queueSortMode === "custom" && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      disabled={!selectedUserId}
+                      onClick={() => moveCustomSequence(-1)}
+                    >
+                      Move up
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      disabled={!selectedUserId}
+                      onClick={() => moveCustomSequence(1)}
+                    >
+                      Move down
+                    </Button>
+                    <Button
+                      disabled={isSavingSequence || !isSequenceDirty}
+                      onClick={handleSaveCustomSequence}
+                    >
+                      {isSavingSequence ? "Saving..." : "Save order"}
+                    </Button>
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   <Button
                     variant="secondary"
@@ -2200,6 +2350,9 @@ export default function StandupPageClient({
                   </Button>
                 </div>
               </div>
+              {queueSortMode === "custom" && sequenceError && (
+                <p className="w-full text-xs text-rose-600 dark:text-rose-300">{sequenceError}</p>
+              )}
             </div>
           </div>
         </div>
