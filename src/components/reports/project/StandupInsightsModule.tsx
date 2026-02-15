@@ -14,16 +14,38 @@ import {
 } from "recharts";
 
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
-import type { StandupInsight } from "@/lib/reports/dto";
+import type { StandupInsight, StandupInsightsReport, StandupSignal } from "@/lib/reports/dto";
 import {
   areReportFiltersEqual,
   parseReportSearchParams,
   type ReportFilters,
 } from "@/lib/reports/filters";
 
+const MAX_SIGNAL_BADGES = 8;
+
 const formatDateLabel = (value: string) => {
   const date = new Date(value);
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+};
+
+const signalTypeLabel: Record<StandupSignal["signal_type"], string> = {
+  MISSING_STANDUP: "Missing standup",
+  PERSISTENT_BLOCKER: "Persistent blocker",
+  STALE_WORK: "Stale work",
+  LOW_CONFIDENCE: "Low confidence",
+};
+
+const severityClass: Record<StandupSignal["severity"], string> = {
+  low: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200",
+  medium:
+    "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900/50 dark:bg-orange-950/40 dark:text-orange-200",
+  high: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200",
+};
+
+const severityWeight: Record<StandupSignal["severity"], number> = {
+  low: 1,
+  medium: 2,
+  high: 3,
 };
 
 const StatCard = ({ label, value }: { label: string; value: string | number }) => (
@@ -44,7 +66,7 @@ export default function StandupInsightsModule({
 }: StandupInsightsModuleProps) {
   const searchParams = useSearchParams();
   const [filters, setFilters] = useState<ReportFilters>(initialFilters);
-  const [data, setData] = useState<StandupInsight[] | null>(null);
+  const [data, setData] = useState<StandupInsightsReport | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeSummary, setActiveSummary] = useState<StandupInsight | null>(null);
@@ -76,13 +98,21 @@ export default function StandupInsightsModule({
           throw new Error(body?.message ?? "Unable to load standup insights.");
         }
 
-        return (body?.data ?? []) as StandupInsight[];
+        return (body?.data ?? {
+          daily: [],
+          signals: [],
+          signalDefinitions: {},
+        }) as StandupInsightsReport;
       })
       .then((payload) => setData(payload))
       .catch((err: Error) => {
         if (err.name === "AbortError") return;
         setError(err.message);
-        setData([]);
+        setData({
+          daily: [],
+          signals: [],
+          signalDefinitions: {} as StandupInsightsReport["signalDefinitions"],
+        });
       })
       .finally(() => setIsLoading(false));
 
@@ -91,18 +121,18 @@ export default function StandupInsightsModule({
 
   const chartData = useMemo(
     () =>
-      (data ?? []).map((entry) => ({
+      (data?.daily ?? []).map((entry) => ({
         date: formatDateLabel(entry.date),
         updates: entry.updatesCount,
         blockers: entry.blockersCount,
         dependencies: entry.dependenciesCount,
       })),
-    [data]
+    [data?.daily]
   );
 
   const totals = useMemo(() => {
     const base = { updates: 0, blockers: 0, dependencies: 0 };
-    return (data ?? []).reduce(
+    return (data?.daily ?? []).reduce(
       (acc, entry) => ({
         updates: acc.updates + entry.updatesCount,
         blockers: acc.blockers + entry.blockersCount,
@@ -110,9 +140,51 @@ export default function StandupInsightsModule({
       }),
       base
     );
-  }, [data]);
+  }, [data?.daily]);
 
-  const hasSeries = (data?.length ?? 0) > 0;
+  const signals = data?.signals ?? [];
+  const hasSeries = (data?.daily.length ?? 0) > 0;
+
+  const groupedSignals = useMemo(() => {
+    const groups = new Map<StandupSignal["signal_type"], { signals: StandupSignal[]; maxSeverity: StandupSignal["severity"] }>();
+
+    for (const signal of signals) {
+      const existing = groups.get(signal.signal_type);
+      if (!existing) {
+        groups.set(signal.signal_type, { signals: [signal], maxSeverity: signal.severity });
+        continue;
+      }
+
+      existing.signals.push(signal);
+      if (severityWeight[signal.severity] > severityWeight[existing.maxSeverity]) {
+        existing.maxSeverity = signal.severity;
+      }
+    }
+
+    return Array.from(groups.entries())
+      .map(([signalType, group]) => {
+        const representative = [...group.signals].sort((a, b) =>
+          severityWeight[b.severity] - severityWeight[a.severity] || a.since.localeCompare(b.since)
+        )[0];
+
+        return {
+          signalType,
+          count: group.signals.length,
+          severity: group.maxSeverity,
+          representative,
+        };
+      })
+      .sort((a, b) => severityWeight[b.severity] - severityWeight[a.severity] || b.count - a.count)
+      .slice(0, MAX_SIGNAL_BADGES);
+  }, [signals]);
+
+  const jumpToEvidence = (signal: StandupSignal) => {
+    const targetId = signal.evidence_entry_ids[0];
+    if (!targetId) return;
+
+    const element = document.getElementById(`entry-${targetId}`);
+    element?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
 
   return (
     <div className="space-y-6">
@@ -123,6 +195,44 @@ export default function StandupInsightsModule({
           label="Dependencies flagged"
           value={hasSeries ? totals.dependencies : "–"}
         />
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Signals</h3>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Deterministic pre-nudging risk flags (UTC cutoff + defined thresholds).
+          </p>
+        </div>
+        <div className="space-y-3 p-3">
+          <div className="flex flex-wrap gap-2">
+            {groupedSignals.length > 0 ? (
+              groupedSignals.map((group) => (
+                <button
+                  key={group.signalType}
+                  type="button"
+                  onClick={() => jumpToEvidence(group.representative)}
+                  disabled={group.representative.evidence_entry_ids.length === 0}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 ${severityClass[group.severity]}`}
+                >
+                  {signalTypeLabel[group.signalType]} ({group.count}) · since {formatDateLabel(group.representative.since)}
+                </button>
+              ))
+            ) : (
+              <p className="px-1 text-sm text-slate-600 dark:text-slate-400">No signals detected in this date range.</p>
+            )}
+          </div>
+          {data?.signalDefinitions && Object.keys(data.signalDefinitions).length > 0 && (
+            <ul className="space-y-1 text-xs text-slate-500 dark:text-slate-400">
+              {Object.entries(data.signalDefinitions).map(([type, def]) => (
+                <li key={type}>
+                  <span className="font-semibold">{signalTypeLabel[type as StandupSignal["signal_type"]]}:</span>{" "}
+                  {def.threshold} — {def.description}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/50">
@@ -203,10 +313,17 @@ export default function StandupInsightsModule({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-              {(data ?? []).map((entry) => (
+              {(data?.daily ?? []).map((entry) => (
                 <tr key={entry.date}>
                   <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-900 dark:text-slate-50">
                     {formatDateLabel(entry.date)}
+                    <div className="sr-only">
+                      {entry.entryIds.map((entryId) => (
+                        <span key={entryId} id={`entry-${entryId}`}>
+                          {entryId}
+                        </span>
+                      ))}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-900 dark:text-slate-50">{entry.updatesCount}</td>
                   <td className="px-4 py-3 text-sm text-slate-900 dark:text-slate-50">{entry.blockersCount}</td>
