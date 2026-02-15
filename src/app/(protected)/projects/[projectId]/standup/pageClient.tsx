@@ -27,6 +27,9 @@ type StandupResearch = {
 
 type StandupEntry = {
   id: string;
+  standup_entry_id?: string;
+  member_id?: string;
+  linked_work_ids?: string[];
   date: string;
   summaryToday: string | null;
   progressSinceYesterday: string | null;
@@ -54,8 +57,30 @@ type StandupSummaryResponse = {
     dependencies: string[];
     assignment_gaps: string[];
   } | null;
-  summary_json?: unknown;
+  summary_json?: {
+    overall_progress: string;
+    achievements: StandupSummaryBullet[];
+    blockers: StandupSummaryBullet[];
+    dependencies: StandupSummaryBullet[];
+    assignment_gaps: StandupSummaryBullet[];
+  } | null;
+  data_quality?: {
+    quality_score: number;
+    metrics: {
+      completion_rate: number;
+      missing_linked_work_rate: number;
+      missing_blockers_rate: number;
+      vague_update_rate: number;
+    };
+  } | null;
   entries: StandupEntryWithUser[];
+};
+
+type StandupSummaryBullet = {
+  id: string;
+  text: string;
+  source_entry_ids: string[];
+  linked_work_ids: string[];
 };
 
 type ProjectMemberSummary = {
@@ -351,19 +376,24 @@ const getStandupUserView = async (
   return (await response.json()) as StandupUserViewResponse;
 };
 
-
-const formatRenderedSummary = (rendered?: StandupSummaryResponse["summary_rendered"] | null) => {
-  if (!rendered) return "";
+const buildCopyableSummary = (summary?: StandupSummaryResponse | null) => {
+  if (!summary) return "";
 
   const toList = (items: string[]) =>
     items.length ? items.map((item) => `- ${item}`).join("\n") : "- None reported";
 
+  const achievements = summary.summary_json?.achievements?.map((item) => item.text) ?? [];
+  const blockers = summary.summary_json?.blockers?.map((item) => item.text) ?? [];
+  const dependencies = summary.summary_rendered?.dependencies ?? [];
+  const assignmentGaps = summary.summary_rendered?.assignment_gaps ?? [];
+  const overallProgress = summary.summary_rendered?.overall_progress ?? "No summary available.";
+
   return [
-    `**Overall progress**\n${rendered.overall_progress}`,
-    `**Achievements**\n${toList(rendered.achievements)}`,
-    `**Blockers and risks**\n${toList(rendered.blockers)}`,
-    `**Dependencies requiring PO involvement**\n${toList(rendered.dependencies)}`,
-    `**Assignment gaps**\n${toList(rendered.assignment_gaps)}`,
+    `**Overall progress**\n${overallProgress}`,
+    `**Achievements**\n${toList(achievements)}`,
+    `**Blockers and risks**\n${toList(blockers)}`,
+    `**Dependencies requiring PO involvement**\n${toList(dependencies)}`,
+    `**Assignment gaps**\n${toList(assignmentGaps)}`,
   ].join("\n\n");
 };
 
@@ -496,16 +526,26 @@ export default function StandupPageClient({
 
   const [summaryDate, setSummaryDate] = useState(() => toDateInput(new Date()));
   const [summary, setSummary] = useState<StandupSummaryResponse | null>(null);
+  const [highlightedEvidenceEntryId, setHighlightedEvidenceEntryId] = useState<
+    string | null
+  >(null);
+  const evidenceHighlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const summaryMarkdown = useMemo(() => {
-    if (!summary) return "";
-    if (summary.summary?.trim()) return summary.summary;
-    return formatRenderedSummary(summary.summary_rendered);
-  }, [summary]);
+  const summaryMarkdown = useMemo(() => buildCopyableSummary(summary), [summary]);
   const [summaryError, setSummaryError] = useState("");
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  const entryAnchorMap = useMemo(() => {
+    const entries = summary?.entries ?? [];
+    return new Map(
+      entries.map((entry) => {
+        const entryId = entry.standup_entry_id || entry.id;
+        return [entryId, `entry-${entryId}`];
+      })
+    );
+  }, [summary?.entries]);
 
   const canProxyStandup = projectRole === "ADMIN";
   const canViewDashboard = projectRole === "ADMIN" || projectRole === "PO";
@@ -1219,6 +1259,39 @@ export default function StandupPageClient({
     loadSummary();
   }, [activeTab, loadSummary]);
 
+  useEffect(
+    () => () => {
+      if (evidenceHighlightTimeoutRef.current) {
+        clearTimeout(evidenceHighlightTimeoutRef.current);
+      }
+    },
+    []
+  );
+
+  const handleScrollToEvidence = useCallback(
+    (entryId: string) => {
+      const anchorId = entryAnchorMap.get(entryId);
+      if (!anchorId) return;
+
+      const element = document.getElementById(anchorId);
+      if (!element) return;
+
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightedEvidenceEntryId(entryId);
+
+      if (evidenceHighlightTimeoutRef.current) {
+        clearTimeout(evidenceHighlightTimeoutRef.current);
+      }
+
+      evidenceHighlightTimeoutRef.current = setTimeout(() => {
+        setHighlightedEvidenceEntryId((current) =>
+          current === entryId ? null : current
+        );
+      }, 3000);
+    },
+    [entryAnchorMap]
+  );
+
   const scrollStandupViewToTop = useCallback(() => {
     if (standupViewTopRef.current) {
       standupViewTopRef.current.scrollIntoView({ behavior: "smooth" });
@@ -1354,6 +1427,52 @@ export default function StandupPageClient({
       addToast({ type: "error", message });
     }
   };
+
+  const renderSummaryBulletsWithEvidence = (
+    title: string,
+    bullets: StandupSummaryBullet[]
+  ) => (
+    <div className="space-y-2">
+      <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">{title}</p>
+      {bullets.length ? (
+        <ul className="space-y-2">
+          {bullets.map((bullet) => {
+            const evidenceEntryId = bullet.source_entry_ids[0];
+            const additionalEvidenceCount = Math.max(
+              bullet.source_entry_ids.length - 1,
+              0
+            );
+
+            return (
+              <li key={bullet.id} className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
+                <p className="text-sm text-slate-800 dark:text-slate-100">• {bullet.text}</p>
+                {evidenceEntryId ? (
+                  <button
+                    type="button"
+                    className="mt-2 text-xs font-semibold text-blue-700 hover:underline dark:text-blue-300"
+                    onClick={() => handleScrollToEvidence(evidenceEntryId)}
+                  >
+                    Evidence
+                  </button>
+                ) : (
+                  <span className="mt-2 inline-flex text-xs text-slate-500 dark:text-slate-400">
+                    No evidence available
+                  </span>
+                )}
+                {additionalEvidenceCount > 0 ? (
+                  <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
+                    +{additionalEvidenceCount} more evidence
+                  </span>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="text-sm text-slate-500 dark:text-slate-400">None reported.</p>
+      )}
+    </div>
+  );
 
   const renderLinkedWork = (entry: StandupEntry) => {
     const hasLinkedWork = entry.issues.length + entry.research.length > 0;
@@ -2490,17 +2609,52 @@ export default function StandupPageClient({
                 <div className="text-sm text-slate-700 dark:text-slate-200">
                   {isLoadingSummary ? (
                     <p>Generating summary...</p>
-                  ) : summaryMarkdown ? (
-                    <MarkdownRenderer
-                      content={summaryMarkdown}
-                      className="prose prose-sm max-w-none text-slate-700 dark:text-slate-200 dark:prose-invert"
-                    />
                   ) : (
-                    <p>No summary available yet for this date.</p>
+                    <div className="space-y-4">
+                      {summary?.summary_rendered?.overall_progress ? (
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">Overall progress</p>
+                          <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">
+                            {summary.summary_rendered.overall_progress}
+                          </p>
+                        </div>
+                      ) : null}
+
+                      {summary?.summary_json
+                        ? renderSummaryBulletsWithEvidence(
+                            "Achievements",
+                            summary.summary_json.achievements ?? []
+                          )
+                        : null}
+
+                      {summary?.summary_json
+                        ? renderSummaryBulletsWithEvidence(
+                            "Blockers and risks",
+                            summary.summary_json.blockers ?? []
+                          )
+                        : null}
+
+                      <MarkdownRenderer
+                        content={[
+                          `**Dependencies requiring PO involvement**\n${(summary?.summary_rendered?.dependencies?.length ?? 0) ? summary?.summary_rendered?.dependencies?.map((item) => `- ${item}`).join("\n") : "- None reported"}`,
+                          `**Assignment gaps**\n${(summary?.summary_rendered?.assignment_gaps?.length ?? 0) ? summary?.summary_rendered?.assignment_gaps?.map((item) => `- ${item}`).join("\n") : "- None reported"}`,
+                        ].join("\n\n")}
+                        className="prose prose-sm max-w-none text-slate-700 dark:text-slate-200 dark:prose-invert"
+                      />
+
+                      {!summary?.summary_rendered && !summary?.summary_json ? (
+                        <p>No summary available yet for this date.</p>
+                      ) : null}
+                    </div>
                   )}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
+                {projectRole === "ADMIN" && summary?.data_quality ? (
+                  <span className="inline-flex items-center rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-200">
+                    Data Quality: {summary.data_quality.quality_score}/100
+                  </span>
+                ) : null}
                 <Button
                   variant="secondary"
                   onClick={() => loadSummary(true)}
@@ -2567,7 +2721,15 @@ export default function StandupPageClient({
                   )}
                   {!isLoadingSummary &&
                     summary?.entries?.map((entry) => (
-                      <tr key={entry.id} className="align-top hover:bg-slate-50 dark:hover:bg-slate-800/60">
+                      <tr
+                        key={entry.id}
+                        id={`entry-${entry.standup_entry_id || entry.id}`}
+                        className={`align-top hover:bg-slate-50 dark:hover:bg-slate-800/60 ${
+                          highlightedEvidenceEntryId === entry.id
+                            ? "bg-amber-50 dark:bg-amber-900/30"
+                            : ""
+                        }`}
+                      >
                         <td className="px-4 py-3">
                           <div className="space-y-1">
                             <p className="font-semibold text-slate-900 dark:text-slate-50">{entry.user.name}</p>

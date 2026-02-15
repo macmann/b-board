@@ -17,13 +17,31 @@ import { PROJECT_ADMIN_ROLES } from "./roles";
 import { parseDateOnly } from "./standupWindow";
 
 const STANDUP_SUMMARY_MODEL = "gpt-4o-mini";
-const STANDUP_SUMMARY_PROMPT_VERSION = "standup-summary-v1";
+const STANDUP_SUMMARY_PROMPT_VERSION = "standup-summary-v2";
 
 type StandupEntryWithUser = DailyStandupEntry & {
   user: User;
   issues: { issue: Issue }[];
   research: { researchItem: ResearchItem }[];
 };
+
+const SUMMARY_TEXT_STOPWORDS = new Set([
+  "the",
+  "and",
+  "for",
+  "with",
+  "from",
+  "that",
+  "this",
+  "into",
+  "have",
+  "has",
+  "had",
+  "today",
+  "yesterday",
+  "team",
+  "work",
+]);
 
 const standupSummaryBulletSchema = z.object({
   id: z.string().min(1),
@@ -62,6 +80,122 @@ type StandupSummarySectionKey =
 
 const normalizeArrayValues = (values: string[]) =>
   [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort();
+
+const tokenizeText = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 && !SUMMARY_TEXT_STOPWORDS.has(token));
+
+const getEntryLinkedWorkIds = (entry: StandupEntryWithUser) =>
+  normalizeArrayValues([
+    ...entry.issues.flatMap(({ issue }) => [issue.id, issue.key ?? ""]),
+    ...entry.research.flatMap(({ researchItem }) => [researchItem.id, researchItem.key ?? ""]),
+  ]);
+
+const buildEntryEvidenceContext = (entry: StandupEntryWithUser) => {
+  const linkedWorkIds = getEntryLinkedWorkIds(entry);
+  const entryText = [
+    entry.user.name ?? "",
+    entry.user.email ?? "",
+    entry.userId,
+    entry.progressSinceYesterday ?? "",
+    entry.summaryToday ?? "",
+    entry.blockers ?? "",
+    entry.dependencies ?? "",
+    entry.notes ?? "",
+    ...linkedWorkIds,
+  ].join(" ");
+
+  return {
+    entryId: entry.id,
+    linkedWorkIds,
+    searchText: entryText.toLowerCase(),
+    tokens: new Set(tokenizeText(entryText)),
+  };
+};
+
+export const attachSummaryEvidence = (
+  summary: StandupSummaryV1,
+  entries: StandupEntryWithUser[]
+): StandupSummaryV1 => {
+  const contexts = entries.map(buildEntryEvidenceContext);
+  const validEntryIds = new Set(contexts.map((context) => context.entryId));
+  const linkedWorkToEntryIds = new Map<string, string[]>();
+
+  contexts.forEach((context) => {
+    context.linkedWorkIds.forEach((linkedWorkId) => {
+      const key = linkedWorkId.trim();
+      if (!key) return;
+      const existing = linkedWorkToEntryIds.get(key) ?? [];
+      if (!existing.includes(context.entryId)) {
+        existing.push(context.entryId);
+        linkedWorkToEntryIds.set(key, existing);
+      }
+    });
+  });
+
+  const normalizeBulletEvidence = (bullet: StandupSummaryBulletV1) => {
+    const linkedWorkIds = normalizeArrayValues(bullet.linked_work_ids);
+    let sourceEntryIds = normalizeArrayValues(bullet.source_entry_ids).filter((id) =>
+      validEntryIds.has(id)
+    );
+
+    if (!sourceEntryIds.length && linkedWorkIds.length) {
+      sourceEntryIds = normalizeArrayValues(
+        linkedWorkIds.flatMap((linkedWorkId) => linkedWorkToEntryIds.get(linkedWorkId) ?? [])
+      );
+    }
+
+    if (!sourceEntryIds.length) {
+      const bulletTextLower = bullet.text.toLowerCase();
+      const bulletTokens = tokenizeText(bullet.text);
+      const scored = contexts
+        .map((context) => {
+          let score = 0;
+
+          if (context.searchText && bulletTextLower.includes(context.entryId.toLowerCase())) {
+            score += 0.85;
+          }
+
+          if (bulletTokens.length > 0) {
+            const overlapCount = bulletTokens.filter((token) => context.tokens.has(token)).length;
+            score += overlapCount / bulletTokens.length;
+          }
+
+          return { entryId: context.entryId, score };
+        })
+        .sort((a, b) => b.score - a.score);
+
+      const topMatch = scored[0];
+      if (topMatch && topMatch.score >= 0.55) {
+        sourceEntryIds = [topMatch.entryId];
+      }
+    }
+
+    const derivedLinkedWorkIds = normalizeArrayValues(
+      sourceEntryIds.flatMap(
+        (sourceEntryId) => contexts.find((context) => context.entryId === sourceEntryId)?.linkedWorkIds ?? []
+      )
+    );
+
+    return {
+      ...bullet,
+      source_entry_ids: sourceEntryIds,
+      linked_work_ids: linkedWorkIds.length ? linkedWorkIds : derivedLinkedWorkIds,
+    };
+  };
+
+  return {
+    ...summary,
+    achievements: summary.achievements.map(normalizeBulletEvidence),
+    blockers: summary.blockers.map(normalizeBulletEvidence),
+    dependencies: summary.dependencies.map(normalizeBulletEvidence),
+    assignment_gaps: summary.assignment_gaps.map(normalizeBulletEvidence),
+  };
+};
 
 const createStableBulletId = (
   summaryId: string,
@@ -125,30 +259,39 @@ const createSummaryId = (projectId: string, date: Date) =>
   `${projectId}:${formatDateOnly(date)}`;
 
 const buildPromptEntries = (entries: StandupEntryWithUser[]) =>
-  entries.map((entry) => ({
-    entryId: entry.id,
-    member: entry.user?.name || entry.user?.email || entry.userId,
-    progressSinceYesterday: entry.progressSinceYesterday ?? "",
-    today: entry.summaryToday ?? "",
-    blockers: entry.blockers ?? "",
-    dependencies: entry.dependencies ?? "",
-    notes: entry.notes ?? "",
-    isComplete: entry.isComplete,
-    issues: entry.issues.map(({ issue }) => ({
-      id: issue.id,
-      key: issue.key,
-      title: issue.title,
-      assigneeId: issue.assigneeId,
-      status: issue.status,
-    })),
-    research: entry.research.map(({ researchItem }) => ({
-      id: researchItem.id,
-      key: researchItem.key,
-      title: researchItem.title,
-      assigneeId: researchItem.assigneeId,
-      status: researchItem.status,
-    })),
-  }));
+  entries.map((entry) => {
+    const linkedWorkIds = [
+      ...entry.issues.map(({ issue }) => issue.key || issue.id),
+      ...entry.research.map(({ researchItem }) => researchItem.key || researchItem.id),
+    ];
+
+    return {
+      standup_entry_id: entry.id,
+      member_id: entry.userId,
+      member: entry.user?.name || entry.user?.email || entry.userId,
+      linked_work_ids: linkedWorkIds,
+      progressSinceYesterday: entry.progressSinceYesterday ?? "",
+      today: entry.summaryToday ?? "",
+      blockers: entry.blockers ?? "",
+      dependencies: entry.dependencies ?? "",
+      notes: entry.notes ?? "",
+      isComplete: entry.isComplete,
+      issues: entry.issues.map(({ issue }) => ({
+        id: issue.id,
+        key: issue.key,
+        title: issue.title,
+        assigneeId: issue.assigneeId,
+        status: issue.status,
+      })),
+      research: entry.research.map(({ researchItem }) => ({
+        id: researchItem.id,
+        key: researchItem.key,
+        title: researchItem.title,
+        assigneeId: researchItem.assigneeId,
+        status: researchItem.status,
+      })),
+    };
+  });
 
 const buildStructuredPrompt = (
   projectName: string,
@@ -176,6 +319,14 @@ Rules:
 - Output only valid JSON and no markdown.
 - Keep all arrays as arrays even if empty.
 - Keep bullet ids stable and concise.
+- Every bullet should cite supporting records with source_entry_ids and linked_work_ids.
+- source_entry_ids must reference standup_entry_id values from the input entries.
+- linked_work_ids must reference LINKED_WORK values from the input entries when relevant.
+
+Each input entry includes explicit traceability fields:
+- ENTRY_ID = standup_entry_id
+- MEMBER_ID = member_id
+- LINKED_WORK = linked_work_ids[]
 
 Project: ${projectName}
 Date: ${formatDateOnly(date)}
@@ -269,17 +420,18 @@ const buildLegacyFallbackSummaryJson = (
 const parseStructuredSummaryJson = (
   raw: string,
   projectId: string,
-  date: Date
+  date: Date,
+  entries: StandupEntryWithUser[]
 ): StandupSummaryV1 => {
   const parsed = JSON.parse(raw) as unknown;
   const result = standupSummarySchemaV1.parse(parsed);
 
-  return normalizeSummaryBulletIds({
+  return normalizeSummaryBulletIds(attachSummaryEvidence({
     ...result,
     project_id: projectId,
     date: formatDateOnly(date),
     summary_id: createSummaryId(projectId, date),
-  });
+  }, entries));
 };
 
 const requestSummaryJson = async (prompt: string, fixAttempt = false) => {
@@ -313,10 +465,10 @@ const generateSummaryJson = async (
 
   try {
     const firstOutput = await requestSummaryJson(prompt, false);
-    return parseStructuredSummaryJson(firstOutput, projectId, date);
+    return parseStructuredSummaryJson(firstOutput, projectId, date, entries);
   } catch {
     const retryOutput = await requestSummaryJson(prompt, true);
-    return parseStructuredSummaryJson(retryOutput, projectId, date);
+    return parseStructuredSummaryJson(retryOutput, projectId, date, entries);
   }
 };
 

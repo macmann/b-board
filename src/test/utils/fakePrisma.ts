@@ -30,6 +30,16 @@ type StandupAttendanceRecord = {
   updatedAt: Date;
 };
 
+type StandupQualityDailyRecord = {
+  id: string;
+  projectId: string;
+  date: Date;
+  qualityScore: number;
+  metricsJson: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 const toKey = (projectId: string, userId: string, date: Date) => {
   return `${projectId}|${userId}|${date.toISOString()}`;
 };
@@ -37,6 +47,7 @@ const toKey = (projectId: string, userId: string, date: Date) => {
 export class FakePrismaClient {
   standupEntries = new Map<string, StandupRecord>();
   standupAttendances = new Map<string, StandupAttendanceRecord>();
+  standupQualityDailyRecords = new Map<string, StandupQualityDailyRecord>();
   issues = new Map<string, Issue>();
   researchItems = new Map<string, ResearchItem>();
   users = new Map<string, User>();
@@ -252,6 +263,37 @@ export class FakePrismaClient {
       }
 
       return matches;
+    }),
+  };
+
+  standupQualityDaily = {
+    upsert: vi.fn(async ({ where, create, update }: any) => {
+      const { projectId, date } = where.projectId_date;
+      const key = `${projectId}|${new Date(date).toISOString()}`;
+      const existing = this.standupQualityDailyRecords.get(key);
+
+      if (existing) {
+        const next = {
+          ...existing,
+          ...update,
+          updatedAt: new Date(),
+        };
+        this.standupQualityDailyRecords.set(key, next);
+        return next;
+      }
+
+      const created = {
+        id: create.id ?? `standup-quality-${this.standupQualityDailyRecords.size + 1}`,
+        projectId: create.projectId,
+        date: create.date,
+        qualityScore: create.qualityScore,
+        metricsJson: create.metricsJson,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      this.standupQualityDailyRecords.set(key, created);
+      return created;
     }),
   };
 

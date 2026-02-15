@@ -59,6 +59,7 @@ describe("standup summary route", () => {
     fakePrisma.issues.clear();
     fakePrisma.researchItems.clear();
     fakePrisma.users.clear();
+    fakePrisma.standupQualityDailyRecords.clear();
     fakePrisma.projectMembers = [];
 
     fakePrisma.users.set(admin.id, admin);
@@ -150,5 +151,23 @@ describe("standup summary route", () => {
     } as any);
 
     expect(response.status).toBe(403);
+  });
+
+  it("hides data quality payload for PO viewers", async () => {
+    const fakePrisma = getPrisma();
+    const poUser = buildUser({ id: "po-user", role: Role.PO });
+    fakePrisma.users.set(poUser.id, poUser);
+    fakePrisma.projectMembers.push(
+      buildProjectMember({ projectId, userId: poUser.id, role: Role.PO })
+    );
+
+    getUserFromRequest.mockResolvedValueOnce(poUser);
+
+    const response = await GET(createRequest({ date: "2024-01-02" }), {
+      params: { projectId },
+    } as any);
+
+    const body = await response.json();
+    expect(body.data_quality).toBeNull();
   });
 });
