@@ -2,6 +2,7 @@ import Logo from "@/components/branding/Logo";
 import { ContactUsSection } from "@/components/marketing/ContactUsSection";
 import { FeaturesSection } from "@/components/marketing/FeaturesSection";
 import { FAQSection } from "@/components/marketing/FAQSection";
+import { RoadmapSection } from "@/components/marketing/RoadmapSection";
 import { UseCasesSection } from "@/components/marketing/UseCasesSection";
 import { WhatsNewSection } from "@/components/marketing/WhatsNewSection";
 import { WorkflowGlanceSection } from "@/components/marketing/WorkflowGlanceSection";
@@ -34,6 +35,9 @@ export default function HomePage() {
             </a>
             <a className="transition hover:text-primary" href="#highlights">
               Highlights
+            </a>
+            <a className="transition hover:text-primary" href="#roadmap">
+              Roadmap
             </a>
             <a className="transition hover:text-primary" href="#screenshots">
               Screenshots
@@ -303,6 +307,8 @@ export default function HomePage() {
             ))}
           </div>
         </section>
+
+        <RoadmapSection />
 
         <section id="screenshots" className="mt-16 space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
