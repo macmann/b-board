@@ -40,6 +40,19 @@ type StandupQualityDailyRecord = {
   updatedAt: Date;
 };
 
+type StandupClarificationRecord = {
+  id: string;
+  projectId: string;
+  entryId: string;
+  questionId: string;
+  answer: string | null;
+  status: "ANSWERED" | "DISMISSED";
+  dismissedUntil: Date | null;
+  createdById: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 const toKey = (projectId: string, userId: string, date: Date) => {
   return `${projectId}|${userId}|${date.toISOString()}`;
 };
@@ -48,6 +61,7 @@ export class FakePrismaClient {
   standupEntries = new Map<string, StandupRecord>();
   standupAttendances = new Map<string, StandupAttendanceRecord>();
   standupQualityDailyRecords = new Map<string, StandupQualityDailyRecord>();
+  standupClarifications = new Map<string, StandupClarificationRecord>();
   issues = new Map<string, Issue>();
   researchItems = new Map<string, ResearchItem>();
   users = new Map<string, User>();
@@ -297,6 +311,50 @@ export class FakePrismaClient {
     }),
   };
 
+
+  standupEntryClarification = {
+    findMany: vi.fn(async ({ where, orderBy }: any) => {
+      const records = [...this.standupClarifications.values()].filter((record) => {
+        if (where?.projectId && record.projectId !== where.projectId) return false;
+        if (where?.entryId?.in && !where.entryId.in.includes(record.entryId)) return false;
+        return true;
+      });
+
+      if (orderBy?.createdAt === "desc") {
+        records.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      }
+
+      return records;
+    }),
+
+    upsert: vi.fn(async ({ where, create, update }: any) => {
+      const key = `${where.entryId_questionId.entryId}|${where.entryId_questionId.questionId}`;
+      const existing = this.standupClarifications.get(key);
+
+      if (existing) {
+        const next = { ...existing, ...update, updatedAt: new Date() };
+        this.standupClarifications.set(key, next);
+        return next;
+      }
+
+      const created = {
+        id: create.id ?? `clarification-${this.standupClarifications.size + 1}`,
+        projectId: create.projectId,
+        entryId: create.entryId,
+        questionId: create.questionId,
+        answer: create.answer ?? null,
+        status: create.status ?? "ANSWERED",
+        dismissedUntil: create.dismissedUntil ?? null,
+        createdById: create.createdById,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      this.standupClarifications.set(key, created);
+      return created;
+    }),
+  };
+
   issue = {
     findMany: vi.fn(async ({ where: { id, projectId } }: any) => {
       const ids = (id?.in as string[]) ?? [];
@@ -380,7 +438,11 @@ export class FakePrismaClient {
   }
 
   private includeLinkedWork(record: StandupRecord, include?: any): StandupRecord {
-    const next: StandupRecord = { ...record } as StandupRecord;
+    const next: any = { ...record } as StandupRecord;
+
+    if (include?.user) {
+      next.user = this.users.get(record.userId) as any;
+    }
 
     if (include?.issues) {
       const issues = record.issues ?? [];

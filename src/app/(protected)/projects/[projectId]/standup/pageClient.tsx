@@ -66,6 +66,27 @@ type StandupActionItem = {
   linked_work_ids: string[];
 };
 
+type OpenQuestion = {
+  id: string;
+  question_text: string;
+  ask_to_user_id: string;
+  related_entry_id: string;
+  category: "LINK_WORK" | "CLARIFY_BLOCKER" | "DEFINE_NEXT_STEP" | "ETA" | "DEPENDENCY_OWNER";
+  priority: "low" | "med" | "high";
+  source_entry_ids: string[];
+};
+
+type StandupClarification = {
+  id: string;
+  entry_id: string;
+  question_id: string;
+  answer: string | null;
+  status: "ANSWERED" | "DISMISSED";
+  dismissed_until: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 type PersistedActionState = {
   action_id: string;
   state: "OPEN" | "DONE" | "SNOOZED" | "DISMISSED";
@@ -91,6 +112,7 @@ type StandupSummaryResponse = {
   summary_json?: {
     overall_progress: string;
     actions_required: StandupActionItem[];
+    open_questions: OpenQuestion[];
     achievements: StandupSummaryBullet[];
     blockers: StandupSummaryBullet[];
     dependencies: StandupSummaryBullet[];
@@ -106,6 +128,7 @@ type StandupSummaryResponse = {
     };
   } | null;
   entries: StandupEntryWithUser[];
+  clarifications?: StandupClarification[];
 };
 
 type StandupSummaryBullet = {
@@ -493,6 +516,30 @@ const saveActionStateForProject = async (
   return (await response.json()) as { ok: boolean; action_state: PersistedActionState };
 };
 
+const saveClarificationForProject = async (
+  projectId: string,
+  payload: {
+    entry_id: string;
+    question_id: string;
+    answer?: string;
+    status?: "ANSWERED" | "DISMISSED";
+    dismissed_until?: string | null;
+  }
+) => {
+  const response = await fetch(`/api/projects/${projectId}/standup/clarifications`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.message ?? "Unable to save clarification");
+  }
+
+  return (await response.json()) as { ok: boolean; clarification: StandupClarification };
+};
+
 const getStandupSequence = async (projectId: string) => {
   const response = await fetch(`/api/projects/${projectId}/standup/sequence`);
 
@@ -611,6 +658,11 @@ export default function StandupPageClient({
   const summaryMarkdown = useMemo(() => buildCopyableSummary(summary), [summary]);
   const [summaryError, setSummaryError] = useState("");
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
+  const [dismissedQuestionIds, setDismissedQuestionIds] = useState<Record<string, boolean>>({});
+  const [questionAnswers, setQuestionAnswers] = useState<Record<string, string>>({});
+  const [savingQuestionId, setSavingQuestionId] = useState<string | null>(null);
+  const [needsSummaryRefresh, setNeedsSummaryRefresh] = useState(false);
+  const shownQuestionIdsRef = useRef<Set<string>>(new Set());
 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
@@ -1318,6 +1370,7 @@ export default function StandupPageClient({
           forceRefresh,
         });
         setSummary(summaryResult);
+        setNeedsSummaryRefresh(false);
         const actionStatesResult = await getActionStatesForProjectAndDate(projectId, summaryDate).catch(() => ({ action_states: [] as PersistedActionState[], date: summaryDate }));
         setActionStateById(
           Object.fromEntries(
@@ -1581,6 +1634,88 @@ export default function StandupPageClient({
     }
   };
 
+
+  const handleDismissQuestion = (question: OpenQuestion) => {
+    const dismiss = async () => {
+      try {
+        const result = await saveClarificationForProject(projectId, {
+          entry_id: question.related_entry_id,
+          question_id: question.id,
+          status: "DISMISSED",
+          dismissed_until: summaryDate,
+        });
+
+        setSummary((current) =>
+          current
+            ? {
+                ...current,
+                clarifications: [
+                  result.clarification,
+                  ...(current.clarifications ?? []).filter(
+                    (item) => item.question_id !== question.id
+                  ),
+                ],
+              }
+            : current
+        );
+        setDismissedQuestionIds((current) => ({ ...current, [question.id]: true }));
+
+        logClient("QuestionDismissed", {
+          clientEventId: createClientEventId(),
+          projectId,
+          summaryId: summary?.summary_id,
+          question_id: question.id,
+          related_entry_id: question.related_entry_id,
+          category: question.category,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to dismiss question";
+        addToast({ type: "error", message });
+      }
+    };
+
+    void dismiss();
+  };
+
+  const handleAnswerQuestion = async (question: OpenQuestion) => {
+    const answer = questionAnswers[question.id]?.trim();
+    if (!answer) return;
+
+    setSavingQuestionId(question.id);
+    try {
+      const result = await saveClarificationForProject(projectId, {
+        entry_id: question.related_entry_id,
+        question_id: question.id,
+        answer,
+        status: "ANSWERED",
+      });
+
+      setSummary((current) =>
+        current
+          ? {
+              ...current,
+              clarifications: [result.clarification, ...(current.clarifications ?? []).filter((item) => item.question_id !== question.id)],
+            }
+          : current
+      );
+
+      logClient("QuestionAnswered", {
+        clientEventId: createClientEventId(),
+        projectId,
+        summaryId: summary?.summary_id,
+        question_id: question.id,
+        related_entry_id: question.related_entry_id,
+        category: question.category,
+      });
+      setNeedsSummaryRefresh(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to save clarification";
+      addToast({ type: "error", message });
+    } finally {
+      setSavingQuestionId(null);
+    }
+  };
+
   const visibleActions = useMemo(() => {
     const actions = summary?.summary_json?.actions_required ?? [];
 
@@ -1594,6 +1729,58 @@ export default function StandupPageClient({
       return true;
     });
   }, [actionStateById, summary?.summary_json?.actions_required, summaryDate]);
+
+
+  const visibleOpenQuestions = useMemo(() => {
+    const questions = summary?.summary_json?.open_questions ?? [];
+    const answeredQuestionIds = new Set(
+      (summary?.clarifications ?? [])
+        .filter((item) => item.status === "ANSWERED")
+        .map((item) => item.question_id)
+    );
+
+    const activeDismissedQuestionIds = new Set(
+      (summary?.clarifications ?? [])
+        .filter((item) => {
+          if (item.status !== "DISMISSED") return false;
+          if (!item.dismissed_until) return true;
+          return summaryDate <= item.dismissed_until.slice(0, 10);
+        })
+        .map((item) => item.question_id)
+    );
+
+    return questions.filter(
+      (question) =>
+        !dismissedQuestionIds[question.id] &&
+        !answeredQuestionIds.has(question.id) &&
+        !activeDismissedQuestionIds.has(question.id)
+    );
+  }, [dismissedQuestionIds, summary?.clarifications, summary?.summary_json?.open_questions, summaryDate]);
+
+  const openQuestionsByUser = useMemo(() => {
+    const grouped = new Map<string, OpenQuestion[]>();
+    visibleOpenQuestions.forEach((question) => {
+      const existing = grouped.get(question.ask_to_user_id) ?? [];
+      existing.push(question);
+      grouped.set(question.ask_to_user_id, existing);
+    });
+    return grouped;
+  }, [visibleOpenQuestions]);
+
+  useEffect(() => {
+    visibleOpenQuestions.forEach((question) => {
+      if (shownQuestionIdsRef.current.has(question.id)) return;
+      shownQuestionIdsRef.current.add(question.id);
+      logClient("QuestionShown", {
+        clientEventId: createClientEventId(),
+        projectId,
+        summaryId: summary?.summary_id,
+        question_id: question.id,
+        related_entry_id: question.related_entry_id,
+        category: question.category,
+      });
+    });
+  }, [projectId, summary?.summary_id, visibleOpenQuestions]);
 
   const renderSummaryBulletsWithEvidence = (
     title: string,
@@ -2784,7 +2971,7 @@ export default function StandupPageClient({
                           <ul className="space-y-2">
                             {visibleActions.map((action) => {
                               const evidenceEntryId = action.source_entry_ids[0];
-                              const owner = summary.entries.find((entry) => entry.user.id === action.owner_user_id)?.user;
+                              const owner = summary?.entries.find((entry) => entry.user.id === action.owner_user_id)?.user;
                               const state = actionStateById[action.id];
                               const additionalEvidenceCount = Math.max(action.source_entry_ids.length - 1, 0);
                               return (
@@ -2826,6 +3013,57 @@ export default function StandupPageClient({
                         </div>
                       ) : null}
 
+                      {visibleOpenQuestions.length ? (
+                        <div className="space-y-3">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">Open Questions</p>
+                          {Array.from(openQuestionsByUser.entries()).map(([userId, questions]) => {
+                            const target = summary?.entries?.find((entry) => entry.user.id === userId)?.user;
+                            return (
+                              <div key={userId} className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                                  {target?.name ?? target?.email ?? userId}
+                                </p>
+                                <ul className="mt-2 space-y-3">
+                                  {questions.map((question) => (
+                                    <li key={question.id} className="space-y-2 rounded-md border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <p className="text-sm text-slate-800 dark:text-slate-100">{question.question_text}</p>
+                                        <span className="text-[11px] uppercase text-slate-500 dark:text-slate-400">{question.priority}</span>
+                                      </div>
+                                      <textarea
+                                        value={questionAnswers[question.id] ?? ""}
+                                        onChange={(event) =>
+                                          setQuestionAnswers((current) => ({ ...current, [question.id]: event.target.value }))
+                                        }
+                                        placeholder="Answer now..."
+                                        rows={2}
+                                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
+                                      />
+                                      <div className="flex flex-wrap gap-2">
+                                        <Button
+                                          variant="secondary"
+                                          onClick={() => handleScrollToEvidence(question.related_entry_id)}
+                                        >
+                                          Evidence
+                                        </Button>
+                                        <Button
+                                          onClick={() => handleAnswerQuestion(question)}
+                                          disabled={savingQuestionId === question.id || !(questionAnswers[question.id] ?? "").trim()}
+                                        >
+                                          {savingQuestionId === question.id ? "Saving..." : "Answer now"}
+                                        </Button>
+                                        <Button variant="secondary" onClick={() => handleDismissQuestion(question)}>Dismiss</Button>
+                                      </div>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+
+
                       {summary?.summary_rendered?.overall_progress ? (
                         <div>
                           <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">Overall progress</p>
@@ -2865,6 +3103,11 @@ export default function StandupPageClient({
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
+                {needsSummaryRefresh ? (
+                  <span className="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">
+                    Clarifications saved. Regenerate summary to incorporate answers.
+                  </span>
+                ) : null}
                 {projectRole === "ADMIN" && summary?.data_quality ? (
                   <span className="inline-flex items-center rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-200">
                     Data Quality: {summary.data_quality.quality_score}/100

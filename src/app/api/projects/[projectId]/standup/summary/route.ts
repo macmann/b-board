@@ -10,6 +10,7 @@ import {
 import { resolveProjectId, type ProjectParams } from "@/lib/params";
 import {
   saveProjectStandupSummary,
+  generateOpenQuestions,
   type StandupSummaryRendered,
   type StandupSummaryV1,
 } from "@/lib/standupSummary";
@@ -111,6 +112,70 @@ export async function GET(
       };
     }
 
+
+    if (!summaryJson) {
+      summaryJson = {
+        summary_id: summaryId,
+        project_id: projectId,
+        date: formatDateOnly(date),
+        overall_progress: entries.length
+          ? `Captured ${entries.length} stand-up update${entries.length === 1 ? "" : "s"} for ${formatDateOnly(date)}.`
+          : `No stand-up entries were submitted for ${formatDateOnly(date)}.`,
+        actions_required: [],
+        open_questions: generateOpenQuestions(entries as any, summaryId),
+        achievements: entries
+          .filter((entry) => entry.summaryToday?.trim())
+          .map((entry) => ({
+            id: `achievement-${entry.id}`,
+            text: `${entry.user.name || entry.user.email || entry.userId}: ${entry.summaryToday?.trim()}`,
+            source_entry_ids: [entry.id],
+            linked_work_ids: [
+              ...entry.issues.map((link) => link.issue.id),
+              ...entry.research.map((link) => link.researchItem.id),
+            ],
+          })),
+        blockers: entries
+          .filter((entry) => entry.blockers?.trim())
+          .map((entry) => ({
+            id: `blocker-${entry.id}`,
+            text: `${entry.user.name || entry.user.email || entry.userId}: ${entry.blockers?.trim()}`,
+            source_entry_ids: [entry.id],
+            linked_work_ids: [
+              ...entry.issues.map((link) => link.issue.id),
+              ...entry.research.map((link) => link.researchItem.id),
+            ],
+          })),
+        dependencies: entries
+          .filter((entry) => entry.dependencies?.trim())
+          .map((entry) => ({
+            id: `dependency-${entry.id}`,
+            text: `${entry.user.name || entry.user.email || entry.userId}: ${entry.dependencies?.trim()}`,
+            source_entry_ids: [entry.id],
+            linked_work_ids: [
+              ...entry.issues.map((link) => link.issue.id),
+              ...entry.research.map((link) => link.researchItem.id),
+            ],
+          })),
+        assignment_gaps: entries
+          .filter((entry) => entry.issues.length + entry.research.length === 0)
+          .map((entry) => ({
+            id: `gap-${entry.id}`,
+            text: `${entry.user.name || entry.user.email || entry.userId} has no linked issues or research items.`,
+            source_entry_ids: [entry.id],
+            linked_work_ids: [],
+          })),
+      };
+
+      summaryRendered = {
+        overall_progress: summaryJson.overall_progress,
+        actions_required: [],
+        achievements: summaryJson.achievements.map((item) => item.text),
+        blockers: summaryJson.blockers.map((item) => item.text),
+        dependencies: summaryJson.dependencies.map((item) => item.text),
+        assignment_gaps: summaryJson.assignment_gaps.map((item) => item.text),
+      };
+    }
+
     const existingSummary =
       typeof prisma.standupSummary?.findUnique === "function"
         ? await prisma.standupSummary.findUnique({
@@ -173,6 +238,18 @@ export async function GET(
       },
     });
 
+
+    const clarificationModel = (prisma as any).standupEntryClarification;
+    const clarifications = clarificationModel?.findMany
+      ? await clarificationModel.findMany({
+          where: {
+            projectId,
+            entryId: { in: entries.map((entry) => entry.id) },
+          },
+          orderBy: { createdAt: "desc" },
+        })
+      : [];
+
     const mappedEntries = entries.map((entry) => ({
       ...entry,
       standup_entry_id: entry.id,
@@ -198,6 +275,16 @@ export async function GET(
         : null,
       entries: mappedEntries,
       members,
+      clarifications: clarifications.map((record: any) => ({
+        id: record.id,
+        entry_id: record.entryId,
+        question_id: record.questionId,
+        answer: record.answer,
+        status: record.status,
+        dismissed_until: record.dismissedUntil,
+        created_at: record.createdAt,
+        updated_at: record.updatedAt,
+      })),
     });
   } catch (error) {
     console.error("Failed to generate stand-up summary", error);

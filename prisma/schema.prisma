@@ -204,6 +204,7 @@ model User {
   standupEntries        DailyStandupEntry[]
   standupAttendances    StandupAttendance[]
   standupActionStates   StandupActionState[]
+  standupClarifications StandupEntryClarification[]
   uploadedAttachments   Attachment[]
   aiRuns                AIRun[]             @relation("AIRunCreatedBy")
   aiSuggestionsDecided  AISuggestion[]      @relation("AISuggestionDecisionUser")
@@ -267,6 +268,7 @@ model Project {
   standupQualityDaily StandupQualityDaily[]
   standupAttendances StandupAttendance[]
   standupActionStates StandupActionState[]
+  standupClarifications StandupEntryClarification[]
   aiSummaryVersions AISummaryVersion[]
   aiSettings         ProjectAISettings?
   aiRuns             AIRun[]
@@ -629,6 +631,7 @@ model DailyStandupEntry {
   user     User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
   issues   StandupEntryIssueLink[]
   research StandupEntryResearchLink[]
+  clarifications StandupEntryClarification[]
 
   @@unique([projectId, userId, date])
   @@index([projectId])
@@ -683,6 +686,11 @@ enum StandupActionStateType {
   DISMISSED
 }
 
+enum StandupClarificationStatus {
+  ANSWERED
+  DISMISSED
+}
+
 model StandupActionState {
   id          String                @id @default(cuid())
   projectId   String
@@ -703,6 +711,28 @@ model StandupActionState {
   @@unique([projectId, userId, date, actionId])
   @@index([projectId, date, userId])
   @@index([actionId])
+}
+
+
+model StandupEntryClarification {
+  id         String   @id @default(cuid())
+  projectId  String
+  entryId    String
+  questionId String
+  answer     String?
+  status     StandupClarificationStatus @default(ANSWERED)
+  dismissedUntil DateTime? @db.Date
+  createdById String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  entry     DailyStandupEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  createdBy User             @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@unique([entryId, questionId])
+  @@index([projectId, createdAt])
+  @@index([questionId])
 }
 
 model StandupAttendance {

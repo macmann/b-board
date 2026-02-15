@@ -86,6 +86,25 @@ const standupSummarySchemaV1 = z.object({
       })
     )
     .default([]),
+  open_questions: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        question_text: z.string().min(1),
+        ask_to_user_id: z.string().min(1),
+        related_entry_id: z.string().min(1),
+        category: z.enum([
+          "LINK_WORK",
+          "CLARIFY_BLOCKER",
+          "DEFINE_NEXT_STEP",
+          "ETA",
+          "DEPENDENCY_OWNER",
+        ]),
+        priority: z.enum(["low", "med", "high"]),
+        source_entry_ids: z.array(z.string()).default([]),
+      })
+    )
+    .default([]),
 });
 
 export type StandupSummaryBulletV1 = z.infer<typeof standupSummaryBulletSchema>;
@@ -105,6 +124,22 @@ type StandupSummarySectionKey =
   | "blockers"
   | "dependencies"
   | "assignment_gaps";
+
+const VAGUE_UPDATE_KEYWORDS = [
+  "working on",
+  "continue",
+  "continuing",
+  "same",
+  "as usual",
+  "n/a",
+  "na",
+  "todo",
+  "tbd",
+  "stuff",
+];
+
+const MAX_QUESTIONS_PER_PERSON = 5;
+const MAX_QUESTIONS_PER_PROJECT = 15;
 
 const normalizeArrayValues = (values: string[]) =>
   [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort();
@@ -286,6 +321,114 @@ const formatDateOnly = (date: Date) => date.toISOString().slice(0, 10);
 const createSummaryId = (projectId: string, date: Date) =>
   `${projectId}:${formatDateOnly(date)}`;
 
+const createStableOpenQuestionId = (
+  summaryId: string,
+  relatedEntryId: string,
+  category: string,
+  questionText: string
+) => {
+  const payload = `${summaryId}:${relatedEntryId}:${category}:${questionText.trim().toLowerCase()}`;
+  const digest = crypto.createHash("sha256").update(payload).digest("hex").slice(0, 12);
+  return `question_${digest}`;
+};
+
+const isVagueUpdate = (entry: StandupEntryWithUser) => {
+  const combined = [entry.progressSinceYesterday ?? "", entry.summaryToday ?? ""]
+    .join(" ")
+    .trim()
+    .toLowerCase();
+
+  if (!combined || combined.length < 25) return true;
+  return VAGUE_UPDATE_KEYWORDS.some((keyword) => combined.includes(keyword));
+};
+
+const hasBroadPlanText = (value: string | null | undefined) => {
+  const text = value?.trim().toLowerCase() ?? "";
+  if (!text) return true;
+  const broadPatterns = ["continue", "working on", "same as", "keep going", "progress"]; 
+  return text.length < 20 || broadPatterns.some((pattern) => text.includes(pattern));
+};
+
+export const generateOpenQuestions = (
+  entries: StandupEntryWithUser[],
+  summaryId: string
+): StandupSummaryV1["open_questions"] => {
+  const questions: StandupSummaryV1["open_questions"] = [];
+  const questionCountByUserId = new Map<string, number>();
+
+  const addQuestion = (
+    entry: StandupEntryWithUser,
+    category: StandupSummaryV1["open_questions"][number]["category"],
+    priority: StandupSummaryV1["open_questions"][number]["priority"],
+    questionText: string
+  ) => {
+    const existingByUser = questionCountByUserId.get(entry.userId) ?? 0;
+    if (existingByUser >= MAX_QUESTIONS_PER_PERSON) return;
+    if (questions.length >= MAX_QUESTIONS_PER_PROJECT) return;
+
+    questions.push({
+      id: createStableOpenQuestionId(summaryId, entry.id, category, questionText),
+      question_text: questionText,
+      ask_to_user_id: entry.userId,
+      related_entry_id: entry.id,
+      category,
+      priority,
+      source_entry_ids: [entry.id],
+    });
+    questionCountByUserId.set(entry.userId, existingByUser + 1);
+  };
+
+  entries.forEach((entry) => {
+    const askedCategories = new Set<string>();
+    const addOnce = (
+      category: StandupSummaryV1["open_questions"][number]["category"],
+      priority: StandupSummaryV1["open_questions"][number]["priority"],
+      questionText: string
+    ) => {
+      if (askedCategories.has(category)) return;
+      addQuestion(entry, category, priority, questionText);
+      askedCategories.add(category);
+    };
+
+    const linkedWorkCount = entry.issues.length + entry.research.length;
+    if (linkedWorkCount === 0) {
+      addOnce("LINK_WORK", "med", "Which ticket/PR is this tied to?");
+    }
+
+    if (entry.blockers?.trim() && !entry.dependencies?.trim()) {
+      addOnce("DEPENDENCY_OWNER", "high", "Who or what are you waiting on to unblock this?");
+    }
+
+    if (!entry.summaryToday?.trim() || hasBroadPlanText(entry.summaryToday)) {
+      addOnce("DEFINE_NEXT_STEP", "med", "What is the concrete deliverable today?");
+    }
+
+    if (isVagueUpdate(entry) && askedCategories.size === 0) {
+      addOnce("ETA", "low", "What specific milestone can you commit to by end of day?");
+    }
+  });
+
+  const deduped = new Map<string, StandupSummaryV1["open_questions"][number]>();
+  questions.forEach((question) => {
+    const dedupeKey = `${question.related_entry_id}:${question.category}`;
+    if (!deduped.has(dedupeKey)) {
+      deduped.set(dedupeKey, question);
+    }
+  });
+
+  return Array.from(deduped.values());
+};
+
+const withGeneratedOpenQuestions = (
+  summary: StandupSummaryV1,
+  entries: StandupEntryWithUser[]
+): StandupSummaryV1 => ({
+  ...summary,
+  open_questions: generateOpenQuestions(entries, summary.summary_id),
+});
+
+// TODO(standup-1.3): Link open-question answers with action lifecycle updates in Action Center.
+
 const buildPromptEntries = (entries: StandupEntryWithUser[]) =>
   entries.map((entry) => {
     const linkedWorkIds = [
@@ -338,6 +481,7 @@ Return ONLY valid JSON that matches this exact schema:
   "date": "${formatDateOnly(date)}",
   "overall_progress": "string",
   "actions_required": [{ "id": "string", "title": "string", "owner_user_id": "string", "target_user_id": "string|null", "action_type": "UNBLOCK_DECISION|REQUEST_HELP|FOLLOW_UP_STATUS|ASSIGN_OWNER|ESCALATE_BLOCKER|CLARIFY_SCOPE", "reason": "string", "due": "today|tomorrow|YYYY-MM-DD", "severity": "low|med|high", "source_entry_ids": ["string"], "linked_work_ids": ["string"] }],
+  "open_questions": [{ "id": "string", "question_text": "string", "ask_to_user_id": "string", "related_entry_id": "string", "category": "LINK_WORK|CLARIFY_BLOCKER|DEFINE_NEXT_STEP|ETA|DEPENDENCY_OWNER", "priority": "low|med|high", "source_entry_ids": ["string"] }],
   "achievements": [{ "id": "string", "text": "string", "source_entry_ids": ["string"], "linked_work_ids": ["string"] }],
   "blockers": [{ "id": "string", "text": "string", "source_entry_ids": ["string"], "linked_work_ids": ["string"] }],
   "dependencies": [{ "id": "string", "text": "string", "source_entry_ids": ["string"], "linked_work_ids": ["string"] }],
@@ -351,6 +495,7 @@ Rules:
 - Every bullet should cite supporting records with source_entry_ids and linked_work_ids.
 - source_entry_ids must reference standup_entry_id values from the input entries.
 - linked_work_ids must reference LINKED_WORK values from the input entries when relevant.
+- open_questions should only be generated when the related entry is ambiguous or missing key context.
 
 Each input entry includes explicit traceability fields:
 - ENTRY_ID = standup_entry_id
@@ -438,6 +583,7 @@ const buildLegacyFallbackSummaryJson = (
           }))
       : [],
     actions_required: [],
+    open_questions: [],
     assignment_gaps: entries
       .filter((entry) => entry.issues.length + entry.research.length === 0)
       .map((entry) => ({
@@ -555,6 +701,7 @@ export const generateProjectStandupSummary = async (
       blockers: [],
       dependencies: [],
       actions_required: [],
+      open_questions: [],
       assignment_gaps: [],
     };
     modelName = "fallback:no-entries";
@@ -573,6 +720,7 @@ export const generateProjectStandupSummary = async (
   }
 
   summaryJson = withGeneratedActions(summaryJson, standupEntries);
+  summaryJson = withGeneratedOpenQuestions(summaryJson, standupEntries);
 
   const rendered = renderSummarySections(summaryJson);
   const summaryText = renderSummaryMarkdown(rendered);
