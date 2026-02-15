@@ -8,7 +8,11 @@ import {
   PROJECT_ADMIN_ROLES,
 } from "@/lib/permissions";
 import { resolveProjectId, type ProjectParams } from "@/lib/params";
-import { saveProjectStandupSummary } from "@/lib/standupSummary";
+import {
+  saveProjectStandupSummary,
+  type StandupSummaryRendered,
+  type StandupSummaryV1,
+} from "@/lib/standupSummary";
 import { parseDateOnly } from "@/lib/standupWindow";
 
 const formatDateOnly = (date: Date) => date.toISOString().slice(0, 10);
@@ -65,6 +69,46 @@ export async function GET(
       include: { user: true },
     });
 
+    let summaryText = "";
+    let summaryJson: StandupSummaryV1 | null = null;
+    let summaryRendered: StandupSummaryRendered | null = null;
+    const summaryId = `${projectId}:${formatDateOnly(date)}`;
+
+    const canReadSummaryVersions =
+      typeof prisma.aISummaryVersion?.findFirst === "function";
+
+    let latestVersion = canReadSummaryVersions
+      ? await prisma.aISummaryVersion.findFirst({
+          where: { summaryId },
+          orderBy: { version: "desc" },
+        })
+      : null;
+
+    if (forceRefresh || !latestVersion) {
+      try {
+        await saveProjectStandupSummary(projectId, date, entries, user.id);
+        latestVersion = canReadSummaryVersions
+          ? await prisma.aISummaryVersion.findFirst({
+              where: { summaryId },
+              orderBy: { version: "desc" },
+            })
+          : null;
+      } catch {
+        // continue with legacy summary fallback below
+      }
+    }
+
+    if (latestVersion) {
+      summaryJson = latestVersion.outputJson as StandupSummaryV1;
+      summaryRendered = {
+        overall_progress: summaryJson.overall_progress,
+        achievements: summaryJson.achievements.map((item) => item.text),
+        blockers: summaryJson.blockers.map((item) => item.text),
+        dependencies: summaryJson.dependencies.map((item) => item.text),
+        assignment_gaps: summaryJson.assignment_gaps.map((item) => item.text),
+      };
+    }
+
     const existingSummary =
       typeof prisma.standupSummary?.findUnique === "function"
         ? await prisma.standupSummary.findUnique({
@@ -72,18 +116,17 @@ export async function GET(
           })
         : null;
 
-    let summaryText = existingSummary?.summary ?? "";
+    summaryText = existingSummary?.summary ?? "";
 
-    if ((!summaryText || forceRefresh) && typeof saveProjectStandupSummary === "function") {
-      try {
-        summaryText =
-          (await saveProjectStandupSummary(projectId, date, entries))?.summary ??
-          "";
-      } catch (err) {
-        summaryText = existingSummary?.summary ?? "";
-      }
+    if (!summaryText && summaryRendered) {
+      summaryText = [
+        `**Overall progress**\n${summaryRendered.overall_progress}`,
+        `**Achievements**\n${summaryRendered.achievements.length ? summaryRendered.achievements.map((item) => `- ${item}`).join("\n") : "- None reported"}`,
+        `**Blockers and risks**\n${summaryRendered.blockers.length ? summaryRendered.blockers.map((item) => `- ${item}`).join("\n") : "- None reported"}`,
+        `**Dependencies requiring PO involvement**\n${summaryRendered.dependencies.length ? summaryRendered.dependencies.map((item) => `- ${item}`).join("\n") : "- None reported"}`,
+        `**Assignment gaps**\n${summaryRendered.assignment_gaps.length ? summaryRendered.assignment_gaps.map((item) => `- ${item}`).join("\n") : "- None reported"}`,
+      ].join("\n\n");
     }
-
     const members = projectMembers.map((member) => {
       const entry = entries.find((item) => item.userId === member.userId);
       return {
@@ -99,6 +142,10 @@ export async function GET(
     return NextResponse.json({
       date: formatDateOnly(date),
       summary: summaryText,
+      summary_id: summaryId,
+      version: latestVersion?.version ?? 0,
+      summary_rendered: summaryRendered,
+      summary_json: summaryJson,
       entries,
       members,
     });

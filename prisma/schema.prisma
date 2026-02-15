@@ -264,6 +264,7 @@ model Project {
   settings           ProjectSettings?
   standupSummaries   StandupSummary[]
   standupAttendances StandupAttendance[]
+  aiSummaryVersions AISummaryVersion[]
   aiSettings         ProjectAISettings?
   aiRuns             AIRun[]
   aiSuggestions      AISuggestion[]
@@ -272,6 +273,27 @@ model Project {
   facilitatorNotes   FacilitatorNote[]
 
   @@unique([workspaceId, key])
+}
+
+model AISummaryVersion {
+  id            String   @id @default(cuid())
+  projectId     String
+  summaryId     String
+  date          DateTime @db.Date
+  version       Int
+  model         String
+  promptVersion String
+  inputHash     String
+  outputJson    Json
+  createdAt     DateTime @default(now())
+  createdBy     String
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("ai_summary_versions")
+  @@unique([summaryId, version])
+  @@index([projectId, date])
+  @@index([summaryId])
 }
 
 model ProjectSettings {

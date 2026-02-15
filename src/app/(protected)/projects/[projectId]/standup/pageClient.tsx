@@ -45,6 +45,16 @@ type StandupEntryWithUser = StandupEntry & {
 type StandupSummaryResponse = {
   date: string;
   summary: string;
+  summary_id?: string;
+  version?: number;
+  summary_rendered?: {
+    overall_progress: string;
+    achievements: string[];
+    blockers: string[];
+    dependencies: string[];
+    assignment_gaps: string[];
+  } | null;
+  summary_json?: unknown;
   entries: StandupEntryWithUser[];
 };
 
@@ -341,6 +351,22 @@ const getStandupUserView = async (
   return (await response.json()) as StandupUserViewResponse;
 };
 
+
+const formatRenderedSummary = (rendered?: StandupSummaryResponse["summary_rendered"] | null) => {
+  if (!rendered) return "";
+
+  const toList = (items: string[]) =>
+    items.length ? items.map((item) => `- ${item}`).join("\n") : "- None reported";
+
+  return [
+    `**Overall progress**\n${rendered.overall_progress}`,
+    `**Achievements**\n${toList(rendered.achievements)}`,
+    `**Blockers and risks**\n${toList(rendered.blockers)}`,
+    `**Dependencies requiring PO involvement**\n${toList(rendered.dependencies)}`,
+    `**Assignment gaps**\n${toList(rendered.assignment_gaps)}`,
+  ].join("\n\n");
+};
+
 const getStandupSummaryForProjectAndDate = async (
   projectId: string,
   options: { date: string; forceRefresh?: boolean }
@@ -470,6 +496,12 @@ export default function StandupPageClient({
 
   const [summaryDate, setSummaryDate] = useState(() => toDateInput(new Date()));
   const [summary, setSummary] = useState<StandupSummaryResponse | null>(null);
+
+  const summaryMarkdown = useMemo(() => {
+    if (!summary) return "";
+    if (summary.summary?.trim()) return summary.summary;
+    return formatRenderedSummary(summary.summary_rendered);
+  }, [summary]);
   const [summaryError, setSummaryError] = useState("");
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
 
@@ -1311,10 +1343,10 @@ export default function StandupPageClient({
   }, [activeTab, moveQueueSelection]);
 
   const handleCopySummary = async () => {
-    if (!summary?.summary) return;
+    if (!summaryMarkdown) return;
 
     try {
-      await navigator.clipboard.writeText(summary.summary);
+      await navigator.clipboard.writeText(summaryMarkdown);
       addToast({ type: "success", message: "Summary copied to clipboard." });
     } catch (error) {
       const message =
@@ -2458,9 +2490,9 @@ export default function StandupPageClient({
                 <div className="text-sm text-slate-700 dark:text-slate-200">
                   {isLoadingSummary ? (
                     <p>Generating summary...</p>
-                  ) : summary?.summary ? (
+                  ) : summaryMarkdown ? (
                     <MarkdownRenderer
-                      content={summary.summary ?? ""}
+                      content={summaryMarkdown}
                       className="prose prose-sm max-w-none text-slate-700 dark:text-slate-200 dark:prose-invert"
                     />
                   ) : (
@@ -2478,7 +2510,7 @@ export default function StandupPageClient({
                 </Button>
                 <Button
                   onClick={handleCopySummary}
-                  disabled={!summary?.summary || isLoadingSummary}
+                  disabled={!summaryMarkdown || isLoadingSummary}
                 >
                   Copy
                 </Button>
