@@ -42,6 +42,7 @@ export type CycleTimeSummary = {
 
 export type StandupInsight = {
   date: string;
+  entryIds: string[];
   blockersCount: number;
   dependenciesCount: number;
   updatesCount: number;
@@ -49,6 +50,37 @@ export type StandupInsight = {
   hasAiSummary: boolean;
   summaryExcerpt?: string;
   summary?: string;
+};
+
+export type StandupSignalType =
+  | "MISSING_STANDUP"
+  | "PERSISTENT_BLOCKER"
+  | "STALE_WORK"
+  | "LOW_CONFIDENCE";
+
+export type StandupSignal = {
+  id: string;
+  signal_type: StandupSignalType;
+  owner_user_id: string;
+  owner_name: string;
+  severity: "low" | "medium" | "high";
+  since: string;
+  evidence_entry_ids: string[];
+  linked_work_ids: string[];
+};
+
+export type StandupSignalDefinition = {
+  timezone: "UTC";
+  cutoff_hour_utc: number;
+  grace_minutes: number;
+  threshold: string;
+  description: string;
+};
+
+export type StandupInsightsReport = {
+  daily: StandupInsight[];
+  signals: StandupSignal[];
+  signalDefinitions: Record<StandupSignalType, StandupSignalDefinition>;
 };
 
 export type BlockerTheme = {
