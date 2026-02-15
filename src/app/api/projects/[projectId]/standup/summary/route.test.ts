@@ -60,6 +60,7 @@ describe("standup summary route", () => {
     fakePrisma.researchItems.clear();
     fakePrisma.users.clear();
     fakePrisma.standupQualityDailyRecords.clear();
+    fakePrisma.standupClarifications.clear();
     fakePrisma.projectMembers = [];
 
     fakePrisma.users.set(admin.id, admin);
@@ -151,6 +152,46 @@ describe("standup summary route", () => {
     } as any);
 
     expect(response.status).toBe(403);
+  });
+
+
+  it("returns generated open questions and existing clarifications", async () => {
+    const fakePrisma = getPrisma();
+    fakePrisma.addEntry(
+      buildStandupEntry({
+        id: "entry-questions",
+        projectId,
+        userId: developer.id,
+        date: new Date("2024-01-02"),
+        summaryToday: "Continue task",
+        progressSinceYesterday: "Working on X",
+        blockers: "Waiting on infra",
+        dependencies: null,
+        issues: [],
+        research: [],
+      }) as any
+    );
+
+    fakePrisma.standupClarifications.set("entry-questions|question-demo", {
+      id: "clar-1",
+      projectId,
+      entryId: "entry-questions",
+      questionId: "question-demo",
+      answer: "Waiting on platform owner",
+      status: "ANSWERED",
+      dismissedUntil: null,
+      createdById: admin.id,
+      createdAt: new Date("2024-01-02"),
+      updatedAt: new Date("2024-01-02"),
+    });
+
+    const response = await GET(createRequest({ date: "2024-01-02" }), {
+      params: { projectId },
+    } as any);
+
+    const body = await response.json();
+    expect(body.summary_json.open_questions.length).toBeGreaterThan(0);
+    expect(body.clarifications).toHaveLength(1);
   });
 
   it("hides data quality payload for PO viewers", async () => {

@@ -9,6 +9,7 @@ const summary: StandupSummaryV1 = {
   date: "2026-02-15",
   overall_progress: "In progress",
   actions_required: [],
+  open_questions: [],
   achievements: [],
   blockers: [
     {

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   attachSummaryEvidence,
   normalizeSummaryBulletIds,
+  generateOpenQuestions,
   type StandupSummaryV1,
 } from "./standupSummary";
 
@@ -12,6 +13,7 @@ const baseSummary = (): StandupSummaryV1 => ({
   date: "2026-02-13",
   overall_progress: "Progress looks good.",
   actions_required: [],
+  open_questions: [],
   achievements: [
     {
       id: "temp-1",
@@ -122,5 +124,89 @@ describe("attachSummaryEvidence", () => {
     ]);
 
     expect(hydrated.achievements[0].source_entry_ids).toEqual(["entry-1"]);
+  });
+});
+
+
+describe("generateOpenQuestions", () => {
+  it("creates deterministic questions for ambiguous updates", () => {
+    const entry = {
+      id: "entry-1",
+      userId: "member-1",
+      date: new Date("2026-02-13"),
+      projectId: "project-1",
+      summaryToday: "Continue task",
+      progressSinceYesterday: "Working on X",
+      blockers: "Waiting on API approval",
+      dependencies: null,
+      notes: null,
+      isComplete: true,
+      createdAt: new Date("2026-02-13"),
+      updatedAt: new Date("2026-02-13"),
+      user: {
+        id: "member-1",
+        name: "Alice",
+        email: "alice@example.com",
+        passwordHash: "",
+        avatarUrl: null,
+        role: "DEV",
+        createdAt: new Date("2026-02-13"),
+        updatedAt: new Date("2026-02-13"),
+      },
+      issues: [],
+      research: [],
+    } as any;
+
+    const first = generateOpenQuestions([entry], "project-1:2026-02-13");
+    const second = generateOpenQuestions([entry], "project-1:2026-02-13");
+
+    expect(first.map((question) => question.category)).toEqual(
+      expect.arrayContaining(["LINK_WORK", "DEPENDENCY_OWNER", "DEFINE_NEXT_STEP"])
+    );
+    expect(first.map((question) => question.id)).toEqual(second.map((question) => question.id));
+  });
+
+  it("caps questions per person and per project", () => {
+    const buildEntry = (index: number) =>
+      ({
+        id: `entry-${index}`,
+        userId: `member-${Math.floor(index / 10)}`,
+        date: new Date("2026-02-13"),
+        projectId: "project-1",
+        summaryToday: "Continue task",
+        progressSinceYesterday: "Working on X",
+        blockers: "Waiting on infra",
+        dependencies: null,
+        notes: null,
+        isComplete: true,
+        createdAt: new Date("2026-02-13"),
+        updatedAt: new Date("2026-02-13"),
+        user: {
+          id: `member-${Math.floor(index / 10)}`,
+          name: "User",
+          email: "user@example.com",
+          passwordHash: "",
+          avatarUrl: null,
+          role: "DEV",
+          createdAt: new Date("2026-02-13"),
+          updatedAt: new Date("2026-02-13"),
+        },
+        issues: [],
+        research: [],
+      }) as any;
+
+    const entries = Array.from({ length: 30 }, (_, index) => buildEntry(index));
+    const questions = generateOpenQuestions(entries, "project-1:2026-02-13");
+
+    expect(questions.length).toBeLessThanOrEqual(15);
+
+    const countByUserId = questions.reduce<Record<string, number>>((acc, item) => {
+      acc[item.ask_to_user_id] = (acc[item.ask_to_user_id] ?? 0) + 1;
+      return acc;
+    }, {});
+
+    Object.values(countByUserId).forEach((count) => {
+      expect(count).toBeLessThanOrEqual(5);
+    });
   });
 });
