@@ -103,6 +103,7 @@ export async function GET(
       summaryJson = latestVersion.outputJson as StandupSummaryV1;
       summaryRendered = {
         overall_progress: summaryJson.overall_progress,
+        actions_required: (summaryJson.actions_required ?? []).map((item) => item.title),
         achievements: summaryJson.achievements.map((item) => item.text),
         blockers: summaryJson.blockers.map((item) => item.text),
         dependencies: summaryJson.dependencies.map((item) => item.text),
@@ -122,6 +123,7 @@ export async function GET(
     if (!summaryText && summaryRendered) {
       summaryText = [
         `**Overall progress**\n${summaryRendered.overall_progress}`,
+        `**Action required today**\n${summaryRendered.actions_required.length ? summaryRendered.actions_required.map((item) => `- ${item}`).join("\n") : "- None reported"}`,
         `**Achievements**\n${summaryRendered.achievements.length ? summaryRendered.achievements.map((item) => `- ${item}`).join("\n") : "- None reported"}`,
         `**Blockers and risks**\n${summaryRendered.blockers.length ? summaryRendered.blockers.map((item) => `- ${item}`).join("\n") : "- None reported"}`,
         `**Dependencies requiring PO involvement**\n${summaryRendered.dependencies.length ? summaryRendered.dependencies.map((item) => `- ${item}`).join("\n") : "- None reported"}`,

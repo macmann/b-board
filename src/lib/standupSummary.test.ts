@@ -11,6 +11,7 @@ const baseSummary = (): StandupSummaryV1 => ({
   project_id: "project-1",
   date: "2026-02-13",
   overall_progress: "Progress looks good.",
+  actions_required: [],
   achievements: [
     {
       id: "temp-1",

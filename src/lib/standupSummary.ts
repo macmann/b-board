@@ -15,6 +15,10 @@ import prisma from "./db";
 import { sendEmail } from "./email";
 import { PROJECT_ADMIN_ROLES } from "./roles";
 import { parseDateOnly } from "./standupWindow";
+import {
+  extractActionTitles,
+  withGeneratedActions,
+} from "./actionGeneration";
 
 const STANDUP_SUMMARY_MODEL = "gpt-4o-mini";
 const STANDUP_SUMMARY_PROMPT_VERSION = "standup-summary-v2";
@@ -59,6 +63,29 @@ const standupSummarySchemaV1 = z.object({
   blockers: z.array(standupSummaryBulletSchema),
   dependencies: z.array(standupSummaryBulletSchema),
   assignment_gaps: z.array(standupSummaryBulletSchema),
+  actions_required: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        title: z.string().min(1),
+        owner_user_id: z.string().min(1),
+        target_user_id: z.string().nullable().default(null),
+        action_type: z.enum([
+          "UNBLOCK_DECISION",
+          "REQUEST_HELP",
+          "FOLLOW_UP_STATUS",
+          "ASSIGN_OWNER",
+          "ESCALATE_BLOCKER",
+          "CLARIFY_SCOPE",
+        ]),
+        reason: z.string().min(1),
+        due: z.string().min(1),
+        severity: z.enum(["low", "med", "high"]),
+        source_entry_ids: z.array(z.string()).default([]),
+        linked_work_ids: z.array(z.string()).default([]),
+      })
+    )
+    .default([]),
 });
 
 export type StandupSummaryBulletV1 = z.infer<typeof standupSummaryBulletSchema>;
@@ -66,6 +93,7 @@ export type StandupSummaryV1 = z.infer<typeof standupSummarySchemaV1>;
 
 export type StandupSummaryRendered = {
   overall_progress: string;
+  actions_required: string[];
   achievements: string[];
   blockers: string[];
   dependencies: string[];
@@ -309,6 +337,7 @@ Return ONLY valid JSON that matches this exact schema:
   "project_id": "${projectId}",
   "date": "${formatDateOnly(date)}",
   "overall_progress": "string",
+  "actions_required": [{ "id": "string", "title": "string", "owner_user_id": "string", "target_user_id": "string|null", "action_type": "UNBLOCK_DECISION|REQUEST_HELP|FOLLOW_UP_STATUS|ASSIGN_OWNER|ESCALATE_BLOCKER|CLARIFY_SCOPE", "reason": "string", "due": "today|tomorrow|YYYY-MM-DD", "severity": "low|med|high", "source_entry_ids": ["string"], "linked_work_ids": ["string"] }],
   "achievements": [{ "id": "string", "text": "string", "source_entry_ids": ["string"], "linked_work_ids": ["string"] }],
   "blockers": [{ "id": "string", "text": "string", "source_entry_ids": ["string"], "linked_work_ids": ["string"] }],
   "dependencies": [{ "id": "string", "text": "string", "source_entry_ids": ["string"], "linked_work_ids": ["string"] }],
@@ -336,6 +365,7 @@ ${JSON.stringify(buildPromptEntries(entries), null, 2)}`;
 
 const renderSummarySections = (summaryJson: StandupSummaryV1): StandupSummaryRendered => ({
   overall_progress: summaryJson.overall_progress,
+  actions_required: extractActionTitles(summaryJson.actions_required ?? []),
   achievements: summaryJson.achievements.map((item) => item.text),
   blockers: summaryJson.blockers.map((item) => item.text),
   dependencies: summaryJson.dependencies.map((item) => item.text),
@@ -348,6 +378,7 @@ const renderSummaryMarkdown = (rendered: StandupSummaryRendered) => {
 
   return [
     `**Overall progress**\n${rendered.overall_progress}`,
+    `**Action required today**\n${toMarkdownList(rendered.actions_required)}`,
     `**Achievements**\n${toMarkdownList(rendered.achievements)}`,
     `**Blockers and risks**\n${toMarkdownList(rendered.blockers)}`,
     `**Dependencies requiring PO involvement**\n${toMarkdownList(rendered.dependencies)}`,
@@ -406,6 +437,7 @@ const buildLegacyFallbackSummaryJson = (
             ],
           }))
       : [],
+    actions_required: [],
     assignment_gaps: entries
       .filter((entry) => entry.issues.length + entry.research.length === 0)
       .map((entry) => ({
@@ -522,6 +554,7 @@ export const generateProjectStandupSummary = async (
       achievements: [],
       blockers: [],
       dependencies: [],
+      actions_required: [],
       assignment_gaps: [],
     };
     modelName = "fallback:no-entries";
@@ -538,6 +571,8 @@ export const generateProjectStandupSummary = async (
       }
     }
   }
+
+  summaryJson = withGeneratedActions(summaryJson, standupEntries);
 
   const rendered = renderSummarySections(summaryJson);
   const summaryText = renderSummaryMarkdown(rendered);
