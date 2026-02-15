@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  attachSummaryEvidence,
   normalizeSummaryBulletIds,
   type StandupSummaryV1,
 } from "./standupSummary";
@@ -50,5 +51,75 @@ describe("normalizeSummaryBulletIds", () => {
     const normalized = normalizeSummaryBulletIds(summary);
 
     expect(normalized.achievements[0].id).not.toBe(normalized.blockers[0].id);
+  });
+});
+
+describe("attachSummaryEvidence", () => {
+  it("fills missing source ids from linked work ids", () => {
+    const summary = baseSummary();
+    summary.achievements = [
+      {
+        id: "bullet-1",
+        text: "Completed API integration",
+        source_entry_ids: [],
+        linked_work_ids: ["ISS-1"],
+      },
+    ];
+
+    const hydrated = attachSummaryEvidence(summary, [
+      {
+        id: "entry-1",
+        userId: "member-1",
+        date: new Date("2026-02-13"),
+        projectId: "project-1",
+        summaryToday: "Completed API integration",
+        progressSinceYesterday: null,
+        blockers: null,
+        dependencies: null,
+        notes: null,
+        isComplete: true,
+        createdAt: new Date("2026-02-13"),
+        updatedAt: new Date("2026-02-13"),
+        user: {
+          id: "member-1",
+          name: "Alice",
+          email: "alice@example.com",
+          passwordHash: "",
+          avatarUrl: null,
+          role: "DEV",
+          createdAt: new Date("2026-02-13"),
+          updatedAt: new Date("2026-02-13"),
+        },
+        issues: [
+          {
+            issue: {
+              id: "issue-1",
+              projectId: "project-1",
+              sprintId: null,
+              epicId: null,
+              title: "API integration",
+              status: "IN_PROGRESS",
+              assigneeId: null,
+              reporterId: "member-1",
+              linkedResearchId: null,
+              linkedTestCaseId: null,
+              priority: "MEDIUM",
+              dueDate: null,
+              estimatedHours: null,
+              actualHours: null,
+              aiSummary: null,
+              createdAt: new Date("2026-02-13"),
+              updatedAt: new Date("2026-02-13"),
+              sortOrder: 0,
+              key: "ISS-1",
+              deletedAt: null,
+            },
+          },
+        ],
+        research: [],
+      } as any,
+    ]);
+
+    expect(hydrated.achievements[0].source_entry_ids).toEqual(["entry-1"]);
   });
 });

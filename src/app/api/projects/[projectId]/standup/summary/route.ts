@@ -13,6 +13,7 @@ import {
   type StandupSummaryRendered,
   type StandupSummaryV1,
 } from "@/lib/standupSummary";
+import { calculateStandupQuality } from "@/lib/standupQuality";
 import { parseDateOnly } from "@/lib/standupWindow";
 
 const formatDateOnly = (date: Date) => date.toISOString().slice(0, 10);
@@ -139,6 +140,47 @@ export async function GET(
       };
     });
 
+    const isProjectAdmin =
+      user.role === "ADMIN" ||
+      projectMembers.some(
+        (member) => member.userId === user.id && member.role === "ADMIN"
+      );
+
+    const quality = calculateStandupQuality(
+      entries.map((entry) => ({
+        summaryToday: entry.summaryToday,
+        progressSinceYesterday: entry.progressSinceYesterday,
+        blockers: entry.blockers,
+        isComplete: entry.isComplete,
+        linkedWorkCount: entry.issues.length + entry.research.length,
+      })),
+      projectMembers.length
+    );
+
+    await prisma.standupQualityDaily.upsert({
+      where: { projectId_date: { projectId, date } },
+      update: {
+        qualityScore: quality.qualityScore,
+        metricsJson: quality.metrics,
+      },
+      create: {
+        projectId,
+        date,
+        qualityScore: quality.qualityScore,
+        metricsJson: quality.metrics,
+      },
+    });
+
+    const mappedEntries = entries.map((entry) => ({
+      ...entry,
+      standup_entry_id: entry.id,
+      member_id: entry.userId,
+      linked_work_ids: [
+        ...entry.issues.map((link) => link.issue.key || link.issue.id),
+        ...entry.research.map((link) => link.researchItem.key || link.researchItem.id),
+      ],
+    }));
+
     return NextResponse.json({
       date: formatDateOnly(date),
       summary: summaryText,
@@ -146,7 +188,13 @@ export async function GET(
       version: latestVersion?.version ?? 0,
       summary_rendered: summaryRendered,
       summary_json: summaryJson,
-      entries,
+      data_quality: isProjectAdmin
+        ? {
+            quality_score: quality.qualityScore,
+            metrics: quality.metrics,
+          }
+        : null,
+      entries: mappedEntries,
       members,
     });
   } catch (error) {

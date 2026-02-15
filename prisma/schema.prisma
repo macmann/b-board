@@ -263,6 +263,7 @@ model Project {
   attachments        Attachment[]
   settings           ProjectSettings?
   standupSummaries   StandupSummary[]
+  standupQualityDaily StandupQualityDaily[]
   standupAttendances StandupAttendance[]
   aiSummaryVersions AISummaryVersion[]
   aiSettings         ProjectAISettings?
@@ -686,6 +687,21 @@ model StandupAttendance {
   @@unique([projectId, userId, date])
   @@index([projectId])
   @@index([userId])
+}
+
+model StandupQualityDaily {
+  id           String   @id @default(cuid())
+  projectId    String
+  date         DateTime @db.Date
+  qualityScore Int
+  metricsJson  Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, date])
+  @@index([projectId])
 }
 
 model FacilitatorNote {
