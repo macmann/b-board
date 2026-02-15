@@ -111,7 +111,7 @@ export default function HomePage() {
 
             <div className="flex flex-wrap items-center gap-3">
               <a
-                href="<PUT_YOUR_GITHUB_REPO_URL_HERE>"
+                href="https://github.com/macmann/b-board"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-primary/30 transition hover:bg-primary/90"
