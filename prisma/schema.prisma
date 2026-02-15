@@ -203,6 +203,7 @@ model User {
   assignedResearchItems ResearchItem[]      @relation("ResearchItemAssignee")
   standupEntries        DailyStandupEntry[]
   standupAttendances    StandupAttendance[]
+  standupActionStates   StandupActionState[]
   uploadedAttachments   Attachment[]
   aiRuns                AIRun[]             @relation("AIRunCreatedBy")
   aiSuggestionsDecided  AISuggestion[]      @relation("AISuggestionDecisionUser")
@@ -265,6 +266,7 @@ model Project {
   standupSummaries   StandupSummary[]
   standupQualityDaily StandupQualityDaily[]
   standupAttendances StandupAttendance[]
+  standupActionStates StandupActionState[]
   aiSummaryVersions AISummaryVersion[]
   aiSettings         ProjectAISettings?
   aiRuns             AIRun[]
@@ -670,6 +672,37 @@ model StandupSummary {
 
   @@unique([projectId, date])
   @@index([projectId])
+}
+
+
+
+enum StandupActionStateType {
+  OPEN
+  DONE
+  SNOOZED
+  DISMISSED
+}
+
+model StandupActionState {
+  id          String                @id @default(cuid())
+  projectId   String
+  userId      String
+  date        DateTime              @db.Date
+  actionId    String
+  state       StandupActionStateType @default(OPEN)
+  snoozeUntil DateTime?             @db.Date
+  summaryVersion Int?
+  clientEventId String?
+  metadata    Json?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId, date, actionId])
+  @@index([projectId, date, userId])
+  @@index([actionId])
 }
 
 model StandupAttendance {

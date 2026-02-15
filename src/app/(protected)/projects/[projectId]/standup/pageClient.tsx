@@ -6,6 +6,7 @@ import Link from "next/link";
 import AIStandupAssistant from "@/components/standup/AIStandupAssistant";
 import { Button } from "@/components/ui/Button";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
+import { logClient } from "@/lib/clientLogger";
 import { ProjectRole } from "@/lib/roles";
 import { getPreviousStandupDate } from "@/lib/standupWindow";
 
@@ -45,6 +46,35 @@ type StandupEntryWithUser = StandupEntry & {
   user: { id: string; name: string; email: string | null };
 };
 
+
+type StandupActionItem = {
+  id: string;
+  title: string;
+  owner_user_id: string;
+  target_user_id: string | null;
+  action_type:
+    | "UNBLOCK_DECISION"
+    | "REQUEST_HELP"
+    | "FOLLOW_UP_STATUS"
+    | "ASSIGN_OWNER"
+    | "ESCALATE_BLOCKER"
+    | "CLARIFY_SCOPE";
+  reason: string;
+  due: string;
+  severity: "low" | "med" | "high";
+  source_entry_ids: string[];
+  linked_work_ids: string[];
+};
+
+type PersistedActionState = {
+  action_id: string;
+  state: "OPEN" | "DONE" | "SNOOZED" | "DISMISSED";
+  snooze_until: string | null;
+  summary_version: number | null;
+  client_event_id: string | null;
+  updated_at: string;
+};
+
 type StandupSummaryResponse = {
   date: string;
   summary: string;
@@ -52,6 +82,7 @@ type StandupSummaryResponse = {
   version?: number;
   summary_rendered?: {
     overall_progress: string;
+    actions_required: string[];
     achievements: string[];
     blockers: string[];
     dependencies: string[];
@@ -59,6 +90,7 @@ type StandupSummaryResponse = {
   } | null;
   summary_json?: {
     overall_progress: string;
+    actions_required: StandupActionItem[];
     achievements: StandupSummaryBullet[];
     blockers: StandupSummaryBullet[];
     dependencies: StandupSummaryBullet[];
@@ -130,6 +162,7 @@ type ToastMessage = {
 type StandupEntryStatus = "missing" | "partial" | "updated";
 
 const toDateInput = (date: Date) => date.toISOString().split("T")[0];
+const createClientEventId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 const formatDisplayDate = (value: string) =>
   new Date(value).toLocaleDateString(undefined, {
@@ -382,6 +415,7 @@ const buildCopyableSummary = (summary?: StandupSummaryResponse | null) => {
   const toList = (items: string[]) =>
     items.length ? items.map((item) => `- ${item}`).join("\n") : "- None reported";
 
+  const actionItems = summary.summary_json?.actions_required ?? [];
   const achievements = summary.summary_json?.achievements?.map((item) => item.text) ?? [];
   const blockers = summary.summary_json?.blockers?.map((item) => item.text) ?? [];
   const dependencies = summary.summary_rendered?.dependencies ?? [];
@@ -390,6 +424,7 @@ const buildCopyableSummary = (summary?: StandupSummaryResponse | null) => {
 
   return [
     `**Overall progress**\n${overallProgress}`,
+    `**Action required today**\n${toList(actionItems.map((item) => item.title))}`,
     `**Achievements**\n${toList(achievements)}`,
     `**Blockers and risks**\n${toList(blockers)}`,
     `**Dependencies requiring PO involvement**\n${toList(dependencies)}`,
@@ -415,6 +450,47 @@ const getStandupSummaryForProjectAndDate = async (
   }
 
   return (await response.json()) as StandupSummaryResponse;
+};
+
+const getActionStatesForProjectAndDate = async (projectId: string, date: string) => {
+  const params = new URLSearchParams();
+  params.set("date", date);
+
+  const response = await fetch(
+    `/api/projects/${projectId}/standup/action-state?${params.toString()}`
+  );
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.message ?? "Unable to load action states");
+  }
+
+  return (await response.json()) as { date: string; action_states: PersistedActionState[] };
+};
+
+const saveActionStateForProject = async (
+  projectId: string,
+  payload: {
+    date: string;
+    action_id: string;
+    state: "OPEN" | "DONE" | "SNOOZED" | "DISMISSED";
+    snooze_until?: string | null;
+    summary_version?: number;
+    client_event_id?: string;
+  }
+) => {
+  const response = await fetch(`/api/projects/${projectId}/standup/action-state`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.message ?? "Unable to save action state");
+  }
+
+  return (await response.json()) as { ok: boolean; action_state: PersistedActionState };
 };
 
 const getStandupSequence = async (projectId: string) => {
@@ -526,6 +602,7 @@ export default function StandupPageClient({
 
   const [summaryDate, setSummaryDate] = useState(() => toDateInput(new Date()));
   const [summary, setSummary] = useState<StandupSummaryResponse | null>(null);
+  const [actionStateById, setActionStateById] = useState<Record<string, PersistedActionState>>({});
   const [highlightedEvidenceEntryId, setHighlightedEvidenceEntryId] = useState<
     string | null
   >(null);
@@ -1241,6 +1318,22 @@ export default function StandupPageClient({
           forceRefresh,
         });
         setSummary(summaryResult);
+        const actionStatesResult = await getActionStatesForProjectAndDate(projectId, summaryDate).catch(() => ({ action_states: [] as PersistedActionState[], date: summaryDate }));
+        setActionStateById(
+          Object.fromEntries(
+            actionStatesResult.action_states.map((item) => [item.action_id, item])
+          )
+        );
+        (summaryResult.summary_json?.actions_required ?? []).forEach((action) => {
+          logClient("ActionItemViewed", {
+            clientEventId: createClientEventId(),
+            summaryVersionId: summaryResult.version,
+            action_id: action.id,
+            action_type: action.action_type,
+            projectId,
+            summaryId: summaryResult.summary_id,
+          });
+        });
       } catch (error) {
         const message =
           error instanceof Error
@@ -1270,6 +1363,7 @@ export default function StandupPageClient({
 
   const handleScrollToEvidence = useCallback(
     (entryId: string) => {
+      logClient("ActionItemClicked", { clientEventId: createClientEventId(), summaryVersionId: summary?.version, action_id: null, projectId, entryId, summaryId: summary?.summary_id });
       const anchorId = entryAnchorMap.get(entryId);
       if (!anchorId) return;
 
@@ -1289,7 +1383,7 @@ export default function StandupPageClient({
         );
       }, 3000);
     },
-    [entryAnchorMap]
+    [entryAnchorMap, projectId, summary?.summary_id]
   );
 
   const scrollStandupViewToTop = useCallback(() => {
@@ -1427,6 +1521,79 @@ export default function StandupPageClient({
       addToast({ type: "error", message });
     }
   };
+
+  const severityBadgeClass = (severity: StandupActionItem["severity"]) => {
+    if (severity === "high") return "bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-200";
+    if (severity === "med") return "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-200";
+    return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200";
+  };
+
+  const handleActionEvent = async (
+    action: StandupActionItem,
+    state: "DONE" | "SNOOZE_TODAY" | "SNOOZE_TOMORROW" | "NOT_RELEVANT"
+  ) => {
+    const clientEventId = createClientEventId();
+    const snoozeUntil =
+      state === "SNOOZE_TODAY"
+        ? summaryDate
+        : state === "SNOOZE_TOMORROW"
+          ? toDateInput(new Date(new Date(summaryDate).getTime() + 24 * 60 * 60 * 1000))
+          : null;
+
+    const nextState: PersistedActionState = {
+      action_id: action.id,
+      state:
+        state === "DONE"
+          ? "DONE"
+          : state === "NOT_RELEVANT"
+            ? "DISMISSED"
+            : "SNOOZED",
+      snooze_until: snoozeUntil,
+      summary_version: summary?.version ?? null,
+      client_event_id: clientEventId,
+      updated_at: new Date().toISOString(),
+    };
+
+    setActionStateById((current) => ({ ...current, [action.id]: nextState }));
+
+    logClient(state === "DONE" ? "ActionItemResolved" : "ActionItemClicked", {
+      clientEventId,
+      summaryVersionId: summary?.version,
+      action_id: action.id,
+      action_type: action.action_type,
+      projectId,
+      summaryId: summary?.summary_id,
+      state,
+    });
+
+    try {
+      await saveActionStateForProject(projectId, {
+        date: summaryDate,
+        action_id: action.id,
+        state: nextState.state,
+        snooze_until: nextState.snooze_until,
+        summary_version: summary?.version,
+        client_event_id: clientEventId,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to save action state";
+      addToast({ type: "error", message });
+    }
+  };
+
+  const visibleActions = useMemo(() => {
+    const actions = summary?.summary_json?.actions_required ?? [];
+
+    return actions.filter((action) => {
+      const persisted = actionStateById[action.id];
+      if (!persisted) return true;
+      if (persisted.state === "DONE" || persisted.state === "DISMISSED") return false;
+      if (persisted.state === "SNOOZED" && persisted.snooze_until) {
+        return summaryDate > persisted.snooze_until;
+      }
+      return true;
+    });
+  }, [actionStateById, summary?.summary_json?.actions_required, summaryDate]);
 
   const renderSummaryBulletsWithEvidence = (
     title: string,
@@ -2611,6 +2778,54 @@ export default function StandupPageClient({
                     <p>Generating summary...</p>
                   ) : (
                     <div className="space-y-4">
+                      {visibleActions.length ? (
+                        <div className="space-y-2">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">Action Required Today</p>
+                          <ul className="space-y-2">
+                            {visibleActions.map((action) => {
+                              const evidenceEntryId = action.source_entry_ids[0];
+                              const owner = summary.entries.find((entry) => entry.user.id === action.owner_user_id)?.user;
+                              const state = actionStateById[action.id];
+                              const additionalEvidenceCount = Math.max(action.source_entry_ids.length - 1, 0);
+                              return (
+                                <li key={action.id} className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${severityBadgeClass(action.severity)}`}>
+                                      {action.severity.toUpperCase()}
+                                    </span>
+                                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{action.title}</p>
+                                    <span className="text-xs text-slate-500 dark:text-slate-400">Due: {action.due}</span>
+                                  </div>
+                                  <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{action.reason}</p>
+                                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                    Owner: {owner?.name ?? owner?.email ?? action.owner_user_id}
+                                  </p>
+                                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                                    {evidenceEntryId ? (
+                                      <button
+                                        type="button"
+                                        className="text-xs font-semibold text-blue-700 hover:underline dark:text-blue-300"
+                                        onClick={() => handleScrollToEvidence(evidenceEntryId)}
+                                      >
+                                        Evidence
+                                      </button>
+                                    ) : (
+                                      <span className="text-xs text-slate-500 dark:text-slate-400">No evidence available</span>
+                                    )}
+                                    <Button variant="secondary" onClick={() => handleActionEvent(action, "DONE")}>✅ Done</Button>
+                                    <Button variant="secondary" onClick={() => handleActionEvent(action, "SNOOZE_TODAY")}>💤 Snooze (today)</Button>
+                                    <Button variant="secondary" onClick={() => handleActionEvent(action, "SNOOZE_TOMORROW")}>💤 Snooze (tomorrow)</Button>
+                                    <Button variant="secondary" onClick={() => handleActionEvent(action, "NOT_RELEVANT")}>❌ Not relevant</Button>
+                                    {additionalEvidenceCount > 0 ? <span className="text-xs text-slate-500 dark:text-slate-400">+{additionalEvidenceCount} more evidence</span> : null}
+                                    {state ? <span className="text-xs text-slate-500 dark:text-slate-400">Saved as {state.state.toLowerCase().replaceAll("_", " ")}</span> : null}
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      ) : null}
+
                       {summary?.summary_rendered?.overall_progress ? (
                         <div>
                           <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">Overall progress</p>
