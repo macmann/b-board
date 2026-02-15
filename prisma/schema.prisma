@@ -211,6 +211,8 @@ model User {
   testExecutions        TestExecution[]     @relation("TestExecutionExecutedBy")
   facilitatorNotesAuthored FacilitatorNote[] @relation("FacilitatorNoteAuthor")
   facilitatorNotesForTeammate FacilitatorNote[] @relation("FacilitatorNoteTeammate")
+  aiFeedbackEntries      AIFeedback[]
+  events                 Event[]
 }
 
 model Workspace {
@@ -272,6 +274,9 @@ model Project {
   builds             Build[]
   testCases          TestCase[]
   facilitatorNotes   FacilitatorNote[]
+  aiFeedbackEntries  AIFeedback[]
+  events             Event[]
+  kpiDaily           KPIDaily[]
 
   @@unique([workspaceId, key])
 }
@@ -290,11 +295,87 @@ model AISummaryVersion {
   createdBy     String
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  feedbackEntries AIFeedback[]
+  validationFlags AIValidationFlag[]
+  events          Event[]
 
   @@map("ai_summary_versions")
   @@unique([summaryId, version])
   @@index([projectId, date])
   @@index([summaryId])
+}
+
+model AIFeedback {
+  id               String   @id @default(cuid())
+  summaryVersionId String
+  sectionType      String
+  bulletId         String   @default("")
+  feedbackType     String
+  comment          String?
+  userId           String
+  projectId        String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  summaryVersion AISummaryVersion @relation(fields: [summaryVersionId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project        Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("ai_feedback")
+  @@index([summaryVersionId])
+  @@index([projectId, createdAt])
+  @@index([userId])
+  @@unique([summaryVersionId, userId, sectionType, bulletId])
+}
+
+model Event {
+  id               String   @id @default(cuid())
+  type             String
+  userId           String
+  projectId        String
+  summaryVersionId String?
+  clientEventId    String?  @unique
+  metadataJson     Json?
+  createdAt        DateTime @default(now())
+
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project        Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  summaryVersion AISummaryVersion? @relation(fields: [summaryVersionId], references: [id], onDelete: SetNull)
+
+  @@map("events")
+  @@index([projectId, createdAt])
+  @@index([projectId, type, createdAt])
+  @@index([summaryVersionId, createdAt])
+  @@index([userId])
+}
+
+model KPIDaily {
+  id          String   @id @default(cuid())
+  projectId   String
+  date        DateTime @db.Date
+  metricsJson Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("kpi_daily")
+  @@unique([projectId, date])
+  @@index([projectId])
+}
+
+model AIValidationFlag {
+  id               String   @id @default(cuid())
+  summaryVersionId String
+  flagType         String
+  detailsJson      Json?
+  createdAt        DateTime @default(now())
+
+  summaryVersion AISummaryVersion @relation(fields: [summaryVersionId], references: [id], onDelete: Cascade)
+
+  @@map("ai_validation_flags")
+  @@index([summaryVersionId])
+  @@index([flagType, createdAt])
 }
 
 model ProjectSettings {

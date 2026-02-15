@@ -14,6 +14,12 @@ import {
   type StandupSummaryV1,
 } from "@/lib/standupSummary";
 import { calculateStandupQuality } from "@/lib/standupQuality";
+import {
+  computeAndStoreKPIDaily,
+  computeSummaryConfidence,
+  logProjectEvent,
+  upsertValidationFlagsForSummary,
+} from "@/lib/standupInsights";
 import { parseDateOnly } from "@/lib/standupWindow";
 
 const formatDateOnly = (date: Date) => date.toISOString().slice(0, 10);
@@ -181,13 +187,48 @@ export async function GET(
       ],
     }));
 
+    let validationFlags: { flagType: string; detailsJson: unknown }[] = [];
+
+    if (latestVersion && summaryJson) {
+      validationFlags = await upsertValidationFlagsForSummary(
+        latestVersion.id,
+        summaryJson,
+        entries
+      );
+    }
+
+    await logProjectEvent("SummaryViewed", {
+      projectId,
+      userId: user.id,
+      summaryVersionId: latestVersion?.id,
+      clientEventId: `summary-viewed:${summaryId}:v${latestVersion?.version ?? 0}:user:${user.id}`,
+      metadataJson: {
+        summaryId,
+        date: formatDateOnly(date),
+        version: latestVersion?.version ?? 0,
+      },
+    });
+
+    await computeAndStoreKPIDaily(projectId, date);
+
+    const confidence = summaryJson
+      ? computeSummaryConfidence(summaryJson, validationFlags.length)
+      : { confidenceScore: 0.2, evidenceCoverage: 0, validationPenalty: 0 };
+
     return NextResponse.json({
       date: formatDateOnly(date),
       summary: summaryText,
       summary_id: summaryId,
+      summary_version_id: latestVersion?.id ?? null,
       version: latestVersion?.version ?? 0,
       summary_rendered: summaryRendered,
       summary_json: summaryJson,
+      validation_flags: validationFlags,
+      confidence_score: confidence.confidenceScore,
+      confidence_details: {
+        evidence_coverage: confidence.evidenceCoverage,
+        validation_penalty: confidence.validationPenalty,
+      },
       data_quality: isProjectAdmin
         ? {
             quality_score: quality.qualityScore,

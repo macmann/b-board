@@ -60,6 +60,9 @@ describe("standup summary route", () => {
     fakePrisma.researchItems.clear();
     fakePrisma.users.clear();
     fakePrisma.standupQualityDailyRecords.clear();
+    fakePrisma.eventRecords.clear();
+    fakePrisma.aiValidationFlagRecords.clear();
+    fakePrisma.kpiDailyRecords.clear();
     fakePrisma.projectMembers = [];
 
     fakePrisma.users.set(admin.id, admin);

@@ -5,7 +5,6 @@ import Link from "next/link";
 
 import AIStandupAssistant from "@/components/standup/AIStandupAssistant";
 import { Button } from "@/components/ui/Button";
-import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import { ProjectRole } from "@/lib/roles";
 import { getPreviousStandupDate } from "@/lib/standupWindow";
 
@@ -49,6 +48,7 @@ type StandupSummaryResponse = {
   date: string;
   summary: string;
   summary_id?: string;
+  summary_version_id?: string | null;
   version?: number;
   summary_rendered?: {
     overall_progress: string;
@@ -73,7 +73,19 @@ type StandupSummaryResponse = {
       vague_update_rate: number;
     };
   } | null;
+  validation_flags?: { flagType: string; detailsJson?: unknown }[];
+  confidence_score?: number;
+  confidence_details?: {
+    evidence_coverage: number;
+    validation_penalty: number;
+  };
   entries: StandupEntryWithUser[];
+};
+
+type InstrumentationResponse = {
+  kpi_daily: { date: string; metricsJson: Record<string, number | string> }[];
+  feedback_trend: Record<string, Record<string, number>>;
+  validation_flags_per_day: Record<string, number>;
 };
 
 type StandupSummaryBullet = {
@@ -417,6 +429,56 @@ const getStandupSummaryForProjectAndDate = async (
   return (await response.json()) as StandupSummaryResponse;
 };
 
+
+const trackStandupEvent = async (
+  projectId: string,
+  payload: { type: "SummaryViewed" | "CopyClicked" | "EvidenceClicked" | "RegenerateClicked" | "FeedbackSubmitted"; summaryVersionId?: string; metadata?: Record<string, unknown> }
+) => {
+  const clientEventId =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  await fetch(`/api/projects/${projectId}/standup/events`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, clientEventId }),
+  });
+};
+
+const submitSummaryFeedback = async (
+  projectId: string,
+  payload: {
+    summaryVersionId: string;
+    sectionType: string;
+    bulletId?: string | null;
+    feedbackType: "USEFUL" | "INCORRECT" | "NEEDS_IMPROVEMENT";
+    comment?: string;
+  }
+) => {
+  const response = await fetch(`/api/projects/${projectId}/standup/feedback`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.message ?? "Unable to submit feedback");
+  }
+};
+
+const getStandupInstrumentation = async (projectId: string) => {
+  const response = await fetch(`/api/projects/${projectId}/standup/instrumentation`);
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.message ?? "Unable to load internal dashboard");
+  }
+
+  return (await response.json()) as InstrumentationResponse;
+};
+
 const getStandupSequence = async (projectId: string) => {
   const response = await fetch(`/api/projects/${projectId}/standup/sequence`);
 
@@ -461,7 +523,7 @@ export default function StandupPageClient({
   projectName,
 }: StandupPageClientProps) {
   const [activeTab, setActiveTab] = useState<
-    "my-update" | "team-dashboard" | "standup-view"
+    "my-update" | "team-dashboard" | "standup-view" | "internal-dashboard"
   >("my-update");
   const [mySelectedDate, setMySelectedDate] = useState(() =>
     toDateInput(new Date())
@@ -534,6 +596,11 @@ export default function StandupPageClient({
   const summaryMarkdown = useMemo(() => buildCopyableSummary(summary), [summary]);
   const [summaryError, setSummaryError] = useState("");
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
+  const [summaryFeedbackComment, setSummaryFeedbackComment] = useState("");
+
+  const [instrumentation, setInstrumentation] = useState<InstrumentationResponse | null>(null);
+  const [isLoadingInstrumentation, setIsLoadingInstrumentation] = useState(false);
+  const [instrumentationError, setInstrumentationError] = useState("");
 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
@@ -550,6 +617,7 @@ export default function StandupPageClient({
   const canProxyStandup = projectRole === "ADMIN";
   const canViewDashboard = projectRole === "ADMIN" || projectRole === "PO";
   const canViewStandupView = canViewDashboard;
+  const canViewInternalDashboard = projectRole === "ADMIN";
   const [actingUserId, setActingUserId] = useState(currentUserId);
 
   const fallbackYesterdayDate = useMemo(
@@ -1259,6 +1327,59 @@ export default function StandupPageClient({
     loadSummary();
   }, [activeTab, loadSummary]);
 
+
+  const loadInstrumentation = useCallback(async () => {
+    if (!projectId || !canViewInternalDashboard) return;
+
+    setIsLoadingInstrumentation(true);
+    setInstrumentationError("");
+
+    try {
+      const result = await getStandupInstrumentation(projectId);
+      setInstrumentation(result);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to load internal dashboard";
+      setInstrumentationError(message);
+    } finally {
+      setIsLoadingInstrumentation(false);
+    }
+  }, [canViewInternalDashboard, projectId]);
+
+  useEffect(() => {
+    if (activeTab !== "internal-dashboard") return;
+    loadInstrumentation();
+  }, [activeTab, loadInstrumentation]);
+
+  const handleSubmitSummaryFeedback = useCallback(
+    async (
+      sectionType: string,
+      feedbackType: "USEFUL" | "INCORRECT" | "NEEDS_IMPROVEMENT",
+      bulletId?: string
+    ) => {
+      if (!projectId || !summary?.summary_version_id) return;
+
+      try {
+        await submitSummaryFeedback(projectId, {
+          summaryVersionId: summary.summary_version_id,
+          sectionType,
+          bulletId,
+          feedbackType,
+          comment: summaryFeedbackComment.trim() || undefined,
+        });
+
+        addToast({ type: "success", message: "Feedback submitted." });
+        setSummaryFeedbackComment("");
+      } catch (error) {
+        addToast({
+          type: "error",
+          message: error instanceof Error ? error.message : "Unable to submit feedback",
+        });
+      }
+    },
+    [addToast, projectId, summary?.summary_version_id, summaryFeedbackComment]
+  );
+
   useEffect(
     () => () => {
       if (evidenceHighlightTimeoutRef.current) {
@@ -1278,6 +1399,11 @@ export default function StandupPageClient({
 
       element.scrollIntoView({ behavior: "smooth", block: "center" });
       setHighlightedEvidenceEntryId(entryId);
+      void trackStandupEvent(projectId, {
+        type: "EvidenceClicked",
+        summaryVersionId: summary?.summary_version_id ?? undefined,
+        metadata: { entryId, summaryId: summary?.summary_id },
+      });
 
       if (evidenceHighlightTimeoutRef.current) {
         clearTimeout(evidenceHighlightTimeoutRef.current);
@@ -1289,7 +1415,7 @@ export default function StandupPageClient({
         );
       }, 3000);
     },
-    [entryAnchorMap]
+    [entryAnchorMap, projectId, summary?.summary_id]
   );
 
   const scrollStandupViewToTop = useCallback(() => {
@@ -1420,6 +1546,11 @@ export default function StandupPageClient({
 
     try {
       await navigator.clipboard.writeText(summaryMarkdown);
+      void trackStandupEvent(projectId, {
+        type: "CopyClicked",
+        summaryVersionId: summary?.summary_version_id ?? undefined,
+        metadata: { summaryId: summary?.summary_id, summaryVersionId: summary?.summary_version_id },
+      });
       addToast({ type: "success", message: "Summary copied to clipboard." });
     } catch (error) {
       const message =
@@ -1428,8 +1559,38 @@ export default function StandupPageClient({
     }
   };
 
+  const renderFeedbackButtons = (
+    sectionType: string,
+    bulletId?: string
+  ) => (
+    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+      <button
+        type="button"
+        className="rounded-full border border-emerald-200 px-2 py-1 text-emerald-700 hover:bg-emerald-50"
+        onClick={() => handleSubmitSummaryFeedback(sectionType, "USEFUL", bulletId)}
+      >
+        👍 Useful
+      </button>
+      <button
+        type="button"
+        className="rounded-full border border-rose-200 px-2 py-1 text-rose-700 hover:bg-rose-50"
+        onClick={() => handleSubmitSummaryFeedback(sectionType, "INCORRECT", bulletId)}
+      >
+        👎 Incorrect
+      </button>
+      <button
+        type="button"
+        className="rounded-full border border-amber-200 px-2 py-1 text-amber-700 hover:bg-amber-50"
+        onClick={() => handleSubmitSummaryFeedback(sectionType, "NEEDS_IMPROVEMENT", bulletId)}
+      >
+        ⚠ Needs improvement
+      </button>
+    </div>
+  );
+
   const renderSummaryBulletsWithEvidence = (
     title: string,
+    sectionType: string,
     bullets: StandupSummaryBullet[]
   ) => (
     <div className="space-y-2">
@@ -1464,6 +1625,7 @@ export default function StandupPageClient({
                     +{additionalEvidenceCount} more evidence
                   </span>
                 ) : null}
+                {renderFeedbackButtons(sectionType, bullet.id)}
               </li>
             );
           })}
@@ -1471,6 +1633,7 @@ export default function StandupPageClient({
       ) : (
         <p className="text-sm text-slate-500 dark:text-slate-400">None reported.</p>
       )}
+      {renderFeedbackButtons(sectionType)}
     </div>
   );
 
@@ -1552,6 +1715,18 @@ export default function StandupPageClient({
               >
                 Stand up View
               </button>
+              {canViewInternalDashboard && (
+                <button
+                  className={`rounded-full px-3 py-1 transition ${
+                    activeTab === "internal-dashboard"
+                      ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700"
+                      : "text-slate-500 hover:text-slate-800 dark:text-slate-400"
+                  }`}
+                  onClick={() => setActiveTab("internal-dashboard")}
+                >
+                  Internal Dashboard
+                </button>
+              )}
             </>
           )}
         </div>
@@ -2623,6 +2798,7 @@ export default function StandupPageClient({
                       {summary?.summary_json
                         ? renderSummaryBulletsWithEvidence(
                             "Achievements",
+                            "achievements",
                             summary.summary_json.achievements ?? []
                           )
                         : null}
@@ -2630,17 +2806,27 @@ export default function StandupPageClient({
                       {summary?.summary_json
                         ? renderSummaryBulletsWithEvidence(
                             "Blockers and risks",
+                            "blockers",
                             summary.summary_json.blockers ?? []
                           )
                         : null}
 
-                      <MarkdownRenderer
-                        content={[
-                          `**Dependencies requiring PO involvement**\n${(summary?.summary_rendered?.dependencies?.length ?? 0) ? summary?.summary_rendered?.dependencies?.map((item) => `- ${item}`).join("\n") : "- None reported"}`,
-                          `**Assignment gaps**\n${(summary?.summary_rendered?.assignment_gaps?.length ?? 0) ? summary?.summary_rendered?.assignment_gaps?.map((item) => `- ${item}`).join("\n") : "- None reported"}`,
-                        ].join("\n\n")}
-                        className="prose prose-sm max-w-none text-slate-700 dark:text-slate-200 dark:prose-invert"
-                      />
+                      {summary?.summary_json
+                        ? renderSummaryBulletsWithEvidence(
+                            "Dependencies requiring PO involvement",
+                            "dependencies",
+                            summary.summary_json.dependencies ?? []
+                          )
+                        : null}
+
+                      {summary?.summary_json
+                        ? renderSummaryBulletsWithEvidence(
+                            "Assignment gaps",
+                            "assignment_gaps",
+                            summary.summary_json.assignment_gaps ?? []
+                          )
+                        : null}
+
 
                       {!summary?.summary_rendered && !summary?.summary_json ? (
                         <p>No summary available yet for this date.</p>
@@ -2649,15 +2835,32 @@ export default function StandupPageClient({
                   )}
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-col gap-2 md:items-end">
+                <textarea
+                  value={summaryFeedbackComment}
+                  onChange={(event) => setSummaryFeedbackComment(event.target.value)}
+                  placeholder="Optional feedback comment"
+                  className="min-h-16 w-72 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"
+                />
+                <div className="flex flex-wrap gap-2">
                 {projectRole === "ADMIN" && summary?.data_quality ? (
                   <span className="inline-flex items-center rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-200">
                     Data Quality: {summary.data_quality.quality_score}/100
                   </span>
                 ) : null}
+                {typeof summary?.confidence_score === "number" ? (
+                  <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                    Confidence: {(summary.confidence_score * 100).toFixed(0)}%
+                  </span>
+                ) : null}
+                {(summary?.validation_flags?.length ?? 0) > 0 ? (
+                  <span className="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
+                    {summary?.validation_flags?.length} validation flag(s)
+                  </span>
+                ) : null}
                 <Button
                   variant="secondary"
-                  onClick={() => loadSummary(true)}
+                  onClick={() => { void trackStandupEvent(projectId, { type: "RegenerateClicked", summaryVersionId: summary?.summary_version_id ?? undefined, metadata: { summaryId: summary?.summary_id } }); void loadSummary(true); }}
                   disabled={isLoadingSummary}
                 >
                   {isLoadingSummary ? "Generating..." : "Regenerate Summary"}
@@ -2668,6 +2871,7 @@ export default function StandupPageClient({
                 >
                   Copy
                 </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -2812,6 +3016,68 @@ export default function StandupPageClient({
               </table>
             </div>
           </div>
+        </div>
+      )}
+
+      {activeTab === "internal-dashboard" && canViewInternalDashboard && (
+        <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Internal instrumentation panel (14 days)</h2>
+            <Button variant="secondary" onClick={() => loadInstrumentation()} disabled={isLoadingInstrumentation}>
+              Refresh
+            </Button>
+          </div>
+          {instrumentationError ? <p className="text-sm text-rose-600">{instrumentationError}</p> : null}
+          {isLoadingInstrumentation ? <p className="text-sm text-slate-500">Loading metrics…</p> : null}
+          {instrumentation ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-lg border border-slate-200 p-4">
+                <h3 className="text-sm font-semibold">Feedback trend</h3>
+                <ul className="mt-2 space-y-1 text-xs">
+                  {Object.entries(instrumentation.feedback_trend).map(([day, counts]) => (
+                    <li key={day}>{day}: 👍 {counts.USEFUL ?? 0} · 👎 {counts.INCORRECT ?? 0} · ⚠ {counts.NEEDS_IMPROVEMENT ?? 0}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-lg border border-slate-200 p-4">
+                <h3 className="text-sm font-semibold">Validation flags/day</h3>
+                <ul className="mt-2 space-y-1 text-xs">
+                  {Object.entries(instrumentation.validation_flags_per_day).map(([day, count]) => (
+                    <li key={day}>{day}: {count}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-lg border border-slate-200 p-4 md:col-span-2">
+                <h3 className="text-sm font-semibold">KPI trends</h3>
+                <div className="mt-2 overflow-x-auto">
+                  <table className="min-w-full text-xs">
+                    <thead>
+                      <tr>
+                        <th className="px-2 py-1 text-left">Date</th>
+                        <th className="px-2 py-1 text-left">Compliance %</th>
+                        <th className="px-2 py-1 text-left">Median blocker days</th>
+                        <th className="px-2 py-1 text-left">Opened</th>
+                        <th className="px-2 py-1 text-left">2+ days</th>
+                        <th className="px-2 py-1 text-left">Views/day</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {instrumentation.kpi_daily.map((row) => (
+                        <tr key={row.date}>
+                          <td className="px-2 py-1">{row.date.slice(0, 10)}</td>
+                          <td className="px-2 py-1">{row.metricsJson.standup_compliance_percent ?? 0}</td>
+                          <td className="px-2 py-1">{row.metricsJson.median_blocker_resolution_days ?? 0}</td>
+                          <td className="px-2 py-1">{row.metricsJson.blockers_opened_today ?? 0}</td>
+                          <td className="px-2 py-1">{row.metricsJson.blockers_persisting_2_plus_days ?? 0}</td>
+                          <td className="px-2 py-1">{row.metricsJson.po_engagement_views_per_day ?? 0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
 

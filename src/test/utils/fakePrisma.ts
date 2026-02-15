@@ -30,6 +30,34 @@ type StandupAttendanceRecord = {
   updatedAt: Date;
 };
 
+type EventRecord = {
+  id: string;
+  type: string;
+  userId: string;
+  projectId: string;
+  summaryVersionId?: string | null;
+  clientEventId?: string | null;
+  metadataJson?: Record<string, unknown> | null;
+  createdAt: Date;
+};
+
+type AIValidationFlagRecord = {
+  id: string;
+  summaryVersionId: string;
+  flagType: string;
+  detailsJson?: Record<string, unknown> | null;
+  createdAt: Date;
+};
+
+type KPIDailyRecord = {
+  id: string;
+  projectId: string;
+  date: Date;
+  metricsJson: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 type StandupQualityDailyRecord = {
   id: string;
   projectId: string;
@@ -48,6 +76,9 @@ export class FakePrismaClient {
   standupEntries = new Map<string, StandupRecord>();
   standupAttendances = new Map<string, StandupAttendanceRecord>();
   standupQualityDailyRecords = new Map<string, StandupQualityDailyRecord>();
+  eventRecords = new Map<string, EventRecord>();
+  aiValidationFlagRecords = new Map<string, AIValidationFlagRecord>();
+  kpiDailyRecords = new Map<string, KPIDailyRecord>();
   issues = new Map<string, Issue>();
   researchItems = new Map<string, ResearchItem>();
   users = new Map<string, User>();
@@ -297,6 +328,119 @@ export class FakePrismaClient {
     }),
   };
 
+  event = {
+    create: vi.fn(async ({ data }: any) => {
+      const created = {
+        id: data.id ?? `event-${this.eventRecords.size + 1}`,
+        type: data.type,
+        userId: data.userId,
+        projectId: data.projectId,
+        summaryVersionId: data.summaryVersionId ?? null,
+        clientEventId: data.clientEventId ?? null,
+        metadataJson: data.metadataJson ?? null,
+        createdAt: new Date(),
+      };
+      this.eventRecords.set(created.id, created);
+      return created;
+    }),
+    count: vi.fn(async ({ where }: any) => {
+      let count = 0;
+      for (const row of this.eventRecords.values()) {
+        if (where?.projectId && row.projectId !== where.projectId) continue;
+        if (where?.type && row.type !== where.type) continue;
+        if (where?.userId && row.userId !== where.userId) continue;
+        if (where?.createdAt?.gte && row.createdAt < new Date(where.createdAt.gte)) continue;
+        if (where?.createdAt?.lt && row.createdAt >= new Date(where.createdAt.lt)) continue;
+        count += 1;
+      }
+      return count;
+    }),
+    findMany: vi.fn(async ({ where, select }: any) => {
+      const matches: any[] = [];
+      for (const row of this.eventRecords.values()) {
+        if (where?.projectId && row.projectId !== where.projectId) continue;
+        if (where?.type && row.type !== where.type) continue;
+        if (where?.createdAt?.gte && row.createdAt < new Date(where.createdAt.gte)) continue;
+        if (where?.createdAt?.lt && row.createdAt >= new Date(where.createdAt.lt)) continue;
+
+        if (select?.user) {
+          matches.push({
+            userId: row.userId,
+            user: { role: this.users.get(row.userId)?.role ?? "VIEWER" },
+          });
+          continue;
+        }
+
+        matches.push(row);
+      }
+      return matches;
+    }),
+  };
+
+  aIValidationFlag = {
+    deleteMany: vi.fn(async ({ where }: any) => {
+      let removed = 0;
+      for (const [id, row] of this.aiValidationFlagRecords.entries()) {
+        if (where?.summaryVersionId && row.summaryVersionId !== where.summaryVersionId) continue;
+        this.aiValidationFlagRecords.delete(id);
+        removed += 1;
+      }
+      return { count: removed };
+    }),
+    createMany: vi.fn(async ({ data }: any) => {
+      for (const row of data ?? []) {
+        const created = {
+          id: `validation-${this.aiValidationFlagRecords.size + 1}`,
+          summaryVersionId: row.summaryVersionId,
+          flagType: row.flagType,
+          detailsJson: row.detailsJson ?? null,
+          createdAt: new Date(),
+        };
+        this.aiValidationFlagRecords.set(created.id, created);
+      }
+      return { count: data?.length ?? 0 };
+    }),
+    findMany: vi.fn(async () => []),
+  };
+
+  facilitatorNote = {
+    findMany: vi.fn(async () => []),
+  };
+
+  kPIDaily = {
+    upsert: vi.fn(async ({ where, create, update }: any) => {
+      const key = `${where.projectId_date.projectId}|${new Date(where.projectId_date.date).toISOString()}`;
+      const existing = this.kpiDailyRecords.get(key);
+      if (existing) {
+        const next = { ...existing, ...update, updatedAt: new Date() };
+        this.kpiDailyRecords.set(key, next);
+        return next;
+      }
+      const created = {
+        id: create.id ?? `kpi-${this.kpiDailyRecords.size + 1}`,
+        projectId: create.projectId,
+        date: create.date,
+        metricsJson: create.metricsJson,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      this.kpiDailyRecords.set(key, created);
+      return created;
+    }),
+    findMany: vi.fn(async () => []),
+  };
+
+  aISummaryVersion = {
+    findFirst: vi.fn(async () => null),
+    findUnique: vi.fn(async () => null),
+  };
+
+  aIFeedback = {
+    findMany: vi.fn(async () => []),
+    create: vi.fn(async ({ data }: any) => ({ ...data, id: `feedback-1`, createdAt: new Date(), updatedAt: new Date() })),
+    upsert: vi.fn(async ({ create, update }: any) => ({ ...create, ...update, id: `feedback-1`, createdAt: new Date(), updatedAt: new Date() })),
+  };
+
   issue = {
     findMany: vi.fn(async ({ where: { id, projectId } }: any) => {
       const ids = (id?.in as string[]) ?? [];
@@ -355,6 +499,9 @@ export class FakePrismaClient {
         ) ?? null
       );
     }),
+    count: vi.fn(async ({ where: { projectId } }: any) =>
+      this.projectMembers.filter((member) => member.projectId === projectId).length
+    ),
   };
 
   user = {
