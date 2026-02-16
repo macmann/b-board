@@ -184,6 +184,20 @@ enum CoordinationTriggerStatus {
   RESOLVED
 }
 
+enum NotificationType {
+  PERSISTENT_BLOCKER
+  MISSING_STANDUP
+  UNANSWERED_QUESTION
+  ACTION_OVERDUE
+  ESCALATION
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+  DISMISSED
+}
+
 enum ResearchObservationType {
   INTERVIEW
   SURVEY
@@ -242,6 +256,7 @@ model User {
   testExecutions        TestExecution[]     @relation("TestExecutionExecutedBy")
   facilitatorNotesAuthored FacilitatorNote[] @relation("FacilitatorNoteAuthor")
   facilitatorNotesForTeammate FacilitatorNote[] @relation("FacilitatorNoteTeammate")
+  notifications          Notification[]
 }
 
 model Workspace {
@@ -940,10 +955,31 @@ model CoordinationTrigger {
   dedupKey        String
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  notifications Notification[]
 
   @@index([projectId, createdAt])
   @@index([projectId, status])
   @@index([projectId, status, relatedEntityId])
   @@index([ruleId, targetUserId, relatedEntityId, createdAt])
   @@index([dedupKey, createdAt])
+}
+
+model Notification {
+  id              String             @id @default(cuid())
+  userId          String
+  triggerId       String
+  type            NotificationType
+  severity        CoordinationSeverity
+  title           String
+  body            String
+  relatedEntityId String?
+  status          NotificationStatus @default(UNREAD)
+  createdAt       DateTime           @default(now())
+
+  user    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trigger CoordinationTrigger @relation(fields: [triggerId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, status, createdAt])
+  @@index([triggerId])
 }

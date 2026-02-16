@@ -9,6 +9,7 @@ type ProjectTabKey =
   | "reports"
   | "qa"
   | "standup"
+  | "execution-alerts"
   | "settings";
 
 type ProjectTabsProps = {
@@ -25,6 +26,7 @@ const tabs: { key: ProjectTabKey; label: string }[] = [
   { key: "reports", label: "Reports" },
   { key: "qa", label: "QA" },
   { key: "standup", label: "Standup" },
+  { key: "execution-alerts", label: "Execution Alerts" },
   { key: "settings", label: "Settings" },
 ];
 
