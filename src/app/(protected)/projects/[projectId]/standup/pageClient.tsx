@@ -7,6 +7,7 @@ import AIStandupAssistant from "@/components/standup/AIStandupAssistant";
 import { Button } from "@/components/ui/Button";
 import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import { logClient } from "@/lib/clientLogger";
+import { renderDigest, type DigestType } from "@/lib/standupDigest";
 import { ProjectRole } from "@/lib/roles";
 import { getPreviousStandupDate } from "@/lib/standupWindow";
 
@@ -432,29 +433,6 @@ const getStandupUserView = async (
   return (await response.json()) as StandupUserViewResponse;
 };
 
-const buildCopyableSummary = (summary?: StandupSummaryResponse | null) => {
-  if (!summary) return "";
-
-  const toList = (items: string[]) =>
-    items.length ? items.map((item) => `- ${item}`).join("\n") : "- None reported";
-
-  const actionItems = summary.summary_json?.actions_required ?? [];
-  const achievements = summary.summary_json?.achievements?.map((item) => item.text) ?? [];
-  const blockers = summary.summary_json?.blockers?.map((item) => item.text) ?? [];
-  const dependencies = summary.summary_rendered?.dependencies ?? [];
-  const assignmentGaps = summary.summary_rendered?.assignment_gaps ?? [];
-  const overallProgress = summary.summary_rendered?.overall_progress ?? "No summary available.";
-
-  return [
-    `**Overall progress**\n${overallProgress}`,
-    `**Action required today**\n${toList(actionItems.map((item) => item.title))}`,
-    `**Achievements**\n${toList(achievements)}`,
-    `**Blockers and risks**\n${toList(blockers)}`,
-    `**Dependencies requiring PO involvement**\n${toList(dependencies)}`,
-    `**Assignment gaps**\n${toList(assignmentGaps)}`,
-  ].join("\n\n");
-};
-
 const getStandupSummaryForProjectAndDate = async (
   projectId: string,
   options: { date: string; forceRefresh?: boolean }
@@ -649,13 +627,14 @@ export default function StandupPageClient({
 
   const [summaryDate, setSummaryDate] = useState(() => toDateInput(new Date()));
   const [summary, setSummary] = useState<StandupSummaryResponse | null>(null);
+  const [selectedDigestType, setSelectedDigestType] = useState<"stakeholder" | "team-detailed">("stakeholder");
+  const [includeDigestReferences, setIncludeDigestReferences] = useState(false);
   const [actionStateById, setActionStateById] = useState<Record<string, PersistedActionState>>({});
   const [highlightedEvidenceEntryId, setHighlightedEvidenceEntryId] = useState<
     string | null
   >(null);
   const evidenceHighlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const summaryMarkdown = useMemo(() => buildCopyableSummary(summary), [summary]);
   const [summaryError, setSummaryError] = useState("");
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
   const [dismissedQuestionIds, setDismissedQuestionIds] = useState<Record<string, boolean>>({});
@@ -1563,14 +1542,31 @@ export default function StandupPageClient({
   }, [activeTab, moveQueueSelection]);
 
   const handleCopySummary = async () => {
-    if (!summaryMarkdown) return;
+    const digest = digestByType[selectedDigestType];
+    if (!digest) return;
 
     try {
-      await navigator.clipboard.writeText(summaryMarkdown);
-      addToast({ type: "success", message: "Summary copied to clipboard." });
+      await navigator.clipboard.writeText(digest);
+      const clientEventId = createClientEventId();
+      logClient("DigestCopied", {
+        clientEventId,
+        projectId,
+        projectRole,
+        summaryId: summary?.summary_id,
+        summaryVersionId: summary?.version,
+        digest_type: selectedDigestType,
+        include_references: includeDigestReferences,
+      });
+      addToast({
+        type: "success",
+        message:
+          selectedDigestType === "stakeholder"
+            ? "Stakeholder digest copied to clipboard."
+            : "Detailed digest copied to clipboard.",
+      });
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Unable to copy summary.";
+        error instanceof Error ? error.message : "Unable to copy digest.";
       addToast({ type: "error", message });
     }
   };
@@ -1756,6 +1752,34 @@ export default function StandupPageClient({
         !activeDismissedQuestionIds.has(question.id)
     );
   }, [dismissedQuestionIds, summary?.clarifications, summary?.summary_json?.open_questions, summaryDate]);
+
+  const digestByType = useMemo(() => {
+    if (!summary?.summary_json) {
+      return {
+        stakeholder: "",
+        "team-detailed": "",
+        "sprint-snapshot": "",
+      } satisfies Record<DigestType, string>;
+    }
+
+    const source = {
+      date: summaryDate,
+      generated_at: new Date().toISOString(),
+      summary_json: summary.summary_json,
+      summary_rendered: summary.summary_rendered,
+      visible_actions: visibleActions,
+      visible_open_questions: visibleOpenQuestions,
+      signals: summary.data_quality,
+    };
+
+    const options = { includeReferences: includeDigestReferences };
+
+    return {
+      stakeholder: renderDigest("stakeholder", source, options),
+      "team-detailed": renderDigest("team-detailed", source, options),
+      "sprint-snapshot": renderDigest("sprint-snapshot", source, options),
+    } satisfies Record<DigestType, string>;
+  }, [includeDigestReferences, summary, summaryDate, visibleActions, visibleOpenQuestions]);
 
   const openQuestionsByUser = useMemo(() => {
     const grouped = new Map<string, OpenQuestion[]>();
@@ -3120,9 +3144,28 @@ export default function StandupPageClient({
                 >
                   {isLoadingSummary ? "Generating..." : "Regenerate Summary"}
                 </Button>
+                <select
+                  value={selectedDigestType}
+                  onChange={(event) =>
+                    setSelectedDigestType(event.target.value as "stakeholder" | "team-detailed")
+                  }
+                  className="rounded-md border border-slate-200 bg-white px-2 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
+                  aria-label="Digest type"
+                >
+                  <option value="stakeholder">Copy Stakeholder Digest</option>
+                  <option value="team-detailed">Copy Detailed Digest</option>
+                </select>
+                <label className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={includeDigestReferences}
+                    onChange={(event) => setIncludeDigestReferences(event.target.checked)}
+                  />
+                  Include ticket refs
+                </label>
                 <Button
                   onClick={handleCopySummary}
-                  disabled={!summaryMarkdown || isLoadingSummary}
+                  disabled={!digestByType[selectedDigestType] || isLoadingSummary}
                 >
                   Copy
                 </Button>

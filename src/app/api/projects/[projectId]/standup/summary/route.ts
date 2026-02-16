@@ -14,6 +14,7 @@ import {
   type StandupSummaryRendered,
   type StandupSummaryV1,
 } from "@/lib/standupSummary";
+import { renderDigest } from "@/lib/standupDigest";
 import { calculateStandupQuality } from "@/lib/standupQuality";
 import { parseDateOnly } from "@/lib/standupWindow";
 
@@ -185,15 +186,12 @@ export async function GET(
 
     summaryText = existingSummary?.summary ?? "";
 
-    if (!summaryText && summaryRendered) {
-      summaryText = [
-        `**Overall progress**\n${summaryRendered.overall_progress}`,
-        `**Action required today**\n${summaryRendered.actions_required.length ? summaryRendered.actions_required.map((item) => `- ${item}`).join("\n") : "- None reported"}`,
-        `**Achievements**\n${summaryRendered.achievements.length ? summaryRendered.achievements.map((item) => `- ${item}`).join("\n") : "- None reported"}`,
-        `**Blockers and risks**\n${summaryRendered.blockers.length ? summaryRendered.blockers.map((item) => `- ${item}`).join("\n") : "- None reported"}`,
-        `**Dependencies requiring PO involvement**\n${summaryRendered.dependencies.length ? summaryRendered.dependencies.map((item) => `- ${item}`).join("\n") : "- None reported"}`,
-        `**Assignment gaps**\n${summaryRendered.assignment_gaps.length ? summaryRendered.assignment_gaps.map((item) => `- ${item}`).join("\n") : "- None reported"}`,
-      ].join("\n\n");
+    if (!summaryText && summaryRendered && summaryJson) {
+      summaryText = renderDigest("team-detailed", {
+        date: formatDateOnly(date),
+        summary_json: summaryJson,
+        summary_rendered: summaryRendered,
+      });
     }
     const members = projectMembers.map((member) => {
       const entry = entries.find((item) => item.userId === member.userId);
