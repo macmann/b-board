@@ -257,6 +257,7 @@ model User {
   facilitatorNotesAuthored FacilitatorNote[] @relation("FacilitatorNoteAuthor")
   facilitatorNotesForTeammate FacilitatorNote[] @relation("FacilitatorNoteTeammate")
   notifications          Notification[]
+  coordinationNotificationPreferences CoordinationNotificationPreference[]
 }
 
 model Workspace {
@@ -322,6 +323,7 @@ model Project {
   facilitatorNotes   FacilitatorNote[]
   coordinationEvents CoordinationEvent[]
   coordinationTriggers CoordinationTrigger[]
+  coordinationNotificationPreferences CoordinationNotificationPreference[]
 
   @@unique([workspaceId, key])
 }
@@ -964,6 +966,27 @@ model CoordinationTrigger {
   @@index([dedupKey, createdAt])
 }
 
+
+model CoordinationNotificationPreference {
+  id                    String   @id @default(cuid())
+  projectId             String
+  userId                String
+  mutedCategories       Json
+  quietHoursStart       Int?
+  quietHoursEnd         Int?
+  timezoneOffsetMinutes Int      @default(0)
+  maxNudgesPerDay       Int      @default(5)
+  channels              Json
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId, projectId])
+}
+
 model Notification {
   id              String             @id @default(cuid())
   userId          String
@@ -972,6 +995,7 @@ model Notification {
   severity        CoordinationSeverity
   title           String
   body            String
+  context         Json?
   relatedEntityId String?
   status          NotificationStatus @default(UNREAD)
   createdAt       DateTime           @default(now())

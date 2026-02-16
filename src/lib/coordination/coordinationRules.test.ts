@@ -59,6 +59,25 @@ describe("evaluateCoordinationRules", () => {
     });
   });
 
+
+  it("re-triggers a reminder when snooze expires", () => {
+    const drafts = evaluateCoordinationRules({
+      event: {
+        ...baseEvent,
+        eventType: "SNOOZE_EXPIRED",
+        metadata: { retrigger: true, previousEscalationLevel: 2 },
+      },
+      now: new Date("2026-02-16T12:00:00.000Z"),
+    });
+
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0]).toMatchObject({
+      ruleId: "snooze-expired-retrigger",
+      escalationLevel: 2,
+      dedupKey: "snooze-expired-retrigger:user-1:issue-1:L2",
+    });
+  });
+
   it("builds dedup key with escalation level", () => {
     expect(buildTriggerDedupKey("r", "u", "e", 2)).toBe("r:u:e:L2");
   });

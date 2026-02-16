@@ -147,6 +147,62 @@ describe("processCoordinationEvents", () => {
     expect(store.getCreatedTriggers()[0].status).toBe("RESOLVED");
   });
 
+  it("resolves blocker triggers when action is marked DONE", async () => {
+    const now = new Date("2026-02-20T12:00:00.000Z");
+    const doneEvent: CoordinationEvent = {
+      id: "evt-done",
+      projectId: "project-1",
+      eventType: "ACTION_INTERACTION",
+      targetUserId: "user-2",
+      relatedEntityId: "issue-1",
+      severity: "MEDIUM",
+      metadata: { actionState: "DONE" },
+      occurredAt: new Date("2026-02-20T11:00:00.000Z"),
+    };
+
+    const existing: CoordinationTrigger = {
+      id: "existing-blocker",
+      projectId: "project-1",
+      ruleId: "blocker-persisted-high-severity",
+      targetUserId: "user-2",
+      relatedEntityId: "issue-1",
+      severity: "HIGH",
+      createdAt: new Date("2026-02-19T10:00:00.000Z"),
+      status: "PENDING",
+      escalationLevel: 1,
+      dedupKey: "blocker-persisted-high-severity:user-2:issue-1:L1",
+    };
+
+    const store = new InMemoryCoordinationStore([doneEvent], [existing]);
+    const result = await processCoordinationEvents({ store, now });
+
+    expect(result.resolvedTriggers).toBe(1);
+    expect(store.getCreatedTriggers()[0].status).toBe("RESOLVED");
+  });
+
+  it("creates a new trigger when snooze expires", async () => {
+    const now = new Date("2026-02-20T12:00:00.000Z");
+    const snoozeExpired: CoordinationEvent = {
+      id: "evt-snooze",
+      projectId: "project-1",
+      eventType: "SNOOZE_EXPIRED",
+      targetUserId: "user-3",
+      relatedEntityId: "issue-8",
+      severity: "MEDIUM",
+      metadata: { retrigger: true, previousEscalationLevel: 2 },
+      occurredAt: new Date("2026-02-20T11:00:00.000Z"),
+    };
+
+    const store = new InMemoryCoordinationStore([snoozeExpired]);
+    const result = await processCoordinationEvents({ store, now });
+
+    expect(result.createdTriggers).toBe(1);
+    expect(store.getCreatedTriggers()[0]).toMatchObject({
+      ruleId: "snooze-expired-retrigger",
+      escalationLevel: 2,
+    });
+  });
+
   it("allows escalated question reminder when scheduled sweep sees 72h age", async () => {
     const now = new Date("2026-02-22T12:00:00.000Z");
     const existing: CoordinationTrigger = {
