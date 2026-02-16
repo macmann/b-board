@@ -155,6 +155,35 @@ enum AISuggestionStatus {
   SNOOZED
 }
 
+enum CoordinationEventType {
+  SUMMARY_VIEWED
+  EVIDENCE_CLICKED
+  FEEDBACK_SUBMITTED
+  DIGEST_COPIED
+  ACTION_INTERACTION
+  QUESTION_EVENT
+  BLOCKER_PERSISTED
+  MISSING_STANDUP_DETECTED
+  STALE_WORK_DETECTED
+  LOW_CONFIDENCE_DETECTED
+  ACTION_OVERDUE
+  QUESTION_UNANSWERED
+  SNOOZE_EXPIRED
+}
+
+enum CoordinationSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum CoordinationTriggerStatus {
+  PENDING
+  SENT
+  DISMISSED
+  RESOLVED
+}
+
 enum ResearchObservationType {
   INTERVIEW
   SURVEY
@@ -276,6 +305,8 @@ model Project {
   builds             Build[]
   testCases          TestCase[]
   facilitatorNotes   FacilitatorNote[]
+  coordinationEvents CoordinationEvent[]
+  coordinationTriggers CoordinationTrigger[]
 
   @@unique([workspaceId, key])
 }
@@ -873,4 +904,46 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([actorType, actorId])
   @@index([createdAt])
+}
+
+model CoordinationEvent {
+  id              String                @id @default(cuid())
+  projectId       String
+  eventType       CoordinationEventType
+  targetUserId    String?
+  relatedEntityId String?
+  severity        CoordinationSeverity?
+  metadata        Json?
+  occurredAt      DateTime              @default(now())
+  processedAt     DateTime?
+  createdAt       DateTime              @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, occurredAt])
+  @@index([projectId, eventType, occurredAt])
+  @@index([projectId, processedAt])
+  @@index([targetUserId])
+}
+
+model CoordinationTrigger {
+  id              String                    @id @default(cuid())
+  projectId       String
+  ruleId          String
+  targetUserId    String
+  relatedEntityId String?
+  severity        CoordinationSeverity
+  createdAt       DateTime                  @default(now())
+  status          CoordinationTriggerStatus @default(PENDING)
+  resolvedAt      DateTime?
+  escalationLevel Int
+  dedupKey        String
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([projectId, status])
+  @@index([projectId, status, relatedEntityId])
+  @@index([ruleId, targetUserId, relatedEntityId, createdAt])
+  @@index([dedupKey, createdAt])
 }
