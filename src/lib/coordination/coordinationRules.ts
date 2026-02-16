@@ -63,6 +63,11 @@ const questionEscalationLevel = (event: CoordinationEvent) => {
   return 1;
 };
 
+const snoozeEscalationLevel = (event: CoordinationEvent) => {
+  const previousLevel = numberMeta(event, "previousEscalationLevel") ?? 1;
+  return Math.max(1, Math.min(3, previousLevel));
+};
+
 export const COORDINATION_RULES: CoordinationRule[] = [
   {
     id: "blocker-persisted-high-severity",
@@ -124,6 +129,27 @@ export const COORDINATION_RULES: CoordinationRule[] = [
       return {
         projectId: event.projectId,
         targetUserId,
+        relatedEntityId: event.relatedEntityId,
+        severity: event.severity ?? "MEDIUM",
+        escalationLevel,
+      };
+    },
+  },
+  {
+    id: "snooze-expired-retrigger",
+    triggerEvent: "SNOOZE_EXPIRED",
+    cooldownMinutes: 6 * 60,
+    condition: ({ event }) => {
+      const shouldRetrigger = event.metadata?.retrigger === true;
+      return shouldRetrigger;
+    },
+    action: ({ event }) => {
+      const escalationLevel = snoozeEscalationLevel(event);
+      if (!event.targetUserId) return null;
+
+      return {
+        projectId: event.projectId,
+        targetUserId: event.targetUserId,
         relatedEntityId: event.relatedEntityId,
         severity: event.severity ?? "MEDIUM",
         escalationLevel,

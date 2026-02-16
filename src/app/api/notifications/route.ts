@@ -11,6 +11,20 @@ const normalizeStatus = (raw: string | null) => {
   return null;
 };
 
+const resolveRuleCondition = (ruleId: string) => {
+  if (ruleId === "missing-standup-two-days") return "Triggered after 2+ missed standup days.";
+  if (ruleId === "question-unanswered-24h") return "Triggered after 24+ hours without clarification response.";
+  if (ruleId === "action-overdue") return "Triggered by overdue committed action.";
+  if (ruleId === "snooze-expired-retrigger") return "Triggered because a snoozed reminder expired.";
+  return "Triggered by blocker persistence for 2+ days.";
+};
+
+const resolveEscalationExplanation = (level: number) => {
+  if (level >= 3) return "Level 3: escalated to lead/PO (day 4+).";
+  if (level === 2) return "Level 2: escalated to dependency owner/manager (day 3).";
+  return "Level 1: owner reminder (day 2).";
+};
+
 export async function GET(request: NextRequest) {
   const user = await getUserFromRequest(request);
   if (!user) {
@@ -28,7 +42,12 @@ export async function GET(request: NextRequest) {
     },
     include: {
       trigger: {
-        select: { projectId: true },
+        select: {
+          projectId: true,
+          ruleId: true,
+          escalationLevel: true,
+          createdAt: true,
+        },
       },
     },
     orderBy: { createdAt: "desc" },
@@ -49,5 +68,20 @@ export async function GET(request: NextRequest) {
       )
   );
 
-  return NextResponse.json({ notifications });
+  const payload = notifications.map((notification) => ({
+    ...notification,
+    why:
+      ((notification.context as { why?: Record<string, unknown> } | null)?.why as Record<string, unknown> | undefined) ?? {
+        ruleId: notification.trigger.ruleId,
+        condition: resolveRuleCondition(notification.trigger.ruleId),
+        since: notification.trigger.createdAt.toISOString(),
+        escalation: {
+          level: notification.trigger.escalationLevel,
+          explanation: resolveEscalationExplanation(notification.trigger.escalationLevel),
+        },
+        evidence: notification.relatedEntityId ? { issueUrl: `/issues/${notification.relatedEntityId}` } : null,
+      },
+  }));
+
+  return NextResponse.json({ notifications: payload });
 }

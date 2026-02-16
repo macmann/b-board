@@ -5,6 +5,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { routes } from "@/lib/routes";
 
+type NotificationWhy = {
+  ruleId?: string;
+  condition?: string;
+  since?: string;
+  escalation?: { level?: number; explanation?: string };
+  evidence?: { issueUrl?: string } | null;
+};
+
 type NotificationItem = {
   id: string;
   triggerId: string;
@@ -15,6 +23,7 @@ type NotificationItem = {
   status: "UNREAD" | "READ" | "DISMISSED";
   createdAt: string;
   trigger: { projectId: string };
+  why?: NotificationWhy;
 };
 
 const severityClass: Record<NotificationItem["severity"], string> = {
@@ -26,6 +35,7 @@ const severityClass: Record<NotificationItem["severity"], string> = {
 export default function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationItem[]>([]);
+  const [expandedWhy, setExpandedWhy] = useState<Record<string, boolean>>({});
 
   const unreadCount = useMemo(() => items.filter((item) => item.status === "UNREAD").length, [items]);
 
@@ -110,7 +120,35 @@ export default function NotificationBell() {
                     <button type="button" className="text-rose-600 hover:text-rose-700" onClick={() => updateStatus(item.id, "dismiss")}>
                       Dismiss
                     </button>
+                    <button
+                      type="button"
+                      className="text-sky-700 hover:text-sky-800 dark:text-sky-300"
+                      onClick={() => setExpandedWhy((state) => ({ ...state, [item.id]: !state[item.id] }))}
+                    >
+                      Why?
+                    </button>
                   </div>
+                  {expandedWhy[item.id] && item.why && (
+                    <div className="mt-2 rounded-md bg-slate-50 p-2 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                      <p>
+                        <span className="font-semibold">Rule:</span> {item.why.ruleId ?? "n/a"}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Condition:</span> {item.why.condition ?? "n/a"}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Since:</span> {item.why.since ? new Date(item.why.since).toLocaleString() : "n/a"}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Escalation:</span> {item.why.escalation?.explanation ?? "n/a"}
+                      </p>
+                      {item.why.evidence?.issueUrl && (
+                        <Link className="text-primary underline-offset-2 hover:underline" href={item.why.evidence.issueUrl}>
+                          Open evidence
+                        </Link>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))
             )}
