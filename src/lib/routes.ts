@@ -9,6 +9,7 @@ export const routes = {
   myProjects: () => "/my-projects",
   reports: () => "/reports",
   profile: () => "/profile",
+  executionAlerts: () => "/execution-alerts",
   projects: () => "/projects",
   myProjectLegacy: () => "/my-project",
   project: {
@@ -23,6 +24,7 @@ export const routes = {
     reports: (projectId: string) => `${projectBase(projectId)}/reports`,
     qa: (projectId: string) => `${projectBase(projectId)}/qa`,
     standup: (projectId: string) => `${projectBase(projectId)}/standup`,
+    executionAlerts: (projectId: string) => `${projectBase(projectId)}/execution-alerts`,
     settings: projectSettings,
     settingsImport: (projectId: string) => `${projectSettings(projectId)}/import`,
     settingsDangerZone: (projectId: string) => `${projectSettings(projectId)}#danger-zone`,

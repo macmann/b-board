@@ -1,5 +1,6 @@
 import { prisma } from "../db";
 import { evaluateCoordinationRules, getRuleById, type CoordinationRule } from "./coordinationRules";
+import { createNotificationForTrigger, emitNotificationTelemetry } from "./notifications";
 import type { CoordinationEvent, CoordinationLogEntry, CoordinationTrigger, CoordinationTriggerDraft } from "./types";
 
 const EVENT_LOOKBACK_HOURS = 72;
@@ -70,7 +71,7 @@ const prismaStore: CoordinationStore = {
     };
   },
   async createTrigger(draft, createdAt) {
-    await prismaAny.coordinationTrigger.create({
+    const trigger = await prismaAny.coordinationTrigger.create({
       data: {
         projectId: draft.projectId,
         ruleId: draft.ruleId,
@@ -82,24 +83,68 @@ const prismaStore: CoordinationStore = {
         createdAt,
       },
     });
+
+    await createNotificationForTrigger({
+      id: trigger.id,
+      projectId: trigger.projectId,
+      ruleId: trigger.ruleId,
+      targetUserId: trigger.targetUserId,
+      relatedEntityId: trigger.relatedEntityId,
+      severity: trigger.severity,
+      escalationLevel: trigger.escalationLevel,
+      createdAt: trigger.createdAt,
+    });
   },
   async resolveTriggers({ projectId, relatedEntityId, ruleIds, resolvedAt }) {
     if (!relatedEntityId && !ruleIds?.length) return 0;
 
-    const result = await prismaAny.coordinationTrigger.updateMany({
+    const existing = await prismaAny.coordinationTrigger.findMany({
       where: {
         projectId,
         status: { in: ["PENDING", "SENT"] },
         ...(relatedEntityId ? { relatedEntityId } : {}),
         ...(ruleIds?.length ? { ruleId: { in: ruleIds } } : {}),
       },
+      select: { id: true, targetUserId: true },
+    });
+
+    if (!existing.length) return 0;
+
+    const triggerIds = existing.map((trigger: { id: string }) => trigger.id);
+
+    await prismaAny.coordinationTrigger.updateMany({
+      where: { id: { in: triggerIds } },
       data: {
         status: "RESOLVED",
         resolvedAt,
       },
     });
 
-    return result.count ?? 0;
+    const notifications = await prismaAny.notification.findMany({
+      where: { triggerId: { in: triggerIds } },
+      select: { id: true, triggerId: true, userId: true },
+    });
+
+    if (notifications.length) {
+      await prismaAny.notification.updateMany({
+        where: { id: { in: notifications.map((notification: { id: string }) => notification.id) } },
+        data: { status: "READ" },
+      });
+
+      await Promise.all(
+        notifications.map((notification: { id: string; triggerId: string; userId: string }) =>
+          emitNotificationTelemetry({
+            action: "NotificationResolved",
+            projectId,
+            notificationId: notification.id,
+            triggerId: notification.triggerId,
+            userId: notification.userId,
+          })
+        )
+      );
+    }
+
+    return triggerIds.length;
   },
   async getPendingTriggerAges({ projectId, now }) {
     const triggers = await prismaAny.coordinationTrigger.findMany({

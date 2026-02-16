@@ -8,6 +8,7 @@ import { Button } from "../ui/Button";
 import ThemeToggle from "../theme/ThemeToggle";
 import Logo from "../branding/Logo";
 import ProjectSwitcher from "./ProjectSwitcher";
+import NotificationBell from "./NotificationBell";
 
 type AppShellProps = {
   children: ReactNode;
@@ -63,6 +64,7 @@ export default function AppShell({
         { href: routes.project.reports(currentProjectId), label: "Reports" },
         { href: routes.project.qa(currentProjectId), label: "QA" },
         { href: routes.project.standup(currentProjectId), label: "Standup" },
+        { href: routes.project.executionAlerts(currentProjectId), label: "Execution Alerts" },
         { href: routes.project.settings(currentProjectId), label: "Settings" },
       ]
     : [];
@@ -144,6 +146,7 @@ export default function AppShell({
             </div>
           )}
           <div className="flex items-center gap-3">
+            <NotificationBell />
             <ThemeToggle />
             {user && (
               <div className="text-right">
