@@ -43,6 +43,12 @@ const reportModules: ReadonlyArray<ReportModuleNavItem & { requiresSprintScope: 
     requiresSprintScope: true,
   },
   {
+    key: "sprint-health",
+    title: "Sprint Health",
+    description: "Deterministic risk score with trend, attribution, and spillover forecast.",
+    requiresSprintScope: false,
+  },
+  {
     key: "standup-insights",
     title: "Standup Insights",
     description: "Summarize daily standup updates to highlight risks and progress.",

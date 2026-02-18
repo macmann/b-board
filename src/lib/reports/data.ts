@@ -15,7 +15,9 @@ import {
   StandupInsightsReport,
   StandupSignal,
   VelocityPoint,
+  SprintHealthReport,
 } from "./dto";
+import { computeSprintHealthScore } from "./sprintHealth";
 
 const toDateOnly = (value: string) => new Date(`${value}T00:00:00.000Z`);
 
@@ -673,6 +675,293 @@ export const fetchStandupInsights = async (
     daily,
     signals: dedupedSignals,
     signalDefinitions: SIGNAL_DEFINITIONS,
+  };
+};
+
+const buildRiskConcentrationAreas = (riskDrivers: { type: string; impact: number }[]) => {
+  const areas = new Set<string>();
+  riskDrivers.forEach((driver) => {
+    if (driver.impact >= 0) return;
+    if (driver.type === "BLOCKER_CLUSTER") areas.add("Blockers");
+    if (driver.type === "MISSING_STANDUP") areas.add("Standup participation");
+    if (driver.type === "STALE_WORK") areas.add("Execution flow");
+    if (driver.type === "LOW_QUALITY_INPUT") areas.add("Input quality");
+    if (driver.type === "UNRESOLVED_ACTIONS") areas.add("Follow-through");
+    if (driver.type === "END_OF_SPRINT_PRESSURE") areas.add("Sprint timing pressure");
+  });
+  return Array.from(areas);
+};
+
+const toModelStatus = (score: number): "GREEN" | "YELLOW" | "RED" => {
+  if (score >= 80) return "GREEN";
+  if (score >= 60) return "YELLOW";
+  return "RED";
+};
+
+const round2 = (value: number) => Math.round(value * 100) / 100;
+
+const computeDailySprintHealth = async (projectId: string, dateIso: string) => {
+  const dayStart = startOfDay(dateIso);
+  const dayEnd = endOfDay(dateIso);
+  const lookbackStart = new Date(dayStart);
+  lookbackStart.setDate(lookbackStart.getDate() - 6);
+
+  const [members, dayEntries, recentEntries, qualitySnapshot, unresolvedActions, staleIssues, activeTaskCount, activeSprint] = await Promise.all([
+    prisma.projectMember.findMany({
+      where: { projectId },
+      select: { userId: true },
+    }),
+    prisma.dailyStandupEntry.findMany({
+      where: { projectId, date: { gte: dayStart, lte: dayEnd } },
+      select: { id: true, userId: true, blockers: true },
+    }),
+    prisma.dailyStandupEntry.findMany({
+      where: { projectId, date: { gte: lookbackStart, lte: dayEnd } },
+      select: {
+        id: true,
+        userId: true,
+        date: true,
+        blockers: true,
+        issues: { select: { issueId: true } },
+      },
+    }),
+    prisma.standupQualityDaily.findUnique({
+      where: { projectId_date: { projectId, date: dayStart } },
+      select: { qualityScore: true },
+    }),
+    prisma.standupActionState.count({
+      where: {
+        projectId,
+        date: { lte: dayEnd },
+        state: { in: ["OPEN", "SNOOZED"] },
+      },
+    }),
+    prisma.issue.findMany({
+      where: {
+        projectId,
+        status: { not: IssueStatus.DONE },
+        updatedAt: { lt: new Date(dayEnd.getTime() - 72 * 60 * 60 * 1000) },
+      },
+      select: { id: true },
+    }),
+    prisma.issue.count({
+      where: {
+        projectId,
+        status: { not: IssueStatus.DONE },
+      },
+    }),
+    prisma.sprint.findFirst({
+      where: {
+        projectId,
+        status: "ACTIVE",
+      },
+      select: { endDate: true },
+    }),
+  ]);
+
+  const teamSize = Math.max(1, members.length);
+  const standupByUser = new Set(dayEntries.map((entry) => entry.userId));
+  const missingStandupMembers = Math.max(0, members.length - standupByUser.size);
+
+  const chains = new Map<string, Set<string>>();
+  recentEntries.forEach((entry) => {
+    const blockerText = entry.blockers?.trim();
+    if (!blockerText) return;
+    blockerText
+      .split(/[.\n,;]+/)
+      .map((snippet) => snippet.trim().toLowerCase())
+      .filter((snippet) => snippet.length > 5)
+      .forEach((snippet) => {
+        const key = `${entry.userId}:${snippet}`;
+        const dates = chains.get(key) ?? new Set<string>();
+        dates.add(entry.date.toISOString().slice(0, 10));
+        chains.set(key, dates);
+      });
+  });
+
+  const blockerChains = Array.from(chains.entries()).filter(([, dates]) => dates.size >= 3);
+  const persistentBlockersOver2Days = blockerChains.length;
+
+  const blockerIssueIds = new Set(
+    recentEntries.flatMap((entry) =>
+      entry.blockers?.trim() ? entry.issues.map((issue) => issue.issueId) : []
+    )
+  );
+  const staleIssueIds = new Set(staleIssues.map((issue) => issue.id));
+  const overlappingStaleBlockedIssueCount = Array.from(staleIssueIds).filter((id) => blockerIssueIds.has(id)).length;
+
+  const daysRemainingInSprint =
+    activeSprint?.endDate
+      ? Math.max(0, Math.ceil((activeSprint.endDate.getTime() - dayStart.getTime()) / (24 * 60 * 60 * 1000)))
+      : null;
+
+  const computation = computeSprintHealthScore({
+    persistentBlockersOver2Days,
+    missingStandupMembers,
+    staleWorkCount: staleIssues.length,
+    unresolvedActions,
+    qualityScore: qualitySnapshot?.qualityScore ?? null,
+    teamSize,
+    activeTaskCount: Math.max(1, activeTaskCount),
+    daysRemainingInSprint,
+  });
+
+  const evidenceByType = {
+    BLOCKER_CLUSTER: blockerChains.map(([key]) => key).slice(0, 6),
+    MISSING_STANDUP: members
+      .map((member) => member.userId)
+      .filter((id) => !standupByUser.has(id))
+      .slice(0, 6),
+    STALE_WORK: staleIssues.map((issue) => issue.id).slice(0, 10),
+    LOW_QUALITY_INPUT:
+      qualitySnapshot?.qualityScore !== undefined
+        ? [`quality:${qualitySnapshot.qualityScore}`]
+        : [],
+    UNRESOLVED_ACTIONS: [`count:${unresolvedActions}`],
+    END_OF_SPRINT_PRESSURE:
+      daysRemainingInSprint !== null
+        ? [`daysRemaining:${daysRemainingInSprint}`]
+        : [],
+    OVERLAP_DEDUP_CREDIT: [`overlapIssueCount:${overlappingStaleBlockedIssueCount}`],
+  } as const;
+
+  const riskDrivers = computation.riskDrivers.map((driver) => ({
+    ...driver,
+    evidence: [...evidenceByType[driver.type]],
+  }));
+
+  const negativeImpacts = riskDrivers
+    .filter((driver) => driver.impact < 0)
+    .map((driver) => Math.abs(driver.impact));
+  const totalNegativeImpact = negativeImpacts.reduce((sum, value) => sum + value, 0);
+  const maxSingleImpact = negativeImpacts.length ? Math.max(...negativeImpacts) : 0;
+  const concentrationIndex = totalNegativeImpact > 0 ? round2(maxSingleImpact / totalNegativeImpact) : 0;
+
+  const prismaAny = prisma as any;
+
+  await prismaAny.sprintHealthDaily.upsert({
+    where: { projectId_date: { projectId, date: dayStart } },
+    create: {
+      projectId,
+      date: dayStart,
+      healthScore: computation.healthScore,
+      status: computation.status,
+      confidenceLevel: computation.confidenceLevel,
+      scoreBreakdown: computation.scoreBreakdown,
+      riskDrivers,
+      staleWorkCount: staleIssues.length,
+      missingStandups: missingStandupMembers,
+      persistentBlockers: persistentBlockersOver2Days,
+      unresolvedActions,
+      qualityScore: qualitySnapshot?.qualityScore ?? null,
+      probabilities: {
+        ...computation.probabilities,
+        probabilityModel: computation.probabilityModel,
+        confidenceBasis: computation.confidenceBasis,
+        normalizedMetrics: computation.normalizedMetrics,
+        concentrationIndex,
+      },
+      scoringModelVersion: computation.scoringModelVersion,
+    },
+    update: {
+      healthScore: computation.healthScore,
+      status: computation.status,
+      confidenceLevel: computation.confidenceLevel,
+      scoreBreakdown: computation.scoreBreakdown,
+      riskDrivers,
+      staleWorkCount: staleIssues.length,
+      missingStandups: missingStandupMembers,
+      persistentBlockers: persistentBlockersOver2Days,
+      unresolvedActions,
+      qualityScore: qualitySnapshot?.qualityScore ?? null,
+      probabilities: {
+        ...computation.probabilities,
+        probabilityModel: computation.probabilityModel,
+        confidenceBasis: computation.confidenceBasis,
+        normalizedMetrics: computation.normalizedMetrics,
+        concentrationIndex,
+      },
+      scoringModelVersion: computation.scoringModelVersion,
+    },
+  });
+
+  return {
+    date: dateIso,
+    ...computation,
+    riskDrivers,
+    staleWorkCount: staleIssues.length,
+    missingStandupMembers,
+    persistentBlockersOver2Days,
+    unresolvedActions,
+    qualityScore: qualitySnapshot?.qualityScore ?? null,
+    concentrationIndex,
+  };
+};
+
+export const fetchSprintHealthReport = async (
+  filters: ReportFilters
+): Promise<SprintHealthReport> => {
+  const trendDates = buildDateRange(
+    new Date(new Date(`${filters.to}T00:00:00.000Z`).getTime() - 13 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10),
+    filters.to
+  );
+
+  const computed = await Promise.all(
+    trendDates.map((dateIso) => computeDailySprintHealth(filters.projectId, dateIso))
+  );
+
+  const smoothedTrend = computed.map((day, index) => {
+    const window = computed.slice(Math.max(0, index - 2), index + 1);
+    const average =
+      window.reduce((sum, item) => sum + item.healthScore, 0) / Math.max(1, window.length);
+    return {
+      date: day.date,
+      healthScore: round2(average),
+      status: toModelStatus(round2(average)),
+    };
+  });
+
+  const latest = computed[computed.length - 1];
+  const previous = computed[computed.length - 2];
+  const latestSmooth = smoothedTrend[smoothedTrend.length - 1];
+  const previousSmooth = smoothedTrend[smoothedTrend.length - 2] ?? latestSmooth;
+
+  const rawDelta = latest.riskDrivers.length - (previous?.riskDrivers.length ?? latest.riskDrivers.length);
+  const riskDeltaSinceYesterday = Math.abs(rawDelta) <= 2 ? 0 : rawDelta;
+
+  const smoothDelta = latestSmooth.healthScore - previousSmooth.healthScore;
+  const trendIndicator =
+    smoothDelta > 2
+      ? "IMPROVED"
+      : smoothDelta < -2
+        ? "DEGRADED"
+        : "UNCHANGED";
+
+  return {
+    date: latest.date,
+    healthScore: latest.healthScore,
+    smoothedHealthScore: latestSmooth.healthScore,
+    status: latest.status,
+    confidenceLevel: latest.confidenceLevel,
+    confidenceBasis: latest.confidenceBasis,
+    scoreBreakdown: latest.scoreBreakdown,
+    riskDrivers: latest.riskDrivers,
+    probabilities: latest.probabilities,
+    probabilityModel: latest.probabilityModel,
+    normalizedMetrics: latest.normalizedMetrics,
+    scoringModelVersion: latest.scoringModelVersion,
+    riskConcentrationAreas: buildRiskConcentrationAreas(latest.riskDrivers),
+    concentrationIndex: latest.concentrationIndex,
+    staleWorkCount: latest.staleWorkCount,
+    missingStandupMembers: latest.missingStandupMembers,
+    persistentBlockersOver2Days: latest.persistentBlockersOver2Days,
+    unresolvedActions: latest.unresolvedActions,
+    qualityScore: latest.qualityScore,
+    trend14d: smoothedTrend,
+    riskDeltaSinceYesterday,
+    trendIndicator,
   };
 };
 

@@ -8,6 +8,7 @@ import type { ReportModuleNavItem } from "./ReportModuleNav";
 import BlockerThemesModule from "./BlockerThemesModule";
 import CycleTimeModule from "./CycleTimeModule";
 import SprintBurndownModule from "./SprintBurndownModule";
+import SprintHealthModule from "./SprintHealthModule";
 import StandupInsightsModule from "./StandupInsightsModule";
 import VelocityTrendModule from "./VelocityTrendModule";
 import {
@@ -36,6 +37,9 @@ const REPORT_COMPONENTS: Record<ReportModuleKey, ReportComponent> = {
   ),
   "cycle-time": ({ projectId, initialFilters }) => (
     <CycleTimeModule projectId={projectId} initialFilters={initialFilters} />
+  ),
+  "sprint-health": ({ projectId, initialFilters }) => (
+    <SprintHealthModule projectId={projectId} initialFilters={initialFilters} />
   ),
   "standup-insights": ({ projectId, initialFilters }) => (
     <StandupInsightsModule projectId={projectId} initialFilters={initialFilters} />
