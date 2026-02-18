@@ -312,6 +312,7 @@ model Project {
   standupSummaries   StandupSummary[]
   standupQualityDaily StandupQualityDaily[]
   sprintHealthDaily  SprintHealthDaily[]
+  sprintVelocitySnapshots SprintVelocitySnapshot[]
   standupAttendances StandupAttendance[]
   standupActionStates StandupActionState[]
   standupClarifications StandupEntryClarification[]
@@ -420,6 +421,7 @@ model Sprint {
   project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   issues         Issue[]
   testExecutions TestExecution[]
+  velocitySnapshots SprintVelocitySnapshot[]
 }
 
 model Epic {
@@ -839,6 +841,36 @@ model SprintHealthDaily {
 
   @@unique([projectId, date])
   @@index([projectId, date])
+}
+
+model SprintVelocitySnapshot {
+  id                        String   @id @default(cuid())
+  projectId                 String
+  sprintId                  String?
+  date                      DateTime @db.Date
+  avgTasksCompletedPerDay   Float
+  avgBlockerResolutionHours Float?
+  avgActionResolutionHours  Float?
+  completionRatePerDay      Float
+  remainingLinkedWork       Int
+  projectedCompletionDate   DateTime?
+  deliveryRisk              Boolean  @default(false)
+  capacitySignalsJson       Json
+  forecastConfidence        String
+  dataQualityScore          Float
+  velocityStabilityScore    Float
+  blockerVolatilityScore    Float
+  projectionModelVersion    String   @default("3.2.1")
+  projectionDefinitionsJson Json
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sprint  Sprint? @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, date])
+  @@index([projectId, sprintId, date])
+  @@map("sprint_velocity_snapshot")
 }
 
 model FacilitatorNote {

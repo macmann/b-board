@@ -125,6 +125,33 @@ export default function SprintHealthModule({ projectId, initialFilters }: Sprint
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           Success probability {data.probabilities.sprintSuccess}% • Spillover probability {data.probabilities.spillover}%
         </p>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+          Forecast confidence: {data.forecastConfidence}
+        </p>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+          Remaining linked work: {data.velocitySnapshot.remainingLinkedWork} • Weighted remaining: {data.velocitySnapshot.weightedRemainingWork}
+        </p>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+          Completion rate/day: {data.velocitySnapshot.completionRatePerDay} • Linked work coverage: {Math.round(data.velocitySnapshot.linkedWorkCoverage * 100)}%
+        </p>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+          Projected completion: {data.velocitySnapshot.projectedCompletionDate ? formatDateLabel(data.velocitySnapshot.projectedCompletionDate) : "n/a"}
+          {data.velocitySnapshot.projectedCompletionDateSmoothed ? ` • 3d smoothed: ${formatDateLabel(data.velocitySnapshot.projectedCompletionDateSmoothed)}` : ""}
+          {data.velocitySnapshot.projectedDateDeltaDays ? ` • Δ ${data.velocitySnapshot.projectedDateDeltaDays}d` : ""}
+          {data.velocitySnapshot.deliveryRisk ? " • DELIVERY_RISK" : ""}
+        </p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          {data.velocitySnapshot.scopeChangeSummary}
+        </p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Sprint: {data.velocitySnapshot.sprint.name ?? "No active sprint"}
+          {data.velocitySnapshot.sprint.endDate ? ` • ends ${formatDateLabel(data.velocitySnapshot.sprint.endDate)}` : ""}
+        </p>
+        {data.velocitySnapshot.unweightedProjectionWarning ? (
+          <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+            {data.velocitySnapshot.projectionDefinitions.warning}
+          </p>
+        ) : null}
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
           Risk delta since yesterday: {data.riskDeltaSinceYesterday >= 0 ? "+" : ""}
           {data.riskDeltaSinceYesterday} ({data.trendIndicator})
@@ -133,7 +160,10 @@ export default function SprintHealthModule({ projectId, initialFilters }: Sprint
           Probability model: {data.probabilityModel.name} — {data.probabilityModel.formula}
         </p>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Scoring model version: {data.scoringModelVersion}
+          Scoring model version: {data.scoringModelVersion} • Projection model: {data.velocitySnapshot.projectionModelVersion}
+        </p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Scope rule: {data.velocitySnapshot.projectionDefinitions.remainingWorkDefinition}
         </p>
       </section>
 
@@ -193,7 +223,29 @@ export default function SprintHealthModule({ projectId, initialFilters }: Sprint
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             Normalization — blockers/member: {data.normalizedMetrics.blockerRatePerMember}, missing standup rate: {data.normalizedMetrics.missingStandupRate}, stale/task: {data.normalizedMetrics.staleWorkRatePerActiveTask}
           </p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Avg blocker resolution: {data.velocitySnapshot.avgBlockerResolutionHours ?? "n/a"}h • Avg action resolution: {data.velocitySnapshot.avgActionResolutionHours ?? "n/a"}h
+          </p>
         </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Capacity signals</h3>
+        <ul className="mt-3 space-y-2 text-sm text-slate-700 dark:text-slate-200">
+          {data.capacitySignals.length === 0 ? (
+            <li>No capacity imbalance detected.</li>
+          ) : (
+            data.capacitySignals.map((signal) => (
+              <li key={`${signal.userId}-${signal.type}`} className="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800">
+                <p className="font-medium">{signal.type} — {signal.name}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{signal.message}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  open:{signal.openItems} blocked:{signal.blockedItems} idleDays:{signal.idleDays} • thresholds o&gt;{signal.thresholds.openItems}, b≥{signal.thresholds.blockedItems}, idle≥{signal.thresholds.idleDays}
+                </p>
+              </li>
+            ))
+          )}
+        </ul>
       </section>
     </div>
   );

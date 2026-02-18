@@ -8,7 +8,8 @@ export type SprintHealthRiskDriverType =
   | "LOW_QUALITY_INPUT"
   | "UNRESOLVED_ACTIONS"
   | "END_OF_SPRINT_PRESSURE"
-  | "OVERLAP_DEDUP_CREDIT";
+  | "OVERLAP_DEDUP_CREDIT"
+  | "DELIVERY_RISK";
 
 export type SprintHealthRiskDriver = {
   type: SprintHealthRiskDriverType;

@@ -3,6 +3,7 @@ import { logError } from "@/lib/logger";
 import {
   IssueHistoryField,
   IssueStatus,
+  ResearchStatus,
 } from "@/lib/prismaEnums";
 
 import {
@@ -687,7 +688,7 @@ const buildRiskConcentrationAreas = (riskDrivers: { type: string; impact: number
     if (driver.type === "STALE_WORK") areas.add("Execution flow");
     if (driver.type === "LOW_QUALITY_INPUT") areas.add("Input quality");
     if (driver.type === "UNRESOLVED_ACTIONS") areas.add("Follow-through");
-    if (driver.type === "END_OF_SPRINT_PRESSURE") areas.add("Sprint timing pressure");
+    if (driver.type === "END_OF_SPRINT_PRESSURE" || driver.type === "DELIVERY_RISK") areas.add("Sprint timing pressure");
   });
   return Array.from(areas);
 };
@@ -700,16 +701,67 @@ const toModelStatus = (score: number): "GREEN" | "YELLOW" | "RED" => {
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
+const PROJECTION_MODEL_VERSION = "3.2.1";
+const FORECAST_CONFIDENCE_WEIGHTS = {
+  dataQuality: 0.4,
+  velocityStability: 0.3,
+  blockerVolatility: 0.15,
+  linkedCoverage: 0.15,
+} as const;
+const FORECAST_CONFIDENCE_THRESHOLDS = {
+  high: 0.75,
+  medium: 0.55,
+  minimumSampleDays: 5,
+} as const;
+const CAPACITY_THRESHOLDS = {
+  openItems: 5,
+  blockedItems: 2,
+  idleDays: 5,
+} as const;
+
+const daysBetween = (from: Date, to: Date) =>
+  Math.max(0, Math.round((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)));
+
 const computeDailySprintHealth = async (projectId: string, dateIso: string) => {
   const dayStart = startOfDay(dateIso);
   const dayEnd = endOfDay(dateIso);
   const lookbackStart = new Date(dayStart);
   lookbackStart.setDate(lookbackStart.getDate() - 6);
 
-  const [members, dayEntries, recentEntries, qualitySnapshot, unresolvedActions, staleIssues, activeTaskCount, activeSprint] = await Promise.all([
+  const velocityWindowStart = new Date(dayStart);
+  velocityWindowStart.setDate(velocityWindowStart.getDate() - 6);
+
+  const capacityWindowStart = new Date(dayStart);
+  capacityWindowStart.setDate(capacityWindowStart.getDate() - 13);
+
+  const blockerWindowStart = new Date(dayStart);
+  blockerWindowStart.setDate(blockerWindowStart.getDate() - 29);
+
+  const scopeChangeWindowStart = new Date(dayStart);
+  scopeChangeWindowStart.setDate(scopeChangeWindowStart.getDate() - 6);
+
+  const [
+    members,
+    dayEntries,
+    recentEntries,
+    entriesInCapacityWindow,
+    qualitySnapshot,
+    unresolvedActions,
+    staleIssues,
+    activeTaskCount,
+    activeSprint,
+    completedTransitions,
+    blockerWindowEntries,
+    actionStates,
+    issueLinks,
+    researchLinks,
+    openIssues,
+    openResearch,
+    issueScopeChanges,
+  ] = await Promise.all([
     prisma.projectMember.findMany({
       where: { projectId },
-      select: { userId: true },
+      select: { userId: true, user: { select: { name: true, email: true } } },
     }),
     prisma.dailyStandupEntry.findMany({
       where: { projectId, date: { gte: dayStart, lte: dayEnd } },
@@ -723,6 +775,16 @@ const computeDailySprintHealth = async (projectId: string, dateIso: string) => {
         date: true,
         blockers: true,
         issues: { select: { issueId: true } },
+      },
+    }),
+    prisma.dailyStandupEntry.findMany({
+      where: { projectId, date: { gte: capacityWindowStart, lte: dayEnd } },
+      select: {
+        id: true,
+        date: true,
+        userId: true,
+        issues: { select: { issueId: true } },
+        research: { select: { researchItemId: true } },
       },
     }),
     prisma.standupQualityDaily.findUnique({
@@ -755,7 +817,88 @@ const computeDailySprintHealth = async (projectId: string, dateIso: string) => {
         projectId,
         status: "ACTIVE",
       },
-      select: { endDate: true },
+      select: { id: true, name: true, startDate: true, endDate: true },
+    }),
+    prisma.issueHistory.findMany({
+      where: {
+        issue: { projectId },
+        field: IssueHistoryField.STATUS,
+        newValue: IssueStatus.DONE,
+        createdAt: { gte: velocityWindowStart, lte: dayEnd },
+      },
+      select: { issueId: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.dailyStandupEntry.findMany({
+      where: {
+        projectId,
+        date: { gte: blockerWindowStart, lte: dayEnd },
+        NOT: [{ blockers: null }, { blockers: "" }],
+      },
+      select: {
+        id: true,
+        userId: true,
+        date: true,
+        blockers: true,
+        issues: { select: { issueId: true } },
+      },
+      orderBy: { date: "asc" },
+    }),
+    prisma.standupActionState.findMany({
+      where: {
+        projectId,
+        state: "DONE",
+        updatedAt: { gte: blockerWindowStart, lte: dayEnd },
+      },
+      select: { createdAt: true, updatedAt: true },
+    }),
+    prisma.standupEntryIssueLink.findMany({
+      where: {
+        standupEntry: {
+          projectId,
+          date: { gte: capacityWindowStart, lte: dayEnd },
+        },
+      },
+      select: {
+        issueId: true,
+        standupEntryId: true,
+        standupEntry: { select: { userId: true, date: true } },
+      },
+    }),
+    prisma.standupEntryResearchLink.findMany({
+      where: {
+        standupEntry: {
+          projectId,
+          date: { gte: capacityWindowStart, lte: dayEnd },
+        },
+      },
+      select: {
+        researchItemId: true,
+        standupEntryId: true,
+        standupEntry: { select: { userId: true, date: true } },
+      },
+    }),
+    prisma.issue.findMany({
+      where: {
+        projectId,
+        status: { not: IssueStatus.DONE },
+      },
+      select: { id: true, createdAt: true, type: true, sprintId: true },
+    }),
+    prisma.researchItem.findMany({
+      where: {
+        projectId,
+        status: { not: ResearchStatus.COMPLETED },
+      },
+      select: { id: true, createdAt: true },
+    }),
+    prisma.issueHistory.findMany({
+      where: {
+        issue: { projectId },
+        field: IssueHistoryField.SPRINT,
+        createdAt: { gte: scopeChangeWindowStart, lte: dayEnd },
+      },
+      select: { oldValue: true, newValue: true },
     }),
   ]);
 
@@ -806,6 +949,380 @@ const computeDailySprintHealth = async (projectId: string, dateIso: string) => {
     daysRemainingInSprint,
   });
 
+  const doneByDay = new Map<string, number>();
+  completedTransitions.forEach((transition) => {
+    const key = transition.createdAt.toISOString().slice(0, 10);
+    doneByDay.set(key, (doneByDay.get(key) ?? 0) + 1);
+  });
+
+  const velocityDates = buildDateRange(
+    velocityWindowStart.toISOString().slice(0, 10),
+    dayStart.toISOString().slice(0, 10)
+  );
+  const completedCounts = velocityDates.map((date) => doneByDay.get(date) ?? 0);
+  const observedSampleDays = completedCounts.filter((value) => value > 0).length;
+  const avgTasksCompletedPerDay = round2(
+    completedCounts.reduce((sum, count) => sum + count, 0) / Math.max(1, completedCounts.length)
+  );
+
+  const velocityMean = avgTasksCompletedPerDay;
+  const velocityVariance = completedCounts.reduce((sum, count) => sum + (count - velocityMean) ** 2, 0) /
+    Math.max(1, completedCounts.length);
+  const velocityStdDev = Math.sqrt(velocityVariance);
+  const velocityStabilityScore = round2(
+    Math.max(0, Math.min(1, velocityMean <= 0 ? 0 : 1 - velocityStdDev / Math.max(1, velocityMean + 1)))
+  );
+
+  const blockerResolutionHours: number[] = [];
+  const blockerSpans = new Map<string, { first: Date; last: Date; dates: Set<string> }>();
+  blockerWindowEntries.forEach((entry) => {
+    const snippets = (entry.blockers ?? "")
+      .split(/[.\n,;]+/)
+      .map((snippet) => snippet.trim().toLowerCase())
+      .filter((snippet) => snippet.length > 5);
+
+    snippets.forEach((snippet) => {
+      const key = `${entry.userId}:${snippet}`;
+      const current = blockerSpans.get(key) ?? { first: entry.date, last: entry.date, dates: new Set<string>() };
+      if (entry.date.getTime() < current.first.getTime()) current.first = entry.date;
+      if (entry.date.getTime() > current.last.getTime()) current.last = entry.date;
+      current.dates.add(entry.date.toISOString().slice(0, 10));
+      blockerSpans.set(key, current);
+    });
+  });
+
+  blockerSpans.forEach((span) => {
+    if (span.dates.size < 2) return;
+    if (span.last.getTime() >= dayStart.getTime()) return;
+    blockerResolutionHours.push(round2((span.last.getTime() - span.first.getTime()) / (1000 * 60 * 60)));
+  });
+
+  const avgBlockerResolutionHours = blockerResolutionHours.length
+    ? round2(blockerResolutionHours.reduce((sum, value) => sum + value, 0) / blockerResolutionHours.length)
+    : null;
+
+  const actionResolutionHours = actionStates
+    .map((state) => round2((state.updatedAt.getTime() - state.createdAt.getTime()) / (1000 * 60 * 60)))
+    .filter((hours) => hours >= 0);
+  const avgActionResolutionHours = actionResolutionHours.length
+    ? round2(actionResolutionHours.reduce((sum, value) => sum + value, 0) / actionResolutionHours.length)
+    : null;
+
+  const openIssueSet = new Set(openIssues.map((issue) => issue.id));
+  const openResearchSet = new Set(openResearch.map((item) => item.id));
+  const sprintScopeStart = activeSprint?.startDate ?? capacityWindowStart;
+
+  const scopedIssueLinks = issueLinks.filter(
+    (link) => link.standupEntry.date.getTime() >= sprintScopeStart.getTime()
+  );
+  const scopedResearchLinks = researchLinks.filter(
+    (link) => link.standupEntry.date.getTime() >= sprintScopeStart.getTime()
+  );
+
+  const remainingLinkedIssueIds = new Set<string>();
+  const remainingLinkedResearchIds = new Set<string>();
+
+  scopedIssueLinks.forEach((link) => {
+    if (!openIssueSet.has(link.issueId)) return;
+    remainingLinkedIssueIds.add(link.issueId);
+  });
+
+  scopedResearchLinks.forEach((link) => {
+    if (!openResearchSet.has(link.researchItemId)) return;
+    remainingLinkedResearchIds.add(link.researchItemId);
+  });
+
+  const remainingLinkedWork = remainingLinkedIssueIds.size + remainingLinkedResearchIds.size;
+
+  const issueMap = new Map<string, { createdAt: Date; type: string }>(
+    openIssues.map((issue) => [issue.id, { createdAt: issue.createdAt, type: issue.type }] as const)
+  );
+  const researchMap = new Map<string, { createdAt: Date }>(
+    openResearch.map((item) => [item.id, { createdAt: item.createdAt }] as const)
+  );
+
+  const issueTypeWeight = (type: string) => {
+    if (type === "BUG") return 1.1;
+    if (type === "STORY") return 1.35;
+    return 1.0;
+  };
+  const ageWeight = (createdAt: Date) => {
+    const ageDays = daysBetween(createdAt, dayEnd);
+    if (ageDays >= 21) return 1.4;
+    if (ageDays >= 10) return 1.2;
+    if (ageDays >= 5) return 1.1;
+    return 1.0;
+  };
+
+  const weightedRemainingWork = round2(
+    Array.from(remainingLinkedIssueIds).reduce((sum, issueId) => {
+      const issue = issueMap.get(issueId);
+      if (!issue) return sum + 1;
+      return sum + issueTypeWeight(issue.type) * ageWeight(issue.createdAt);
+    }, 0) +
+      Array.from(remainingLinkedResearchIds).reduce((sum, itemId) => {
+        const item = researchMap.get(itemId);
+        if (!item) return sum + 1;
+        return sum + ageWeight(item.createdAt);
+      }, 0)
+  );
+
+  const completionRatePerDay = Math.max(0.1, avgTasksCompletedPerDay);
+  const projectedDaysToComplete = weightedRemainingWork / completionRatePerDay;
+  const projectedCompletionDate = Number.isFinite(projectedDaysToComplete)
+    ? new Date(dayStart.getTime() + Math.ceil(projectedDaysToComplete) * 24 * 60 * 60 * 1000)
+    : null;
+
+  const deliveryRisk = Boolean(
+    activeSprint?.endDate && projectedCompletionDate && projectedCompletionDate.getTime() > activeSprint.endDate.getTime()
+  );
+
+  const openLinkedItemsByUser = new Map<string, Set<string>>();
+  const lastLinkedDateByUser = new Map<string, Date>();
+  scopedIssueLinks.forEach((link) => {
+    const current = openLinkedItemsByUser.get(link.standupEntry.userId) ?? new Set<string>();
+    if (openIssueSet.has(link.issueId)) {
+      current.add(`issue:${link.issueId}`);
+      openLinkedItemsByUser.set(link.standupEntry.userId, current);
+    }
+    const currentDate = lastLinkedDateByUser.get(link.standupEntry.userId);
+    if (!currentDate || currentDate.getTime() < link.standupEntry.date.getTime()) {
+      lastLinkedDateByUser.set(link.standupEntry.userId, link.standupEntry.date);
+    }
+  });
+  scopedResearchLinks.forEach((link) => {
+    const current = openLinkedItemsByUser.get(link.standupEntry.userId) ?? new Set<string>();
+    if (openResearchSet.has(link.researchItemId)) {
+      current.add(`research:${link.researchItemId}`);
+      openLinkedItemsByUser.set(link.standupEntry.userId, current);
+    }
+    const currentDate = lastLinkedDateByUser.get(link.standupEntry.userId);
+    if (!currentDate || currentDate.getTime() < link.standupEntry.date.getTime()) {
+      lastLinkedDateByUser.set(link.standupEntry.userId, link.standupEntry.date);
+    }
+  });
+
+  const blockerIssueCountByUser = new Map<string, Set<string>>();
+  const blockerEntryIdsByUser = new Map<string, Set<string>>();
+  blockerWindowEntries
+    .filter((entry) => entry.date.getTime() >= velocityWindowStart.getTime())
+    .forEach((entry) => {
+      if (!entry.blockers?.trim()) return;
+      const currentIssues = blockerIssueCountByUser.get(entry.userId) ?? new Set<string>();
+      const currentEntries = blockerEntryIdsByUser.get(entry.userId) ?? new Set<string>();
+      entry.issues.forEach((issue) => currentIssues.add(issue.issueId));
+      currentEntries.add(entry.id);
+      blockerIssueCountByUser.set(entry.userId, currentIssues);
+      blockerEntryIdsByUser.set(entry.userId, currentEntries);
+    });
+
+  const capacitySignals = members.flatMap((member) => {
+    const name = member.user.name || member.user.email || member.userId;
+    const openItems = openLinkedItemsByUser.get(member.userId)?.size ?? 0;
+    const blockedItems = blockerIssueCountByUser.get(member.userId)?.size ?? 0;
+    const idleDays = daysBetween(lastLinkedDateByUser.get(member.userId) ?? capacityWindowStart, dayEnd);
+
+    const evidenceEntryIds = Array.from(
+      new Set(
+        scopedIssueLinks
+          .filter((link) => link.standupEntry.userId === member.userId)
+          .map((link) => link.standupEntryId)
+          .concat(
+            scopedResearchLinks
+              .filter((link) => link.standupEntry.userId === member.userId)
+              .map((link) => link.standupEntryId)
+          )
+      )
+    ).slice(0, 8) as string[];
+
+    const evidenceLinkedWorkIds = Array.from(
+      new Set(
+        (openLinkedItemsByUser.get(member.userId)
+          ? Array.from(openLinkedItemsByUser.get(member.userId) ?? [])
+          : [])
+      )
+    ).slice(0, 12) as string[];
+
+    const signals = [] as Array<{
+      userId: string;
+      name: string;
+      type: "OVERLOADED" | "MULTI_BLOCKED" | "IDLE";
+      openItems: number;
+      blockedItems: number;
+      idleDays: number;
+      thresholds: { openItems: number; blockedItems: number; idleDays: number };
+      evidence: { entryIds: string[]; linkedWorkIds: string[] };
+      message: string;
+    }>;
+
+    if (openItems > CAPACITY_THRESHOLDS.openItems) {
+      signals.push({
+        userId: member.userId,
+        name,
+        type: "OVERLOADED",
+        openItems,
+        blockedItems,
+        idleDays,
+        thresholds: CAPACITY_THRESHOLDS,
+        evidence: { entryIds: evidenceEntryIds, linkedWorkIds: evidenceLinkedWorkIds },
+        message: `${name} has ${openItems} open linked items (> ${CAPACITY_THRESHOLDS.openItems}).`,
+      });
+    }
+
+    if (blockedItems >= CAPACITY_THRESHOLDS.blockedItems) {
+      signals.push({
+        userId: member.userId,
+        name,
+        type: "MULTI_BLOCKED",
+        openItems,
+        blockedItems,
+        idleDays,
+        thresholds: CAPACITY_THRESHOLDS,
+        evidence: {
+          entryIds: Array.from(blockerEntryIdsByUser.get(member.userId) ?? []).slice(0, 8) as string[],
+          linkedWorkIds: Array.from(blockerIssueCountByUser.get(member.userId) ?? [])
+            .map((id) => `issue:${id}`)
+            .slice(0, 12),
+        },
+        message: `${name} is blocked on ${blockedItems} linked tasks.`,
+      });
+    }
+
+    if (openItems === 0 && idleDays >= CAPACITY_THRESHOLDS.idleDays) {
+      signals.push({
+        userId: member.userId,
+        name,
+        type: "IDLE",
+        openItems,
+        blockedItems,
+        idleDays,
+        thresholds: CAPACITY_THRESHOLDS,
+        evidence: { entryIds: evidenceEntryIds, linkedWorkIds: evidenceLinkedWorkIds },
+        message: `${name} has had no linked work for ${idleDays} days.`,
+      });
+    }
+
+    return signals;
+  });
+
+  let addedWorkCount = 0;
+  let removedWorkCount = 0;
+  issueScopeChanges.forEach((change) => {
+    const oldValue = (change.oldValue ?? "").toString().trim();
+    const newValue = (change.newValue ?? "").toString().trim();
+    if (!oldValue && newValue) addedWorkCount += 1;
+    if (oldValue && !newValue) removedWorkCount += 1;
+    if (oldValue && newValue && oldValue !== newValue) {
+      addedWorkCount += 1;
+      removedWorkCount += 1;
+    }
+  });
+
+  const blockerCountsByDay = new Map<string, number>();
+  blockerWindowEntries.forEach((entry) => {
+    const key = entry.date.toISOString().slice(0, 10);
+    blockerCountsByDay.set(key, (blockerCountsByDay.get(key) ?? 0) + 1);
+  });
+  const blockerDailyValues = velocityDates.map((date) => blockerCountsByDay.get(date) ?? 0);
+  const blockerMean = blockerDailyValues.reduce((sum, count) => sum + count, 0) / Math.max(1, blockerDailyValues.length);
+  const blockerVariance = blockerDailyValues.reduce((sum, count) => sum + (count - blockerMean) ** 2, 0) / Math.max(1, blockerDailyValues.length);
+  const blockerVolatility = Math.sqrt(blockerVariance);
+  const blockerVolatilityScore = round2(Math.max(0, Math.min(1, 1 - blockerVolatility / Math.max(1, blockerMean + 1))));
+
+  const entriesWithLinkedWork = entriesInCapacityWindow.filter(
+    (entry) => entry.issues.length > 0 || entry.research.length > 0
+  ).length;
+  const linkedWorkCoverage = round2(
+    entriesWithLinkedWork / Math.max(1, entriesInCapacityWindow.length)
+  );
+
+  const qualityParts = [
+    qualitySnapshot?.qualityScore !== undefined ? Math.max(0, Math.min(1, qualitySnapshot.qualityScore / 100)) : 0.5,
+    Math.max(0, Math.min(1, dayEntries.length / Math.max(1, members.length))),
+    Math.max(0, Math.min(1, (avgTasksCompletedPerDay + 1) / (remainingLinkedWork + avgTasksCompletedPerDay + 1))),
+    linkedWorkCoverage,
+  ];
+  const dataQualityScore = round2(qualityParts.reduce((sum, value) => sum + value, 0) / qualityParts.length);
+
+  const scopeChurnRatio = round2((addedWorkCount + removedWorkCount) / Math.max(1, remainingLinkedWork + completedCounts.reduce((a, b) => a + b, 0)));
+  const scopeChurnPenalty = Math.min(0.2, scopeChurnRatio * 0.25);
+
+  const weightedConfidence =
+    dataQualityScore * FORECAST_CONFIDENCE_WEIGHTS.dataQuality +
+    velocityStabilityScore * FORECAST_CONFIDENCE_WEIGHTS.velocityStability +
+    blockerVolatilityScore * FORECAST_CONFIDENCE_WEIGHTS.blockerVolatility +
+    linkedWorkCoverage * FORECAST_CONFIDENCE_WEIGHTS.linkedCoverage;
+
+  const adjustedConfidence = Math.max(0, weightedConfidence - scopeChurnPenalty);
+
+  let forecastConfidence: "HIGH" | "MEDIUM" | "LOW" = "LOW";
+  if (
+    observedSampleDays >= FORECAST_CONFIDENCE_THRESHOLDS.minimumSampleDays &&
+    adjustedConfidence >= FORECAST_CONFIDENCE_THRESHOLDS.high
+  ) {
+    forecastConfidence = "HIGH";
+  } else if (
+    observedSampleDays >= FORECAST_CONFIDENCE_THRESHOLDS.minimumSampleDays &&
+    adjustedConfidence >= FORECAST_CONFIDENCE_THRESHOLDS.medium
+  ) {
+    forecastConfidence = "MEDIUM";
+  }
+
+  const projectionDefinitions = {
+    modelVersion: PROJECTION_MODEL_VERSION,
+    completionDefinition: "Issue completion is counted only by ISSUE_HISTORY status transition to DONE.",
+    remainingWorkDefinition: activeSprint?.id
+      ? "Open linked work includes issue/research items linked via standups since sprint start for the active sprint scope."
+      : "Open linked work includes issue/research items linked via standups in the last 14 days.",
+    weightingModel: "Weighted by issue type and work-item age buckets; unlinked work is excluded from projection.",
+    warning: "Projection is linkage-dependent and excludes unlinked backlog work.",
+    confidenceWeights: FORECAST_CONFIDENCE_WEIGHTS,
+    confidenceThresholds: FORECAST_CONFIDENCE_THRESHOLDS,
+    capacityThresholds: CAPACITY_THRESHOLDS,
+  };
+
+  const prismaAny = prisma as any;
+
+  await prismaAny.sprintVelocitySnapshot?.upsert?.({
+    where: { projectId_date: { projectId, date: dayStart } },
+    create: {
+      projectId,
+      sprintId: activeSprint?.id ?? null,
+      date: dayStart,
+      avgTasksCompletedPerDay,
+      avgBlockerResolutionHours,
+      avgActionResolutionHours,
+      completionRatePerDay,
+      remainingLinkedWork,
+      projectedCompletionDate,
+      deliveryRisk,
+      capacitySignalsJson: capacitySignals,
+      forecastConfidence,
+      dataQualityScore,
+      velocityStabilityScore,
+      blockerVolatilityScore,
+      projectionModelVersion: PROJECTION_MODEL_VERSION,
+      projectionDefinitionsJson: projectionDefinitions,
+    },
+    update: {
+      sprintId: activeSprint?.id ?? null,
+      avgTasksCompletedPerDay,
+      avgBlockerResolutionHours,
+      avgActionResolutionHours,
+      completionRatePerDay,
+      remainingLinkedWork,
+      projectedCompletionDate,
+      deliveryRisk,
+      capacitySignalsJson: capacitySignals,
+      forecastConfidence,
+      dataQualityScore,
+      velocityStabilityScore,
+      blockerVolatilityScore,
+      projectionModelVersion: PROJECTION_MODEL_VERSION,
+      projectionDefinitionsJson: projectionDefinitions,
+    },
+  });
+
   const evidenceByType = {
     BLOCKER_CLUSTER: blockerChains.map(([key]) => key).slice(0, 6),
     MISSING_STANDUP: members
@@ -823,6 +1340,10 @@ const computeDailySprintHealth = async (projectId: string, dateIso: string) => {
         ? [`daysRemaining:${daysRemainingInSprint}`]
         : [],
     OVERLAP_DEDUP_CREDIT: [`overlapIssueCount:${overlappingStaleBlockedIssueCount}`],
+    DELIVERY_RISK: [
+      `projectedCompletion:${projectedCompletionDate?.toISOString().slice(0, 10) ?? "n/a"}`,
+      `sprintEnd:${activeSprint?.endDate?.toISOString().slice(0, 10) ?? "n/a"}`,
+    ],
   } as const;
 
   const riskDrivers = computation.riskDrivers.map((driver) => ({
@@ -830,14 +1351,20 @@ const computeDailySprintHealth = async (projectId: string, dateIso: string) => {
     evidence: [...evidenceByType[driver.type]],
   }));
 
+  if (deliveryRisk) {
+    riskDrivers.push({
+      type: "DELIVERY_RISK",
+      impact: -10,
+      evidence: [...evidenceByType.DELIVERY_RISK],
+    });
+  }
+
   const negativeImpacts = riskDrivers
     .filter((driver) => driver.impact < 0)
     .map((driver) => Math.abs(driver.impact));
   const totalNegativeImpact = negativeImpacts.reduce((sum, value) => sum + value, 0);
   const maxSingleImpact = negativeImpacts.length ? Math.max(...negativeImpacts) : 0;
   const concentrationIndex = totalNegativeImpact > 0 ? round2(maxSingleImpact / totalNegativeImpact) : 0;
-
-  const prismaAny = prisma as any;
 
   await prismaAny.sprintHealthDaily.upsert({
     where: { projectId_date: { projectId, date: dayStart } },
@@ -895,6 +1422,32 @@ const computeDailySprintHealth = async (projectId: string, dateIso: string) => {
     unresolvedActions,
     qualityScore: qualitySnapshot?.qualityScore ?? null,
     concentrationIndex,
+    velocitySnapshot: {
+      avgTasksCompletedPerDay,
+      avgBlockerResolutionHours,
+      avgActionResolutionHours,
+      completionRatePerDay,
+      remainingLinkedWork,
+      weightedRemainingWork,
+      projectedCompletionDate: projectedCompletionDate ? projectedCompletionDate.toISOString() : null,
+      deliveryRisk,
+      linkedWorkCoverage,
+      sampleSizeDays: observedSampleDays,
+      scopeAddedWorkCount: addedWorkCount,
+      scopeRemovedWorkCount: removedWorkCount,
+      scopeChangeSummary: `Scope changed by +${addedWorkCount} / -${removedWorkCount} items in the last 7 days.`,
+      sprint: {
+        id: activeSprint?.id ?? null,
+        name: activeSprint?.name ?? null,
+        startDate: activeSprint?.startDate ? activeSprint.startDate.toISOString() : null,
+        endDate: activeSprint?.endDate ? activeSprint.endDate.toISOString() : null,
+      },
+      projectionDefinitions,
+      projectionModelVersion: PROJECTION_MODEL_VERSION,
+      unweightedProjectionWarning: true,
+    },
+    capacitySignals,
+    forecastConfidence,
   };
 };
 
@@ -939,6 +1492,24 @@ export const fetchSprintHealthReport = async (
         ? "DEGRADED"
         : "UNCHANGED";
 
+  const projectedSeries = computed
+    .map((day) => day.velocitySnapshot.projectedCompletionDate)
+    .filter((value): value is string => Boolean(value))
+    .slice(-3)
+    .map((value) => new Date(value).getTime());
+  const smoothedProjectedCompletionDate = projectedSeries.length
+    ? new Date(
+        projectedSeries.reduce((sum, value) => sum + value, 0) / projectedSeries.length
+      ).toISOString()
+    : latest.velocitySnapshot.projectedCompletionDate;
+  const projectedDateDeltaDays =
+    latest.velocitySnapshot.projectedCompletionDate && previous?.velocitySnapshot.projectedCompletionDate
+      ? daysBetween(
+          new Date(previous.velocitySnapshot.projectedCompletionDate),
+          new Date(latest.velocitySnapshot.projectedCompletionDate)
+        )
+      : 0;
+
   return {
     date: latest.date,
     healthScore: latest.healthScore,
@@ -962,6 +1533,13 @@ export const fetchSprintHealthReport = async (
     trend14d: smoothedTrend,
     riskDeltaSinceYesterday,
     trendIndicator,
+    velocitySnapshot: {
+      ...latest.velocitySnapshot,
+      projectedCompletionDateSmoothed: smoothedProjectedCompletionDate,
+      projectedDateDeltaDays,
+    },
+    capacitySignals: latest.capacitySignals,
+    forecastConfidence: latest.forecastConfidence,
   };
 };
 
