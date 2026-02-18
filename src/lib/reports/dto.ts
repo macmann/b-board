@@ -91,7 +91,8 @@ export type SprintHealthRiskDriver = {
     | "LOW_QUALITY_INPUT"
     | "UNRESOLVED_ACTIONS"
     | "END_OF_SPRINT_PRESSURE"
-    | "OVERLAP_DEDUP_CREDIT";
+    | "OVERLAP_DEDUP_CREDIT"
+    | "DELIVERY_RISK";
   impact: number;
   evidence: string[];
 };
@@ -108,6 +109,81 @@ export type SprintHealthDailyPoint = {
   status: "GREEN" | "YELLOW" | "RED";
 };
 
+
+export type CapacitySignalType =
+  | "OVERLOADED"
+  | "MULTI_BLOCKED"
+  | "IDLE";
+
+export type CapacitySignal = {
+  userId: string;
+  name: string;
+  type: CapacitySignalType;
+  openItems: number;
+  blockedItems: number;
+  idleDays: number;
+  thresholds: {
+    openItems: number;
+    blockedItems: number;
+    idleDays: number;
+  };
+  evidence: {
+    entryIds: string[];
+    linkedWorkIds: string[];
+  };
+  message: string;
+};
+
+export type ProjectionDefinitions = {
+  modelVersion: string;
+  completionDefinition: string;
+  remainingWorkDefinition: string;
+  weightingModel: string;
+  warning: string;
+  confidenceWeights: {
+    dataQuality: number;
+    velocityStability: number;
+    blockerVolatility: number;
+    linkedCoverage: number;
+  };
+  confidenceThresholds: {
+    high: number;
+    medium: number;
+    minimumSampleDays: number;
+  };
+  capacityThresholds: {
+    openItems: number;
+    blockedItems: number;
+    idleDays: number;
+  };
+};
+
+export type SprintVelocitySnapshot = {
+  avgTasksCompletedPerDay: number;
+  avgBlockerResolutionHours: number | null;
+  avgActionResolutionHours: number | null;
+  completionRatePerDay: number;
+  remainingLinkedWork: number;
+  weightedRemainingWork: number;
+  projectedCompletionDate: string | null;
+  projectedCompletionDateSmoothed?: string | null;
+  projectedDateDeltaDays?: number;
+  deliveryRisk: boolean;
+  linkedWorkCoverage: number;
+  sampleSizeDays: number;
+  scopeAddedWorkCount: number;
+  scopeRemovedWorkCount: number;
+  scopeChangeSummary: string;
+  sprint: {
+    id: string | null;
+    name: string | null;
+    startDate: string | null;
+    endDate: string | null;
+  };
+  projectionModelVersion: string;
+  projectionDefinitions: ProjectionDefinitions;
+  unweightedProjectionWarning: boolean;
+};
 export type SprintHealthReport = {
   date: string;
   healthScore: number;
@@ -146,6 +222,9 @@ export type SprintHealthReport = {
   trend14d: SprintHealthDailyPoint[];
   riskDeltaSinceYesterday: number;
   trendIndicator: "IMPROVED" | "DEGRADED" | "UNCHANGED";
+  velocitySnapshot: SprintVelocitySnapshot;
+  capacitySignals: CapacitySignal[];
+  forecastConfidence: "HIGH" | "MEDIUM" | "LOW";
 };
 
 export type BlockerTheme = {
