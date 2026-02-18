@@ -311,6 +311,7 @@ model Project {
   settings           ProjectSettings?
   standupSummaries   StandupSummary[]
   standupQualityDaily StandupQualityDaily[]
+  sprintHealthDaily  SprintHealthDaily[]
   standupAttendances StandupAttendance[]
   standupActionStates StandupActionState[]
   standupClarifications StandupEntryClarification[]
@@ -813,6 +814,31 @@ model StandupQualityDaily {
 
   @@unique([projectId, date])
   @@index([projectId])
+}
+
+model SprintHealthDaily {
+  id               String   @id @default(cuid())
+  projectId        String
+  date             DateTime @db.Date
+  healthScore      Int
+  status           String
+  confidenceLevel  String
+  scoreBreakdown   Json
+  riskDrivers      Json
+  staleWorkCount   Int      @default(0)
+  missingStandups  Int      @default(0)
+  persistentBlockers Int    @default(0)
+  unresolvedActions Int     @default(0)
+  qualityScore     Int?
+  probabilities    Json?
+  scoringModelVersion String  @default("3.1.1")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, date])
+  @@index([projectId, date])
 }
 
 model FacilitatorNote {
