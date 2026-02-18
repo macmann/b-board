@@ -83,6 +83,71 @@ export type StandupInsightsReport = {
   signalDefinitions: Record<StandupSignalType, StandupSignalDefinition>;
 };
 
+export type SprintHealthRiskDriver = {
+  type:
+    | "BLOCKER_CLUSTER"
+    | "MISSING_STANDUP"
+    | "STALE_WORK"
+    | "LOW_QUALITY_INPUT"
+    | "UNRESOLVED_ACTIONS"
+    | "END_OF_SPRINT_PRESSURE"
+    | "OVERLAP_DEDUP_CREDIT";
+  impact: number;
+  evidence: string[];
+};
+
+export type SprintHealthBreakdown = {
+  reason: string;
+  impact: number;
+  evidence: string[];
+};
+
+export type SprintHealthDailyPoint = {
+  date: string;
+  healthScore: number;
+  status: "GREEN" | "YELLOW" | "RED";
+};
+
+export type SprintHealthReport = {
+  date: string;
+  healthScore: number;
+  smoothedHealthScore: number;
+  status: "GREEN" | "YELLOW" | "RED";
+  confidenceLevel: "HIGH" | "MEDIUM" | "LOW";
+  confidenceBasis: {
+    dataCompleteness: number;
+    signalStability: number;
+    sampleSize: number;
+  };
+  scoreBreakdown: SprintHealthBreakdown[];
+  riskDrivers: SprintHealthRiskDriver[];
+  probabilities: {
+    sprintSuccess: number;
+    spillover: number;
+  };
+  probabilityModel: {
+    name: "linear-health-score-v1";
+    formula: string;
+  };
+  normalizedMetrics: {
+    blockerRatePerMember: number;
+    missingStandupRate: number;
+    staleWorkRatePerActiveTask: number;
+    unresolvedActionsRatePerMember: number;
+  };
+  scoringModelVersion: string;
+  riskConcentrationAreas: string[];
+  concentrationIndex: number;
+  staleWorkCount: number;
+  missingStandupMembers: number;
+  persistentBlockersOver2Days: number;
+  unresolvedActions: number;
+  qualityScore: number | null;
+  trend14d: SprintHealthDailyPoint[];
+  riskDeltaSinceYesterday: number;
+  trendIndicator: "IMPROVED" | "DEGRADED" | "UNCHANGED";
+};
+
 export type BlockerTheme = {
   theme: string;
   count: number;

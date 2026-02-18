@@ -4,6 +4,7 @@ export type ReportModuleKey =
   | "sprint-burndown"
   | "velocity-trend"
   | "cycle-time"
+  | "sprint-health"
   | "standup-insights"
   | "blocker-themes";
 
@@ -36,6 +37,7 @@ const REPORT_MODULE_KEYS: ReportModuleKey[] = [
   "sprint-burndown",
   "velocity-trend",
   "cycle-time",
+  "sprint-health",
   "standup-insights",
   "blocker-themes",
 ];
