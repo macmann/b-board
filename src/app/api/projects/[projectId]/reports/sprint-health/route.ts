@@ -27,9 +27,14 @@ export async function GET(
     return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 });
   }
 
-  const project = await prisma.project.findUnique({
-    where: { id: filters.projectId },
-  });
+  const [project, membership, userRole] = await Promise.all([
+    prisma.project.findUnique({ where: { id: filters.projectId } }),
+    prisma.projectMember.findUnique({
+      where: { projectId_userId: { projectId: filters.projectId, userId: user.id } },
+      select: { role: true },
+    }),
+    prisma.user.findUnique({ where: { id: user.id }, select: { role: true } }),
+  ]);
 
   if (!project) {
     return NextResponse.json({ ok: false, message: "Project not found" }, { status: 404 });
@@ -53,7 +58,8 @@ export async function GET(
   }
 
   try {
-    const data = await fetchSprintHealthReport(filters);
+    const projectRole = userRole?.role === Role.ADMIN ? "ADMIN" : (membership?.role ?? null);
+    const data = await fetchSprintHealthReport(filters, { userId: user.id, projectRole });
     return NextResponse.json({ ok: true, data });
   } catch (error) {
     logError("Failed to load sprint health report", error);

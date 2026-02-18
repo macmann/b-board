@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   CartesianGrid,
@@ -12,7 +13,7 @@ import {
   YAxis,
 } from "recharts";
 
-import type { SprintHealthReport } from "@/lib/reports/dto";
+import type { SprintGuidanceSuggestion, SprintHealthReport } from "@/lib/reports/dto";
 import {
   areReportFiltersEqual,
   parseReportSearchParams,
@@ -34,6 +35,25 @@ const statusClass: Record<SprintHealthReport["status"], string> = {
   GREEN: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200",
   YELLOW: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200",
   RED: "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-200",
+};
+
+const resolveEvidenceHref = (projectId: string, evidence: string) => {
+  if (evidence.startsWith("entry:")) {
+    return `/projects/${projectId}/standup?entryId=${encodeURIComponent(evidence.replace("entry:", ""))}`;
+  }
+  if (evidence.startsWith("issue:")) {
+    return `/projects/${projectId}/backlog?issueId=${encodeURIComponent(evidence.replace("issue:", ""))}`;
+  }
+  if (evidence.startsWith("research:")) {
+    return `/projects/${projectId}/research?itemId=${encodeURIComponent(evidence.replace("research:", ""))}`;
+  }
+  return null;
+};
+
+const addDaysISO = (days: number) => {
+  const now = new Date();
+  now.setDate(now.getDate() + days);
+  return now.toISOString().slice(0, 10);
 };
 
 export default function SprintHealthModule({ projectId, initialFilters }: SprintHealthModuleProps) {
@@ -87,6 +107,96 @@ export default function SprintHealthModule({ projectId, initialFilters }: Sprint
     return () => controller.abort();
   }, [filters.dateFrom, filters.dateTo, projectId]);
 
+  const allSuggestions = useMemo(
+    () => [
+      ...(data?.reallocationSuggestions ?? []),
+      ...(data?.scopeAdjustmentSuggestions ?? []),
+      ...(data?.meetingOptimizationSuggestions ?? []),
+    ],
+    [data]
+  );
+
+  useEffect(() => {
+    if (!data) return;
+
+    const distinct = Array.from(new Map(allSuggestions.map((item) => [item.id, item] as const)).values());
+    distinct.forEach((suggestion) => {
+      fetch(`/api/projects/${projectId}/reports/sprint-health/suggestions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: data.date,
+          sprint_id: data.velocitySnapshot.sprint.id,
+          suggestion_id: suggestion.id,
+          suggestion_type: suggestion.type,
+          viewed: true,
+        }),
+      }).catch(() => undefined);
+
+      logClient("SuggestionViewed", {
+        projectId,
+        suggestionId: suggestion.id,
+        suggestionType: suggestion.type,
+      });
+    });
+  }, [allSuggestions, data, projectId]);
+
+  const updateSuggestionState = async (
+    suggestion: SprintGuidanceSuggestion,
+    state: "ACCEPTED" | "DISMISSED" | "SNOOZED"
+  ) => {
+    if (!data) return;
+
+    const dismissedUntil = state === "DISMISSED" ? addDaysISO(30) : null;
+    const snoozedUntil = state === "SNOOZED" ? addDaysISO(3) : null;
+
+    const response = await fetch(`/api/projects/${projectId}/reports/sprint-health/suggestions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        date: data.date,
+        sprint_id: data.velocitySnapshot.sprint.id,
+        suggestion_id: suggestion.id,
+        suggestion_type: suggestion.type,
+        state,
+        dismissed_until: dismissedUntil,
+        snoozed_until: snoozedUntil,
+      }),
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.message ?? "Failed to update suggestion state.");
+    }
+
+    logClient(`Suggestion${state === "ACCEPTED" ? "Accepted" : state === "DISMISSED" ? "Dismissed" : "Snoozed"}`, {
+      projectId,
+      suggestionId: suggestion.id,
+      suggestionType: suggestion.type,
+    });
+
+    setData((previous) => {
+      if (!previous) return previous;
+      const mutate = (items: SprintGuidanceSuggestion[]) =>
+        items.filter((item) => item.id !== suggestion.id);
+
+      return {
+        ...previous,
+        reallocationSuggestions: mutate(previous.reallocationSuggestions),
+        scopeAdjustmentSuggestions: mutate(previous.scopeAdjustmentSuggestions),
+        meetingOptimizationSuggestions: mutate(previous.meetingOptimizationSuggestions),
+        executiveView: {
+          ...previous.executiveView,
+          topActions: previous.executiveView.topActions.filter((action) => action !== suggestion.recommendation),
+          suggestedStructuralAdjustment:
+            previous.executiveView.suggestedStructuralAdjustment === suggestion.recommendation
+              ? null
+              : previous.executiveView.suggestedStructuralAdjustment,
+        },
+      };
+    });
+  };
+
   const chartData = useMemo(
     () =>
       (data?.trend14d ?? []).map((point) => ({
@@ -108,6 +218,63 @@ export default function SprintHealthModule({ projectId, initialFilters }: Sprint
     return <p className="text-sm text-slate-600 dark:text-slate-400">No sprint health data available.</p>;
   }
 
+  const suggestionCard = (suggestion: SprintGuidanceSuggestion) => (
+    <li key={suggestion.id} className="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800">
+      <p className="font-medium">{suggestion.recommendation}</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400">Reason: {suggestion.reason}</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400">
+        Impact: {suggestion.impactEstimate} (Score {suggestion.impactScore}/100)
+      </p>
+      <p className="text-xs text-slate-500 dark:text-slate-400">Impact basis: {suggestion.impactExplanation}</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400">Formula: {suggestion.formulaBasis}</p>
+      {suggestion.confidenceLabel ? (
+        <p className="text-xs text-amber-700 dark:text-amber-300">Confidence: {suggestion.confidenceLabel}</p>
+      ) : null}
+      <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+        Evidence:{" "}
+        {suggestion.evidence.length === 0
+          ? "n/a"
+          : suggestion.evidence.map((item, index) => {
+              const href = resolveEvidenceHref(projectId, item);
+              if (!href) {
+                return <span key={`${item}-${index}`}>{index ? ", " : ""}{item}</span>;
+              }
+              return (
+                <span key={`${item}-${index}`}>
+                  {index ? ", " : ""}
+                  <Link href={href} className="text-blue-600 hover:underline dark:text-blue-300">
+                    {item}
+                  </Link>
+                </span>
+              );
+            })}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button
+          type="button"
+          className="rounded-md border border-emerald-200 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300"
+          onClick={() => updateSuggestionState(suggestion, "ACCEPTED").catch((err) => setError(err.message))}
+        >
+          Accept
+        </button>
+        <button
+          type="button"
+          className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300"
+          onClick={() => updateSuggestionState(suggestion, "SNOOZED").catch((err) => setError(err.message))}
+        >
+          Snooze 3d
+        </button>
+        <button
+          type="button"
+          className="rounded-md border border-rose-200 px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300"
+          onClick={() => updateSuggestionState(suggestion, "DISMISSED").catch((err) => setError(err.message))}
+        >
+          Dismiss 30d
+        </button>
+      </div>
+    </li>
+  );
+
   return (
     <div className="space-y-5">
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -119,52 +286,42 @@ export default function SprintHealthModule({ projectId, initialFilters }: Sprint
           <span className="text-sm text-slate-500 dark:text-slate-400">Confidence: {data.confidenceLevel}</span>
         </div>
         <p className="mt-2 text-4xl font-semibold text-slate-900 dark:text-slate-50">{data.healthScore}</p>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Smoothed (3-day): {data.smoothedHealthScore}
-        </p>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          Success probability {data.probabilities.sprintSuccess}% • Spillover probability {data.probabilities.spillover}%
-        </p>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          Forecast confidence: {data.forecastConfidence}
-        </p>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          Remaining linked work: {data.velocitySnapshot.remainingLinkedWork} • Weighted remaining: {data.velocitySnapshot.weightedRemainingWork}
-        </p>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          Completion rate/day: {data.velocitySnapshot.completionRatePerDay} • Linked work coverage: {Math.round(data.velocitySnapshot.linkedWorkCoverage * 100)}%
-        </p>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          Projected completion: {data.velocitySnapshot.projectedCompletionDate ? formatDateLabel(data.velocitySnapshot.projectedCompletionDate) : "n/a"}
-          {data.velocitySnapshot.projectedCompletionDateSmoothed ? ` • 3d smoothed: ${formatDateLabel(data.velocitySnapshot.projectedCompletionDateSmoothed)}` : ""}
-          {data.velocitySnapshot.projectedDateDeltaDays ? ` • Δ ${data.velocitySnapshot.projectedDateDeltaDays}d` : ""}
-          {data.velocitySnapshot.deliveryRisk ? " • DELIVERY_RISK" : ""}
-        </p>
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          {data.velocitySnapshot.scopeChangeSummary}
-        </p>
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Sprint: {data.velocitySnapshot.sprint.name ?? "No active sprint"}
-          {data.velocitySnapshot.sprint.endDate ? ` • ends ${formatDateLabel(data.velocitySnapshot.sprint.endDate)}` : ""}
-        </p>
-        {data.velocitySnapshot.unweightedProjectionWarning ? (
-          <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-            {data.velocitySnapshot.projectionDefinitions.warning}
-          </p>
-        ) : null}
-        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-          Risk delta since yesterday: {data.riskDeltaSinceYesterday >= 0 ? "+" : ""}
-          {data.riskDeltaSinceYesterday} ({data.trendIndicator})
-        </p>
-        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-          Probability model: {data.probabilityModel.name} — {data.probabilityModel.formula}
-        </p>
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Scoring model version: {data.scoringModelVersion} • Projection model: {data.velocitySnapshot.projectionModelVersion}
-        </p>
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Scope rule: {data.velocitySnapshot.projectionDefinitions.remainingWorkDefinition}
-        </p>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Smoothed (3-day): {data.smoothedHealthScore}</p>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Success probability {data.probabilities.sprintSuccess}% • Spillover probability {data.probabilities.spillover}%</p>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Forecast confidence: {data.forecastConfidence}</p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Proactive guidance: {data.proactiveGuidanceEnabled ? "Enabled" : "Disabled"}</p>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">What should I do today?</h3>
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div>
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Today's focus</p>
+            <ul className="mt-2 space-y-1 text-sm text-slate-700 dark:text-slate-200">
+              {data.executiveView.todaysFocus.map((focus, index) => <li key={`${focus}-${index}`}>• {focus}</li>)}
+            </ul>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Top 3 risks</p>
+            <ul className="mt-2 space-y-1 text-sm text-slate-700 dark:text-slate-200">
+              {data.executiveView.topRisks.length === 0
+                ? <li>• No active high-risk drivers.</li>
+                : data.executiveView.topRisks.map((risk, index) => <li key={`${risk}-${index}`}>• {risk}</li>)}
+            </ul>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Top 3 actions</p>
+            <ul className="mt-2 space-y-1 text-sm text-slate-700 dark:text-slate-200">
+              {data.executiveView.topActions.length === 0
+                ? <li>• No suggested interventions right now.</li>
+                : data.executiveView.topActions.map((action, index) => <li key={`${action}-${index}`}>• {action}</li>)}
+            </ul>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Suggested structural adjustment</p>
+            <p className="mt-2 text-sm text-slate-700 dark:text-slate-200">{data.executiveView.suggestedStructuralAdjustment ?? "No structural adjustment suggested."}</p>
+          </div>
+        </div>
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -182,70 +339,27 @@ export default function SprintHealthModule({ projectId, initialFilters }: Sprint
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
+      <section className="grid gap-4 lg:grid-cols-3">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Risk drivers</h3>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Suggested reallocation</h3>
           <ul className="mt-3 space-y-2 text-sm text-slate-700 dark:text-slate-200">
-            {data.riskDrivers.length === 0 ? (
-              <li>No active risk drivers.</li>
-            ) : (
-              data.riskDrivers.map((driver) => (
-                <li key={driver.type} className="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800">
-                  <p className="font-medium">{driver.type} ({driver.impact})</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Evidence: {driver.evidence.length ? driver.evidence.join(", ") : "n/a"}
-                  </p>
-                </li>
-              ))
-            )}
+            {data.reallocationSuggestions.length === 0 ? <li>No deterministic reallocation suggestion.</li> : data.reallocationSuggestions.map(suggestionCard)}
           </ul>
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Scoring breakdown</h3>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Scope adjustment</h3>
           <ul className="mt-3 space-y-2 text-sm text-slate-700 dark:text-slate-200">
-            {data.scoreBreakdown.map((item, index) => (
-              <li key={`${item.reason}-${index}`} className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800">
-                <span>{item.reason}</span>
-                <span className="font-semibold">{item.impact > 0 ? `+${item.impact}` : item.impact}</span>
-              </li>
-            ))}
+            {data.scopeAdjustmentSuggestions.length === 0 ? <li>No scope change suggestion.</li> : data.scopeAdjustmentSuggestions.map(suggestionCard)}
           </ul>
-          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-            Concentration areas: {data.riskConcentrationAreas.length ? data.riskConcentrationAreas.join(", ") : "None"}
-          </p>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Concentration index: {data.concentrationIndex}
-          </p>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Confidence basis — completeness: {data.confidenceBasis.dataCompleteness}, stability: {data.confidenceBasis.signalStability}, sample: {data.confidenceBasis.sampleSize}
-          </p>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Normalization — blockers/member: {data.normalizedMetrics.blockerRatePerMember}, missing standup rate: {data.normalizedMetrics.missingStandupRate}, stale/task: {data.normalizedMetrics.staleWorkRatePerActiveTask}
-          </p>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Avg blocker resolution: {data.velocitySnapshot.avgBlockerResolutionHours ?? "n/a"}h • Avg action resolution: {data.velocitySnapshot.avgActionResolutionHours ?? "n/a"}h
-          </p>
         </div>
-      </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Capacity signals</h3>
-        <ul className="mt-3 space-y-2 text-sm text-slate-700 dark:text-slate-200">
-          {data.capacitySignals.length === 0 ? (
-            <li>No capacity imbalance detected.</li>
-          ) : (
-            data.capacitySignals.map((signal) => (
-              <li key={`${signal.userId}-${signal.type}`} className="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800">
-                <p className="font-medium">{signal.type} — {signal.name}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{signal.message}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  open:{signal.openItems} blocked:{signal.blockedItems} idleDays:{signal.idleDays} • thresholds o&gt;{signal.thresholds.openItems}, b≥{signal.thresholds.blockedItems}, idle≥{signal.thresholds.idleDays}
-                </p>
-              </li>
-            ))
-          )}
-        </ul>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Meeting optimization</h3>
+          <ul className="mt-3 space-y-2 text-sm text-slate-700 dark:text-slate-200">
+            {data.meetingOptimizationSuggestions.length === 0 ? <li>No meeting intervention suggested.</li> : data.meetingOptimizationSuggestions.map(suggestionCard)}
+          </ul>
+        </div>
       </section>
     </div>
   );
