@@ -19,6 +19,7 @@ import {
   SprintHealthReport,
 } from "./dto";
 import { computeSprintHealthScore } from "./sprintHealth";
+import { buildProactiveSprintGuidance } from "./proactiveGuidance";
 
 const toDateOnly = (value: string) => new Date(`${value}T00:00:00.000Z`);
 
@@ -722,7 +723,11 @@ const CAPACITY_THRESHOLDS = {
 const daysBetween = (from: Date, to: Date) =>
   Math.max(0, Math.round((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)));
 
-const computeDailySprintHealth = async (projectId: string, dateIso: string) => {
+const computeDailySprintHealth = async (
+  projectId: string,
+  dateIso: string,
+  options: { userId: string; projectRole: "ADMIN" | "PO" | "DEV" | "QA" | "VIEWER" | null }
+) => {
   const dayStart = startOfDay(dateIso);
   const dayEnd = endOfDay(dateIso);
   const lookbackStart = new Date(dayStart);
@@ -758,6 +763,9 @@ const computeDailySprintHealth = async (projectId: string, dateIso: string) => {
     openIssues,
     openResearch,
     issueScopeChanges,
+    projectAiSettings,
+    suggestionStateRows,
+    openActionStates,
   ] = await Promise.all([
     prisma.projectMember.findMany({
       where: { projectId },
@@ -804,7 +812,7 @@ const computeDailySprintHealth = async (projectId: string, dateIso: string) => {
         status: { not: IssueStatus.DONE },
         updatedAt: { lt: new Date(dayEnd.getTime() - 72 * 60 * 60 * 1000) },
       },
-      select: { id: true },
+      select: { id: true, key: true, title: true, priority: true },
     }),
     prisma.issue.count({
       where: {
@@ -899,6 +907,31 @@ const computeDailySprintHealth = async (projectId: string, dateIso: string) => {
         createdAt: { gte: scopeChangeWindowStart, lte: dayEnd },
       },
       select: { oldValue: true, newValue: true },
+    }),
+    (prisma as any).projectAISettings?.findUnique
+      ? (prisma as any).projectAISettings.findUnique({
+          where: { projectId },
+          select: { proactiveGuidanceEnabled: true },
+        })
+      : Promise.resolve(null),
+    (prisma as any).sprintGuidanceSuggestionState?.findMany
+      ? (prisma as any).sprintGuidanceSuggestionState.findMany({
+          where: {
+            projectId,
+            userId: options.userId,
+            date: dayStart,
+          },
+          select: { suggestionId: true, suggestionState: true, dismissedUntil: true, snoozedUntil: true },
+        })
+      : Promise.resolve([]),
+    prisma.standupActionState.findMany({
+      where: {
+        projectId,
+        userId: options.userId,
+        date: { lte: dayEnd },
+        state: { in: ["OPEN", "SNOOZED"] },
+      },
+      select: { actionId: true },
     }),
   ]);
 
@@ -1359,6 +1392,33 @@ const computeDailySprintHealth = async (projectId: string, dateIso: string) => {
     });
   }
 
+  const suggestionStateById = new Map<string, { state: "OPEN" | "ACCEPTED" | "DISMISSED" | "SNOOZED"; dismissedUntil: string | null; snoozedUntil: string | null }>(
+    suggestionStateRows.map((row: { suggestionId: string; suggestionState: "OPEN" | "ACCEPTED" | "DISMISSED" | "SNOOZED"; dismissedUntil: Date | null; snoozedUntil: Date | null }) => [
+      row.suggestionId,
+      {
+        state: row.suggestionState,
+        dismissedUntil: row.dismissedUntil ? row.dismissedUntil.toISOString() : null,
+        snoozedUntil: row.snoozedUntil ? row.snoozedUntil.toISOString() : null,
+      },
+    ])
+  );
+
+  const proactiveGuidance = buildProactiveSprintGuidance({
+    capacitySignals,
+    riskDrivers,
+    staleIssues,
+    persistentBlockersOver2Days,
+    qualityScore: qualitySnapshot?.qualityScore ?? null,
+    unresolvedActions,
+    deliveryRisk,
+    forecastConfidence,
+    velocitySampleDays: observedSampleDays,
+    openActionIds: openActionStates.map((state) => state.actionId),
+    projectRole: options.projectRole,
+    suggestionStateById,
+    proactiveGuidanceEnabled: projectAiSettings?.proactiveGuidanceEnabled ?? false,
+  });
+
   const negativeImpacts = riskDrivers
     .filter((driver) => driver.impact < 0)
     .map((driver) => Math.abs(driver.impact));
@@ -1448,11 +1508,17 @@ const computeDailySprintHealth = async (projectId: string, dateIso: string) => {
     },
     capacitySignals,
     forecastConfidence,
+    proactiveGuidanceEnabled: projectAiSettings?.proactiveGuidanceEnabled ?? false,
+    reallocationSuggestions: proactiveGuidance.reallocationSuggestions,
+    scopeAdjustmentSuggestions: proactiveGuidance.scopeAdjustmentSuggestions,
+    meetingOptimizationSuggestions: proactiveGuidance.meetingOptimizationSuggestions,
+    executiveView: proactiveGuidance.executiveView,
   };
 };
 
 export const fetchSprintHealthReport = async (
-  filters: ReportFilters
+  filters: ReportFilters,
+  options: { userId: string; projectRole: "ADMIN" | "PO" | "DEV" | "QA" | "VIEWER" | null }
 ): Promise<SprintHealthReport> => {
   const trendDates = buildDateRange(
     new Date(new Date(`${filters.to}T00:00:00.000Z`).getTime() - 13 * 24 * 60 * 60 * 1000)
@@ -1462,7 +1528,7 @@ export const fetchSprintHealthReport = async (
   );
 
   const computed = await Promise.all(
-    trendDates.map((dateIso) => computeDailySprintHealth(filters.projectId, dateIso))
+    trendDates.map((dateIso) => computeDailySprintHealth(filters.projectId, dateIso, options))
   );
 
   const smoothedTrend = computed.map((day, index) => {
@@ -1540,6 +1606,11 @@ export const fetchSprintHealthReport = async (
     },
     capacitySignals: latest.capacitySignals,
     forecastConfidence: latest.forecastConfidence,
+    proactiveGuidanceEnabled: latest.proactiveGuidanceEnabled,
+    reallocationSuggestions: latest.reallocationSuggestions,
+    scopeAdjustmentSuggestions: latest.scopeAdjustmentSuggestions,
+    meetingOptimizationSuggestions: latest.meetingOptimizationSuggestions,
+    executiveView: latest.executiveView,
   };
 };
 

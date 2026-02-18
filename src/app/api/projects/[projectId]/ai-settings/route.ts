@@ -18,6 +18,7 @@ type SettingsPayload = {
   model: string | null;
   temperature: number | null;
   projectBrief: string | null;
+  proactiveGuidanceEnabled: boolean;
 };
 
 const parseModel = (value: unknown): string | null => {
@@ -44,6 +45,7 @@ const mapResponse = (settings: SettingsPayload) => ({
   model: settings.model ?? null,
   temperature: settings.temperature,
   projectBrief: settings.projectBrief,
+  proactiveGuidanceEnabled: settings.proactiveGuidanceEnabled,
 });
 
 const parseProjectBrief = (value: unknown): string | null => {
@@ -80,9 +82,10 @@ export async function GET(
     throw error;
   }
 
-  const settings = await prisma.projectAISettings.findUnique({
-    where: { projectId },
-  });
+  const aiSettingsModel = (prisma as any).projectAISettings;
+  const settings = aiSettingsModel?.findUnique
+    ? await aiSettingsModel.findUnique({ where: { projectId } })
+    : null;
 
   return NextResponse.json(
     mapResponse({
@@ -90,6 +93,7 @@ export async function GET(
       model: settings?.model ?? process.env.AI_MODEL_DEFAULT ?? null,
       temperature: settings?.temperature ?? null,
       projectBrief: settings?.projectBrief ?? null,
+      proactiveGuidanceEnabled: settings?.proactiveGuidanceEnabled ?? false,
     })
   );
 }
@@ -121,16 +125,17 @@ export async function PUT(
     throw error;
   }
 
-  const existingSettings = await prisma.projectAISettings.findUnique({
-    where: { projectId },
-  });
+  const aiSettingsModel = (prisma as any).projectAISettings;
+  const existingSettings = aiSettingsModel?.findUnique
+    ? await aiSettingsModel.findUnique({ where: { projectId } })
+    : null;
 
   const body = await request.json();
-  const { backlogGroomingEnabled } = body ?? {};
+  const { backlogGroomingEnabled, proactiveGuidanceEnabled } = body ?? {};
 
-  if (typeof backlogGroomingEnabled !== "boolean") {
+  if (typeof backlogGroomingEnabled !== "boolean" || typeof proactiveGuidanceEnabled !== "boolean") {
     return NextResponse.json(
-      { message: "backlogGroomingEnabled must be provided as a boolean" },
+      { message: "backlogGroomingEnabled and proactiveGuidanceEnabled must be provided as booleans" },
       { status: 400 }
     );
   }
@@ -146,13 +151,18 @@ export async function PUT(
     );
   }
 
-  const updated = await prisma.projectAISettings.upsert({
+  if (!aiSettingsModel?.upsert) {
+    return NextResponse.json({ message: "AI settings persistence is not available" }, { status: 503 });
+  }
+
+  const updated = await aiSettingsModel.upsert({
     where: { projectId },
     update: {
       backlogGroomingEnabled,
       model,
       temperature,
       projectBrief,
+      proactiveGuidanceEnabled,
     },
     create: {
       projectId,
@@ -160,6 +170,7 @@ export async function PUT(
       model,
       temperature,
       projectBrief,
+      proactiveGuidanceEnabled,
     },
   });
 
@@ -169,6 +180,7 @@ export async function PUT(
         model: existingSettings.model,
         temperature: existingSettings.temperature,
         projectBrief: existingSettings.projectBrief,
+        proactiveGuidanceEnabled: existingSettings.proactiveGuidanceEnabled,
       }
     : {};
 
@@ -177,6 +189,7 @@ export async function PUT(
     model: updated.model,
     temperature: updated.temperature,
     projectBrief: updated.projectBrief,
+    proactiveGuidanceEnabled: updated.proactiveGuidanceEnabled,
   };
 
   try {

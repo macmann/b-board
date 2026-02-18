@@ -169,6 +169,17 @@ enum CoordinationEventType {
   ACTION_OVERDUE
   QUESTION_UNANSWERED
   SNOOZE_EXPIRED
+  SUGGESTION_VIEWED
+  SUGGESTION_ACCEPTED
+  SUGGESTION_DISMISSED
+  SUGGESTION_SNOOZED
+}
+
+enum SprintSuggestionState {
+  OPEN
+  ACCEPTED
+  DISMISSED
+  SNOOZED
 }
 
 enum CoordinationSeverity {
@@ -258,6 +269,7 @@ model User {
   facilitatorNotesForTeammate FacilitatorNote[] @relation("FacilitatorNoteTeammate")
   notifications          Notification[]
   coordinationNotificationPreferences CoordinationNotificationPreference[]
+  sprintGuidanceSuggestionStates SprintGuidanceSuggestionState[]
 }
 
 model Workspace {
@@ -326,6 +338,7 @@ model Project {
   coordinationEvents CoordinationEvent[]
   coordinationTriggers CoordinationTrigger[]
   coordinationNotificationPreferences CoordinationNotificationPreference[]
+  sprintGuidanceSuggestionStates SprintGuidanceSuggestionState[]
 
   @@unique([workspaceId, key])
 }
@@ -911,6 +924,7 @@ model ProjectAISettings {
   model                  String?
   temperature            Float?
   projectBrief           String?  @db.Text
+  proactiveGuidanceEnabled Boolean @default(false)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
@@ -959,6 +973,32 @@ model AISuggestion {
 
   @@index([projectId])
   @@index([targetType, targetId])
+}
+
+
+model SprintGuidanceSuggestionState {
+  id            String               @id @default(cuid())
+  projectId     String
+  userId        String
+  sprintId      String?
+  date          DateTime             @db.Date
+  suggestionId  String
+  suggestionType String
+  suggestionState SprintSuggestionState @default(OPEN)
+  dismissedUntil DateTime?           @db.Date
+  snoozedUntil  DateTime?            @db.Date
+  acceptedAt    DateTime?
+  acceptedImpactDelta Json?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sprint  Sprint? @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, userId, date, suggestionId])
+  @@index([projectId, userId, date])
+  @@index([projectId, suggestionType])
 }
 
 model AuditLog {

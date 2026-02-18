@@ -184,6 +184,33 @@ export type SprintVelocitySnapshot = {
   projectionDefinitions: ProjectionDefinitions;
   unweightedProjectionWarning: boolean;
 };
+
+export type SprintSuggestionState = "OPEN" | "ACCEPTED" | "DISMISSED" | "SNOOZED";
+
+export type SprintGuidanceSuggestion = {
+  id: string;
+  type: "REALLOCATION" | "SCOPE_ADJUSTMENT" | "MEETING_OPTIMIZATION";
+  recommendation: string;
+  reason: string;
+  evidence: string[];
+  impactEstimate: string;
+  impactScore: number;
+  impactExplanation: string;
+  formulaBasis: string;
+  confidenceLabel?: "LOW_CONFIDENCE";
+  state: SprintSuggestionState;
+  dismissedUntil: string | null;
+  snoozedUntil: string | null;
+  requiresRole: "PO_OR_ADMIN" | "LEADERSHIP";
+};
+
+export type SprintExecutiveView = {
+  todaysFocus: string[];
+  topRisks: string[];
+  topActions: string[];
+  suggestedStructuralAdjustment: string | null;
+};
+
 export type SprintHealthReport = {
   date: string;
   healthScore: number;
@@ -225,6 +252,11 @@ export type SprintHealthReport = {
   velocitySnapshot: SprintVelocitySnapshot;
   capacitySignals: CapacitySignal[];
   forecastConfidence: "HIGH" | "MEDIUM" | "LOW";
+  proactiveGuidanceEnabled: boolean;
+  reallocationSuggestions: SprintGuidanceSuggestion[];
+  scopeAdjustmentSuggestions: SprintGuidanceSuggestion[];
+  meetingOptimizationSuggestions: SprintGuidanceSuggestion[];
+  executiveView: SprintExecutiveView;
 };
 
 export type BlockerTheme = {
