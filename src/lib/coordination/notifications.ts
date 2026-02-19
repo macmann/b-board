@@ -1,6 +1,10 @@
+import type { CoordinationEventType } from "@prisma/client";
+
 import { prisma } from "../db";
 import { buildNudgeTemplate, type NudgeRuleId } from "./nudgeTemplates";
 import {
+  type CoordinationChannel,
+  type CoordinationNudgeCategory,
   DEFAULT_COORDINATION_PREFERENCES,
   isWithinQuietHours,
   mapRuleToCategory,
@@ -14,7 +18,13 @@ const DISMISSAL_RATE_THRESHOLD = 0.45;
 const QUALITY_LOOKBACK_DAYS = 14;
 const QUALITY_MIN_SAMPLE_SIZE = 10;
 const DISMISSAL_COOLDOWN_HOURS = 24;
-const RECENT_ACTIVITY_EVENT_TYPES = ["SUMMARY_VIEWED", "EVIDENCE_CLICKED", "FEEDBACK_SUBMITTED", "DIGEST_COPIED", "ACTION_INTERACTION"];
+const RECENT_ACTIVITY_EVENT_TYPES: CoordinationEventType[] = [
+  "SUMMARY_VIEWED",
+  "EVIDENCE_CLICKED",
+  "FEEDBACK_SUBMITTED",
+  "DIGEST_COPIED",
+  "ACTION_INTERACTION",
+];
 
 const NOTIFIABLE_RULE_IDS = new Set([
   "blocker-persisted-high-severity",
@@ -58,6 +68,12 @@ const isNudgeRuleId = (ruleId: string): ruleId is NudgeRuleId =>
   );
 
 const isPriorityTrigger = (trigger: TriggerForNotification) => trigger.escalationLevel >= 2 || trigger.severity === "HIGH";
+
+const asCoordinationNudgeCategories = (value: unknown): CoordinationNudgeCategory[] | undefined =>
+  Array.isArray(value) ? value.filter((item): item is CoordinationNudgeCategory => typeof item === "string") : undefined;
+
+const asCoordinationChannels = (value: unknown): CoordinationChannel[] | undefined =>
+  Array.isArray(value) ? value.filter((item): item is CoordinationChannel => item === "IN_APP") : undefined;
 
 const wasUserRecentlyActive = async (trigger: TriggerForNotification) => {
   const since = new Date(trigger.createdAt.getTime() - RECENT_ACTIVITY_SUPPRESSION_MINUTES * 60 * 1000);
@@ -175,12 +191,12 @@ const loadUserProjectPreferences = async (trigger: TriggerForNotification) => {
   if (!record) return DEFAULT_COORDINATION_PREFERENCES;
 
   return normalizePreferencesInput({
-    mutedCategories: (record.mutedCategories as string[] | null) ?? undefined,
+    mutedCategories: asCoordinationNudgeCategories(record.mutedCategories),
     quietHoursStart: record.quietHoursStart,
     quietHoursEnd: record.quietHoursEnd,
     timezoneOffsetMinutes: record.timezoneOffsetMinutes,
     maxNudgesPerDay: record.maxNudgesPerDay,
-    channels: (record.channels as string[] | null) ?? undefined,
+    channels: asCoordinationChannels(record.channels),
   });
 };
 
