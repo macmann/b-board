@@ -435,6 +435,7 @@ model Sprint {
   issues         Issue[]
   testExecutions TestExecution[]
   velocitySnapshots SprintVelocitySnapshot[]
+  sprintGuidanceSuggestionStates SprintGuidanceSuggestionState[]
 }
 
 model Epic {
