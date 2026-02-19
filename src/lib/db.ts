@@ -37,7 +37,7 @@ try {
   prismaInternal = createMockPrismaClient();
 }
 
-const prisma = prismaInternal;
+const prisma = prismaInternal as PrismaClient & Record<string, any>;
 
 export default prisma;
 export { prisma };
