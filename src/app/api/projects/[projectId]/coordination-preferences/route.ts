@@ -1,8 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { getUserFromRequest } from "@/lib/auth";
+import {
+  type CoordinationChannel,
+  type CoordinationNudgeCategory,
+  normalizePreferencesInput,
+  DEFAULT_COORDINATION_PREFERENCES,
+} from "@/lib/coordination/preferences";
 import prisma from "@/lib/db";
-import { normalizePreferencesInput, DEFAULT_COORDINATION_PREFERENCES } from "@/lib/coordination/preferences";
+
+const asCoordinationNudgeCategories = (value: unknown): CoordinationNudgeCategory[] | undefined =>
+  Array.isArray(value) ? (value.filter((item): item is CoordinationNudgeCategory => typeof item === "string") as CoordinationNudgeCategory[]) : undefined;
+
+const asCoordinationChannels = (value: unknown): CoordinationChannel[] | undefined =>
+  Array.isArray(value) ? (value.filter((item): item is CoordinationChannel => item === "IN_APP") as CoordinationChannel[]) : undefined;
 
 const canAccessProject = async (projectId: string, userId: string) => {
   const membership = await prisma.projectMember.findUnique({
@@ -37,12 +48,12 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pro
 
   return NextResponse.json({
     preferences: normalizePreferencesInput({
-      mutedCategories: (existing.mutedCategories as string[] | null) ?? undefined,
+      mutedCategories: asCoordinationNudgeCategories(existing.mutedCategories),
       quietHoursStart: existing.quietHoursStart,
       quietHoursEnd: existing.quietHoursEnd,
       timezoneOffsetMinutes: existing.timezoneOffsetMinutes,
       maxNudgesPerDay: existing.maxNudgesPerDay,
-      channels: (existing.channels as string[] | null) ?? undefined,
+      channels: asCoordinationChannels(existing.channels),
     }),
   });
 }
@@ -83,12 +94,12 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ pro
 
   return NextResponse.json({
     preferences: normalizePreferencesInput({
-      mutedCategories: (record.mutedCategories as string[] | null) ?? undefined,
+      mutedCategories: asCoordinationNudgeCategories(record.mutedCategories),
       quietHoursStart: record.quietHoursStart,
       quietHoursEnd: record.quietHoursEnd,
       timezoneOffsetMinutes: record.timezoneOffsetMinutes,
       maxNudgesPerDay: record.maxNudgesPerDay,
-      channels: (record.channels as string[] | null) ?? undefined,
+      channels: asCoordinationChannels(record.channels),
     }),
   });
 }
