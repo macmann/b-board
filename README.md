@@ -5,7 +5,7 @@ B-Board is a full-stack agile delivery workspace built with Next.js, React, Pris
 ## Table of Contents
 
 - [What B-Board Solves](#what-b-board-solves)
-- [Latest Feature Highlight](#latest-feature-highlight)
+- [Latest Feature Highlights](#latest-feature-highlights)
 - [Core Features](#core-features)
 - [Technology Stack](#technology-stack)
 - [Project Structure](#project-structure)
@@ -31,19 +31,28 @@ B-Board gives software teams one place to:
 - track release readiness through build records, and
 - review delivery performance through dashboards and trends.
 
-## Latest Feature Highlight
+## Latest Feature Highlights
 
-### Release Builds Management (latest)
+### Proactive Sprint Guidance & Forecasting (newest)
 
-B-Board now includes first-class **Release Builds Management**:
+B-Board now includes a richer **Sprint Health + Guidance** experience in reporting:
 
-- Create and manage build records by project, environment, status, and planned/deployed timestamps.
-- Link issues to builds so release content is explicit and auditable.
-- Enforce per-project build key uniqueness and guardrails on destructive actions.
-- Surface sprint-aware build visibility (for builds touching sprint issues).
-- Support role-aware access so admins/PMs can manage builds while contributors/viewers remain read-focused.
+- **Sprint health scoring and risk forecasting** to make delivery risk visible before sprint close.
+- **Predictive delivery and capacity modeling** based on recent execution signals.
+- **Proactive guidance suggestions** with recommendation categories and confidence to support intervention planning.
+- **Capacity balancing signals** to identify overloaded and idle contributors early.
 
-For QA validation scenarios related to this feature, see `QA_CHECKLIST.md`.
+### Release Builds Management
+
+Release Builds Management remains available and includes:
+
+- Build records by project/environment/status with planned and deployed timestamps.
+- Linked issues for auditable release content.
+- Per-project build key uniqueness and destructive-action guardrails.
+- Sprint-aware build visibility for builds touching sprint issues.
+- Role-aware management access for admins/PMs with read-focused contributor/viewer experience.
+
+For QA validation scenarios, see `QA_CHECKLIST.md`.
 
 ## Core Features
 
@@ -52,7 +61,7 @@ For QA validation scenarios related to this feature, see `QA_CHECKLIST.md`.
 - **AI-assisted workflows** for standup drafting and backlog grooming (optional via API keys).
 - **QA toolkit** and sprint-aware quality visibility.
 - **Release build tracking** with issue linkage and environment status.
-- **Reporting suite** for velocity, cycle/delivery insights, blocker trends, and adoption.
+- **Reporting suite** for velocity, cycle/delivery insights, sprint health scoring, risk forecasting, proactive guidance, blocker trends, and adoption.
 - **Research backlog** for discovery and decision tracking.
 - **Team and role management** with access controls and audit-friendly behavior.
 - **Email automation** for invites, standup summaries, and contact workflows.
