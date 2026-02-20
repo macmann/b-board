@@ -5,7 +5,6 @@ import Link from "next/link";
 
 import AIStandupAssistant from "@/components/standup/AIStandupAssistant";
 import { Button } from "@/components/ui/Button";
-import MarkdownRenderer from "@/components/common/MarkdownRenderer";
 import { logClient } from "@/lib/clientLogger";
 import { renderDigest, type DigestType } from "@/lib/standupDigest";
 import { ProjectRole } from "@/lib/roles";
@@ -1852,6 +1851,21 @@ export default function StandupPageClient({
     </div>
   );
 
+  const renderSimpleSummaryList = (title: string, items: string[]) => (
+    <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/80">
+      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
+      {items.length ? (
+        <ul className="space-y-1.5 text-sm text-slate-700 dark:text-slate-200">
+          {items.map((item) => (
+            <li key={`${title}-${item}`} className="leading-6">• {item}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-slate-500 dark:text-slate-400">None reported.</p>
+      )}
+    </div>
+  );
+
   const renderLinkedWork = (entry: StandupEntry) => {
     const hasLinkedWork = entry.issues.length + entry.research.length > 0;
 
@@ -2978,17 +2992,23 @@ export default function StandupPageClient({
             </div>
           )}
 
-          <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">
-                  AI Summary for {formatDisplayDate(summaryDate)}
-                </h3>
+          <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr),320px]">
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">
+                    AI Summary for {formatDisplayDate(summaryDate)}
+                  </h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Organized by immediate actions, open topics, and delivery signals.
+                  </p>
+                </div>
+
                 <div className="text-sm text-slate-700 dark:text-slate-200">
                   {isLoadingSummary ? (
                     <p>Generating summary...</p>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-5">
                       {visibleActions.length ? (
                         <div className="space-y-2">
                           <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">Action Required Today</p>
@@ -3111,13 +3131,16 @@ export default function StandupPageClient({
                           )
                         : null}
 
-                      <MarkdownRenderer
-                        content={[
-                          `**Dependencies requiring PO involvement**\n${(summary?.summary_rendered?.dependencies?.length ?? 0) ? summary?.summary_rendered?.dependencies?.map((item) => `- ${item}`).join("\n") : "- None reported"}`,
-                          `**Assignment gaps**\n${(summary?.summary_rendered?.assignment_gaps?.length ?? 0) ? summary?.summary_rendered?.assignment_gaps?.map((item) => `- ${item}`).join("\n") : "- None reported"}`,
-                        ].join("\n\n")}
-                        className="prose prose-sm max-w-none text-slate-700 dark:text-slate-200 dark:prose-invert"
-                      />
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {renderSimpleSummaryList(
+                          "Dependencies requiring PO involvement",
+                          summary?.summary_rendered?.dependencies ?? []
+                        )}
+                        {renderSimpleSummaryList(
+                          "Assignment gaps",
+                          summary?.summary_rendered?.assignment_gaps ?? []
+                        )}
+                      </div>
 
                       {!summary?.summary_rendered && !summary?.summary_json ? (
                         <p>No summary available yet for this date.</p>
@@ -3126,36 +3149,41 @@ export default function StandupPageClient({
                   )}
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <aside className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/70">
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Summary controls</p>
                 {needsSummaryRefresh ? (
                   <span className="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">
-                    Clarifications saved. Regenerate summary to incorporate answers.
+                    Clarifications saved. Regenerate to include them.
                   </span>
                 ) : null}
                 {projectRole === "ADMIN" && summary?.data_quality ? (
-                  <span className="inline-flex items-center rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-200">
+                  <div className="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 dark:border-indigo-900/50 dark:bg-indigo-950/30 dark:text-indigo-200">
                     Data Quality: {summary.data_quality.quality_score}/100
-                  </span>
+                  </div>
                 ) : null}
                 <Button
                   variant="secondary"
                   onClick={() => loadSummary(true)}
                   disabled={isLoadingSummary}
+                  className="w-full"
                 >
                   {isLoadingSummary ? "Generating..." : "Regenerate Summary"}
                 </Button>
-                <select
-                  value={selectedDigestType}
-                  onChange={(event) =>
-                    setSelectedDigestType(event.target.value as "stakeholder" | "team-detailed")
-                  }
-                  className="rounded-md border border-slate-200 bg-white px-2 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
-                  aria-label="Digest type"
-                >
-                  <option value="stakeholder">Copy Stakeholder Digest</option>
-                  <option value="team-detailed">Copy Detailed Digest</option>
-                </select>
-                <label className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-slate-600 dark:text-slate-300">Digest format</label>
+                  <select
+                    value={selectedDigestType}
+                    onChange={(event) =>
+                      setSelectedDigestType(event.target.value as "stakeholder" | "team-detailed")
+                    }
+                    className="w-full rounded-md border border-slate-200 bg-white px-2 py-2 text-sm text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-50"
+                    aria-label="Digest type"
+                  >
+                    <option value="stakeholder">Copy Stakeholder Digest</option>
+                    <option value="team-detailed">Copy Detailed Digest</option>
+                  </select>
+                </div>
+                <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-200">
                   <input
                     type="checkbox"
                     checked={includeDigestReferences}
@@ -3166,10 +3194,11 @@ export default function StandupPageClient({
                 <Button
                   onClick={handleCopySummary}
                   disabled={!digestByType[selectedDigestType] || isLoadingSummary}
+                  className="w-full"
                 >
-                  Copy
+                  Copy digest
                 </Button>
-              </div>
+              </aside>
             </div>
           </div>
 
