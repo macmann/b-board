@@ -1,5 +1,10 @@
 # B-Board
 
+<a href="https://imgbb.com/"><img src="https://i.ibb.co/SXpsspxS/logo.jpg" alt="B-Board logo" border="0"></a>
+
+[![Website](https://img.shields.io/badge/Website-www.bboard.site-0ea5e9?style=for-the-badge&logo=googlechrome&logoColor=white)](https://www.bboard.site)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-B--Board-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/company/bboardx)
+
 B-Board is a full-stack agile delivery workspace built with Next.js, React, Prisma, and PostgreSQL. It combines sprint planning, issue workflows, standups, QA coverage, release build tracking, and reporting into a single application for product and engineering teams.
 
 ## Table of Contents
