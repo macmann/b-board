@@ -74,7 +74,7 @@ function FilterDropdown({ label, badge, children }: FilterDropdownProps) {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-20 mt-2 min-w-[240px] rounded-lg border border-slate-200 bg-white p-3 shadow-lg dark:border-slate-800 dark:bg-slate-900">
+        <div className="absolute left-0 z-40 mt-2 min-w-[240px] rounded-lg border border-slate-200 bg-white p-3 shadow-lg sm:left-auto sm:right-0 dark:border-slate-800 dark:bg-slate-900">
           {children}
         </div>
       )}
@@ -229,7 +229,7 @@ export default function BacklogFilterBar({
   );
 
   return (
-    <div className="flex flex-1 flex-col gap-2">
+    <div className="isolate flex flex-1 flex-col gap-2">
       <div className="flex flex-wrap items-center justify-end gap-2">
         <FilterDropdown label="Status" badge={filterBadge(filters.statuses)}>
           <div className="space-y-2">
