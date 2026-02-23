@@ -71,14 +71,34 @@ export default function AppShell({
 
   return (
     <div className="flex min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-50">
-      <aside className="flex w-64 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+      <input
+        id="workspace-nav-toggle"
+        type="checkbox"
+        defaultChecked
+        className="peer sr-only"
+        aria-label="Toggle workspace navigation"
+      />
+
+      <aside className="flex w-0 flex-col overflow-hidden border-r border-slate-200 bg-white transition-all duration-300 peer-checked:w-64 dark:border-slate-800 dark:bg-slate-950">
         <div className="border-b border-slate-200 px-5 py-5 dark:border-slate-800">
-          <Logo
-            subtitle="Workspace"
-            textClassName="gap-0.5"
-            titleClassName="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400"
-            subtitleClassName="text-sm font-semibold text-slate-900 dark:text-slate-50"
-          />
+          <div className="flex items-center justify-between gap-2">
+            <Logo
+              subtitle="Workspace"
+              textClassName="gap-0.5"
+              titleClassName="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400"
+              subtitleClassName="text-sm font-semibold text-slate-900 dark:text-slate-50"
+            />
+            <label
+              htmlFor="workspace-nav-toggle"
+              className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-slate-50"
+              aria-label="Hide workspace navigation"
+              title="Hide workspace navigation"
+            >
+              <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                <path d="m15 6-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </label>
+          </div>
         </div>
 
         <div className="mt-4 space-y-2">
@@ -133,18 +153,32 @@ export default function AppShell({
         )}
       </aside>
 
-      <div className="flex flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-slate-200 bg-white/80 px-8 py-4 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
-          {showProjectSwitcher ? (
-            <ProjectSwitcher currentProjectId={currentProjectId} />
-          ) : (
-            <div className="flex flex-col">
-              <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                {inProjectContext ? "Current Project" : "Workspace"}
-              </span>
-              <span className="text-lg font-semibold text-slate-900 dark:text-slate-50">{projectLabel}</span>
-            </div>
-          )}
+          <div className="flex min-w-0 items-center gap-3">
+            <label
+              htmlFor="workspace-nav-toggle"
+              className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-md border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-slate-50"
+              aria-label="Toggle workspace navigation"
+              title="Toggle workspace navigation"
+            >
+              <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </label>
+
+            {showProjectSwitcher ? (
+              <ProjectSwitcher currentProjectId={currentProjectId} />
+            ) : (
+              <div className="flex min-w-0 flex-col">
+                <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  {inProjectContext ? "Current Project" : "Workspace"}
+                </span>
+                <span className="truncate text-lg font-semibold text-slate-900 dark:text-slate-50">{projectLabel}</span>
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center gap-3">
             <NotificationBell />
             <ThemeToggle />
